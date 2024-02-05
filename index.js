@@ -1,8 +1,4 @@
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { openai } from "./config/openai.js"
 
 async function main() {
   const chatCompletion = await openai.chat.completions.create(
@@ -12,7 +8,8 @@ async function main() {
     }
   )
 
-  console.log(chatCompletion.choices[0].message)
+  console.log('ai:', chatCompletion.choices[0].message.content)
+  console.log('tokens$', chatCompletion.usage.total_tokens)
 }
 
 main()
