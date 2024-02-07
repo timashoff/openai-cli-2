@@ -13,7 +13,8 @@ async function main() {
     }
 
     if (!userInput || userInput.trim().split(' ').length < 2) {
-      console.error('\u001B[91mthe input must not be empty or shorter than 3 words')
+      chatHistory.length = 0
+      console.error('\u001B[91mthe history context is empty')
       continue
     }
 
@@ -37,7 +38,7 @@ async function main() {
 
       chatHistory.push(['user', userInput], ['assistant', response.join('')])
 
-      if (chatHistory.length > 6) {
+      if (chatHistory.length > 4) {
         chatHistory.splice(0, 2)
       }
 
