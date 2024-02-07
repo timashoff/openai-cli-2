@@ -1,11 +1,19 @@
 import { openai, rl } from "./config/openai.js"
 
+import { exec } from 'node:child_process'
+import util from 'node:util'
+const execution = util.promisify(exec);
+const getBuffer = async () => {
+  const { stdout, stderr } = await execution('pbpaste')
+  return stdout.trim()
+}
+
 async function main() {
 
   const chatHistory = []
 
   while (true) {
-    const userInput = await rl.question('\n\x1b[32m> ')
+    let userInput = await rl.question('\n\x1b[32m> ')
 
     if (userInput.toLowerCase() === 'exit') {
       rl.close()
@@ -16,6 +24,12 @@ async function main() {
       chatHistory.length = 0
       console.error('\u001B[91mthe history context is empty')
       continue
+    }
+
+    if (userInput.includes('$$')) {
+      const buffer = await getBuffer()
+      userInput = userInput.replace('$$', '') + buffer
+      console.log(buffer)
     }
 
     try {
