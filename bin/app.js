@@ -1,4 +1,6 @@
-import { openai, rl } from "./config/openai.js"
+#!/usr/bin/env node
+
+import { openai, rl } from "../config/openai.js"
 
 import { exec } from 'node:child_process'
 import util from 'node:util'

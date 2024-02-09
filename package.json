@@ -3,9 +3,12 @@
   "version": "2.0.0",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "main": "bin/app.js",
+  "bin": {
+    "ai": "bin/app.js"
+  },
   "scripts": {
-    "start": "node --env-file=.env index.js"
+    "start": "node --env-file=.env bin/app.js"
   },
   "author": "",
   "license": "MIT",
