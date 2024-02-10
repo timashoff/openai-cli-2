@@ -15,7 +15,7 @@ async function main() {
 
     if (!userInput || userInput.trim().split(' ').length < 2) {
       chatHistory.length = 0
-      console.error('\u001B[91mthe history context is empty')
+      console.log('\x1b[33mthe history context is empty')
       continue
     }
 
@@ -45,8 +45,6 @@ async function main() {
         process.stdout.write(content || '\n\x1b[0m')
       }
 
-      console.timeEnd('time to respond')
-
       chatHistory.push(['user', userInput], ['assistant', response.join('')])
 
       if (chatHistory.length > 4) {
@@ -54,8 +52,14 @@ async function main() {
       }
 
       console.log(chatHistory.length)
+      // console.log(`\x1b[33m[${chatHistory.length}]\x1b[0m`)
     }
-    catch (error) { console.error(error) }
+    catch (error) {
+      console.log(`\n🤬\x1b[31m${error.message.toLowerCase().trim()} trying to reconect...\x1b[0m`)
+    }
+    finally {
+      console.timeEnd('time to respond')
+    }
   }
 
 }

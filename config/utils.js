@@ -12,6 +12,11 @@ const getBuffer = async () => {
 
 const rl = readline.createInterface({ input, output })
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, })
+const openai = new OpenAI(
+  {
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 2 * 1000,
+  }
+)
 
 export { rl, openai, getBuffer }
