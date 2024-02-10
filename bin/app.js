@@ -1,17 +1,8 @@
 #!/usr/bin/env node
 
-import { openai, rl } from "../config/openai.js"
-
-import { exec } from 'node:child_process'
-import util from 'node:util'
-const execution = util.promisify(exec);
-const getBuffer = async () => {
-  const { stdout, stderr } = await execution('pbpaste')
-  return stdout.trim()
-}
+import { openai, rl, getBuffer } from "../config/utils.js"
 
 async function main() {
-
   const chatHistory = []
 
   while (true) {
@@ -64,4 +55,5 @@ async function main() {
   }
 
 }
+
 main()
