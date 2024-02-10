@@ -6,7 +6,7 @@ async function main() {
   const chatHistory = []
 
   while (true) {
-    let userInput = await rl.question('\n\x1b[32m> ')
+    let userInput = await rl.question('\x1b[32m> ')
 
     if (userInput.toLowerCase() === 'exit') {
       rl.close()
@@ -14,8 +14,10 @@ async function main() {
     }
 
     if (!userInput || userInput.trim().split(' ').length < 2) {
-      chatHistory.length = 0
-      console.log('\x1b[33mthe history context is empty')
+      if (chatHistory.length) {
+        chatHistory.length = 0
+        console.log('\x1b[33mhistory context is empty')
+      }
       continue
     }
 
@@ -47,18 +49,18 @@ async function main() {
 
       chatHistory.push(['user', userInput], ['assistant', response.join('')])
 
-      if (chatHistory.length > 4) {
-        chatHistory.splice(0, 2)
-      }
+      if (chatHistory.length > 4) chatHistory.splice(0, 2)
 
-      console.log(chatHistory.length)
-      // console.log(`\x1b[33m[${chatHistory.length}]\x1b[0m`)
+      console.log(`\x1b[33m${'.'.repeat(chatHistory.length)}\x1b[0m`)
     }
+
     catch (error) {
       console.log(`\n🤬\x1b[31m${error.message.toLowerCase().trim()} trying to reconect...\x1b[0m`)
     }
+
     finally {
       console.timeEnd('time to respond')
+      console.log('')
     }
   }
 
