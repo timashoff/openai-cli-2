@@ -29,18 +29,22 @@ async function main() {
       const messages = chatHistory.map(([role, content]) => ({ role, content, }))
       messages.push({ role: 'user', content: userInput })
 
+      console.time('time to respond')
+
       const stream = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo-0125',
         messages,   // messages: [{ role: 'user', content: userInput }],
         stream: true,
       })
-      console.time('time to respond')
+
       const response = []
+
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content
         if (content) response.push(content)
         process.stdout.write(content || '\n\x1b[0m')
       }
+
       console.timeEnd('time to respond')
 
       chatHistory.push(['user', userInput], ['assistant', response.join('')])
