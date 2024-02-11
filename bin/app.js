@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { openai, rl, getBuffer } from "../config/utils.js"
+import { color } from '../config/consts.js'
 
 async function main() {
   const chatHistory = []
 
   while (true) {
-    let userInput = await rl.question('\x1b[32m> ')
+    let userInput = await rl.question(`${color.green}> `)
 
     if (userInput.toLowerCase() === 'exit') {
       rl.close()
@@ -16,7 +17,7 @@ async function main() {
     if (!userInput || userInput.trim().split(' ').length < 2) {
       if (chatHistory.length) {
         chatHistory.length = 0
-        console.log('\x1b[33mhistory context is empty')
+        console.log(color.yellow + 'history context is empty')
       }
       continue
     }
@@ -44,18 +45,20 @@ async function main() {
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content
         if (content) response.push(content)
-        process.stdout.write(content || '\n\x1b[0m')
+        process.stdout.write(content || `\n${color.reset}`)
       }
 
       chatHistory.push(['user', userInput], ['assistant', response.join('')])
 
       if (chatHistory.length > 4) chatHistory.splice(0, 2)
 
-      console.log(`\x1b[33m${'.'.repeat(chatHistory.length)}\x1b[0m`)
+      const historyDots = '.'.repeat(chatHistory.length)
+      console.log(color.yellow + historyDots + color.reset)
     }
 
     catch (error) {
-      console.log(`\n🤬\x1b[31m${error.message.toLowerCase().trim()} trying to reconect...\x1b[0m`)
+      const errMessage = `${error.message.toLowerCase()} trying to reconect...`
+      console.log('\n🤬' + color.red + errMessage + color.reset)
     }
 
     finally {
