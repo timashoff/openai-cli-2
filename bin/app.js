@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { openai, rl, getBuffer } from "../config/utils.js"
+import { openai, rl, getBuffer, commandExists } from "../config/utils.js"
 import { color } from '../config/consts.js'
+import { INSTRUCTIONS } from '../config/instructions.js'
 
 async function main() {
   const chatHistory = []
@@ -28,15 +29,28 @@ async function main() {
       console.log(buffer)
     }
 
+    function findCommand(str) {
+      const arr = str.trim().split(' ')
+      const command = arr.shift()
+      for (const prop in INSTRUCTIONS) {
+        if (commandExists(command, INSTRUCTIONS[prop].key)) {
+          const restString = arr.join(' ')
+          return `${INSTRUCTIONS[prop].instruction}: ${restString}`
+        }
+      }
+    }
+
+    const input = findCommand(userInput) || userInput
+
     try {
       const messages = chatHistory.map(([role, content]) => ({ role, content, }))
-      messages.push({ role: 'user', content: userInput })
+      messages.push({ role: 'user', content: input })
 
       console.time('time to respond')
 
       const stream = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo-0125',
-        messages,   // messages: [{ role: 'user', content: userInput }],
+        messages,   // messages: [{ role: 'user', content: input }],
         stream: true,
       })
 
@@ -48,7 +62,7 @@ async function main() {
         process.stdout.write(content || `\n${color.reset}`)
       }
 
-      chatHistory.push(['user', userInput], ['assistant', response.join('')])
+      chatHistory.push(['user', input], ['assistant', response.join('')])
 
       if (chatHistory.length > 4) chatHistory.splice(0, 2)
 
