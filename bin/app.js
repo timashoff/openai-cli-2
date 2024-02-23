@@ -16,7 +16,10 @@ async function main() {
     }
 
     if (!userInput || userInput.trim().split(' ').length < 2) {
-      if (chatHistory.length) {
+      if (commandExists(userInput, INSTRUCTIONS.HELP.key)) {
+        help(INSTRUCTIONS)
+      }
+      else if (chatHistory.length) {
         chatHistory.length = 0
         console.log(color.yellow + 'history context is empty')
       }
@@ -29,16 +32,6 @@ async function main() {
       console.log(buffer)
     }
 
-    function findCommand(str) {
-      const arr = str.trim().split(' ')
-      const command = arr.shift()
-      for (const prop in INSTRUCTIONS) {
-        if (commandExists(command, INSTRUCTIONS[prop].key)) {
-          const restString = arr.join(' ')
-          return `${INSTRUCTIONS[prop].instruction}: ${restString}`
-        }
-      }
-    }
 
     const input = findCommand(userInput) || userInput
 
@@ -84,3 +77,32 @@ async function main() {
 }
 
 main()
+
+// helpers
+
+function findCommand(str) {
+  const arr = str.trim().split(' ')
+  const command = arr.shift()
+  for (const prop in INSTRUCTIONS) {
+    if (commandExists(command, INSTRUCTIONS[prop].key)) {
+      const restString = arr.join(' ')
+      return `${INSTRUCTIONS[prop].instruction}: ${restString}`
+    }
+  }
+}
+
+function help(obj) {
+  const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b))
+  const sortedObj = {}
+  sortedKeys.forEach((key) => (sortedObj[key] = obj[key]))
+  console.log('\n')
+  for (let prop in sortedObj) {
+    const command = color.cyan + sortedObj[prop].key.sort().reverse().join('  ') + color.reset
+    console.log(
+      color.reset + prop.toLowerCase().padEnd(20, ' '),
+      command.padEnd(32, ' '),
+      sortedObj[prop].description,
+    )
+  }
+  console.log('')
+}

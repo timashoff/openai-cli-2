@@ -1,16 +1,12 @@
 export const INSTRUCTIONS = {
   EXIT: {
-    key: ['exit'],
+    key: ['exit', 'ex'],
     description: 'close the programm',
   },
   HELP: {
-    key: ['.help', '-help', '.h', '-h', ':h', 'hh', 'хх'],
+    key: ['hh', 'хх', 'help'],
     description: 'print help info',
   },
-  // CLEAR: {
-  //   key: ['.clear', '.сд', ':cl'],
-  //   description: 'clear the input history',
-  // },
   LITERARY: {
     key: ['-l', ':l'],
     description: 'make a sentence more literary',
@@ -21,7 +17,7 @@ export const INSTRUCTIONS = {
     description: 'check the grammar',
     instruction: 'check the grammar of the following and replace all mistakes and typos',
   },
-  TRANSLATE: {
+  RUSSIAN: {
     key: ['rr', 'рр', 'ру'],
     description: 'translate into Russian',
     instruction: 'translate the following sentence into Russian',
