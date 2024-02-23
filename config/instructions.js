@@ -1,16 +1,16 @@
 export const INSTRUCTIONS = {
   EXIT: {
-    key: ['.exit', '.q', '/q', ':q', '.й'],
+    key: ['exit'],
     description: 'close the programm',
   },
   HELP: {
-    key: ['.help', '-help', '.h', '-h', ':h'],
+    key: ['.help', '-help', '.h', '-h', ':h', 'hh', 'хх'],
     description: 'print help info',
   },
-  CLEAR: {
-    key: ['.clear', '.сд', ':cl'],
-    description: 'clear the input history',
-  },
+  // CLEAR: {
+  //   key: ['.clear', '.сд', ':cl'],
+  //   description: 'clear the input history',
+  // },
   LITERARY: {
     key: ['-l', ':l'],
     description: 'make a sentence more literary',
@@ -22,28 +22,28 @@ export const INSTRUCTIONS = {
     instruction: 'check the grammar of the following and replace all mistakes and typos',
   },
   TRANSLATE: {
-    key: ['-t', ':ru', ':t', '::', 'rr'],
+    key: ['rr', 'рр', 'ру'],
     description: 'translate into Russian',
     instruction: 'translate the following sentence into Russian',
   },
   ENGLISH: {
-    key: ['-e', 'ЖЖ', ':e', 'жж', 'ee', 'аа', 'aa'],
+    key: ['ee', 'аа', 'aa'],
     description: 'translate into English',
     instruction: 'translate the following sentence into English',
   },
   CHINESE: {
-    key: ['-ch', ':c', 'cc', 'сс', 'кк'],
+    key: ['cc', 'сс', 'кк'],
     description: 'translate into Chinese',
     instruction:
       'Translate the following sentence into Chinese and provide the Pinyin transcription',
   },
   PINYIN: {
-    key: ['-p', ':p', 'pp'],
+    key: ['пп', 'pp'],
     description: 'show the Pinyin transcription',
     instruction: 'Provide the Pinyin transcription of the following sentence',
   },
   TRANSCRIPTION: {
-    key: ['-tr', ':tr', 'tr'],
+    key: ['tr', 'тр'],
     description: 'show the English transcription',
     instruction:
       'show the English transcription of the following sentence. The response should only contain the transcription',
