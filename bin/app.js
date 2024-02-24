@@ -1,30 +1,29 @@
 #!/usr/bin/env node
 
-import { openai, rl, getBuffer, commandExists } from "../config/utils.js"
-import { color } from '../config/consts.js'
-import { INSTRUCTIONS } from '../config/instructions.js'
+import { openai, rl, getBuffer } from '../config/utils.js'
+import { color } from '../config/color.js'
+import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 async function main() {
   const chatHistory = []
 
   while (true) {
     let userInput = await rl.question(`${color.green}> `)
+    const userInputWords = userInput.trim().split(' ').length
 
-    if (userInput.toLowerCase() === 'exit') {
-      rl.close()
-      return
-    }
-
-    if (!userInput || userInput.trim().split(' ').length < 2) {
-      if (commandExists(userInput, INSTRUCTIONS.HELP.key)) {
-        help(INSTRUCTIONS)
-      }
-      else if (chatHistory.length) {
+    if (!userInput) {
+      if (chatHistory.length) {
         chatHistory.length = 0
         console.log(color.yellow + 'history context is empty')
       }
       continue
     }
+
+    if (userInputWords === 1) {
+      if (isCommand(userInput)) exec(userInput)
+      continue
+    }
+
 
     if (userInput.includes('$$')) {
       const buffer = await getBuffer()
@@ -80,11 +79,28 @@ main()
 
 // helpers
 
+function isCommand(str) {
+  for (const prop in SYS_INSTRUCTIONS) {
+    if (SYS_INSTRUCTIONS[prop].key.includes(str)) return true
+  }
+}
+
+function exec(str) {
+  if (SYS_INSTRUCTIONS.EXIT.key.includes(str)) process.exit()
+  if (SYS_INSTRUCTIONS.HELP.key.includes(str)) {
+    console.log(`\n${color.yellow}system:${color.reset}`)
+    help(SYS_INSTRUCTIONS)
+    console.log(`\n${color.yellow}openai prompts:${color.reset}`)
+    help(INSTRUCTIONS)
+    console.log('')
+  }
+}
+
 function findCommand(str) {
   const arr = str.trim().split(' ')
   const command = arr.shift()
   for (const prop in INSTRUCTIONS) {
-    if (commandExists(command, INSTRUCTIONS[prop].key)) {
+    if (INSTRUCTIONS[prop].key.includes(command)) {
       const restString = arr.join(' ')
       return `${INSTRUCTIONS[prop].instruction}: ${restString}`
     }
@@ -95,7 +111,6 @@ function help(obj) {
   const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b))
   const sortedObj = {}
   sortedKeys.forEach((key) => (sortedObj[key] = obj[key]))
-  console.log('\n')
   for (let prop in sortedObj) {
     const command = color.cyan + sortedObj[prop].key.sort().reverse().join('  ') + color.reset
     console.log(
@@ -104,5 +119,4 @@ function help(obj) {
       sortedObj[prop].description,
     )
   }
-  console.log('')
 }

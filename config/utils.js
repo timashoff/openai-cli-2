@@ -19,6 +19,4 @@ const openai = new OpenAI(
   }
 )
 
-const commandExists = (str, arr) => arr.includes(str)
-
-export { rl, openai, getBuffer, commandExists }
+export { rl, openai, getBuffer }

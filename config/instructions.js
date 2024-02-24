@@ -1,12 +1,4 @@
 export const INSTRUCTIONS = {
-  EXIT: {
-    key: ['exit', 'ex'],
-    description: 'close the programm',
-  },
-  HELP: {
-    key: ['hh', 'хх', 'help'],
-    description: 'print help info',
-  },
   LITERARY: {
     key: ['-l', ':l'],
     description: 'make a sentence more literary',
@@ -58,4 +50,16 @@ export const INSTRUCTIONS = {
 
 
 
+export const SYS_INSTRUCTIONS = {
+  EXIT: {
+    key: ['exit', 'выход'],
+    description: 'close the programm',
+    // signal() { return this.key }
+  },
+  HELP: {
+    key: ['hh', 'хх', 'help'],
+    description: 'print help info',
+    // signal() { return this }
+  },
+}
 
