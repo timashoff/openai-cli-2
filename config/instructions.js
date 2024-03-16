@@ -42,13 +42,21 @@ export const INSTRUCTIONS = {
     instruction: 'correlate the following words with CEFR levels of difficulty',
   },
   SENTENCE: {
-    key: [':s'],
+    key: [':s', 'ss'],
     description: 'create a simple sentence',
     instruction: 'create a simple sentence using the following words',
   },
+  HSK: {
+    key: ['hsk'],
+    description: 'translate into Eng, Ru, Pinyin ',
+    instruction: 'translate the following into English, Russian, and Pinyin',
+  },
+  HSK_SS: {
+    key: ['ssc'],
+    description: 'create a simple sentence in chinese, and translate it',
+    instruction: 'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
+  }
 }
-
-
 
 export const SYS_INSTRUCTIONS = {
   EXIT: {

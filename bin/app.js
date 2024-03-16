@@ -4,6 +4,8 @@ import { openai, rl, getBuffer } from '../config/utils.js'
 import { color } from '../config/color.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
+const historyLength = 10
+
 async function main() {
   const chatHistory = []
 
@@ -56,7 +58,7 @@ async function main() {
 
       chatHistory.push(['user', input], ['assistant', response.join('')])
 
-      if (chatHistory.length > 4) chatHistory.splice(0, 2)
+      if (chatHistory.length > historyLength) chatHistory.splice(0, 2)
 
       const historyDots = '.'.repeat(chatHistory.length)
       console.log(color.yellow + historyDots + color.reset)
