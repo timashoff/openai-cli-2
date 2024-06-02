@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI from 'openai'
 import readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { exec } from 'node:child_process'
@@ -6,7 +6,7 @@ import util from 'node:util'
 
 const execution = util.promisify(exec)
 const getBuffer = async () => {
-  const { stdout, stderr } = await execution('pbpaste')
+  const { stdout, _stderr } = await execution('pbpaste')
   return stdout.trim()
 }
 
