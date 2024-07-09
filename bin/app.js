@@ -4,6 +4,8 @@ import { openai, rl, getBuffer } from '../config/utils.js'
 import { color } from '../config/color.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
+process.title = 'OpenAI_cli-tool'
+
 const historyLength = 10
 
 async function main() {
@@ -26,25 +28,23 @@ async function main() {
       continue
     }
 
-
     if (userInput.includes('$$')) {
       const buffer = await getBuffer()
       userInput = userInput.replace('$$', '') + buffer
       console.log(buffer)
     }
 
-
     const input = findCommand(userInput) || userInput
 
     try {
-      const messages = chatHistory.map(([role, content]) => ({ role, content, }))
+      const messages = chatHistory.map(([role, content]) => ({ role, content }))
       messages.push({ role: 'user', content: input })
 
       console.time('time to respond')
 
       const stream = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo-0125',
-        messages,   // messages: [{ role: 'user', content: input }],
+        messages, // messages: [{ role: 'user', content: input }],
         stream: true,
       })
 
@@ -62,19 +62,14 @@ async function main() {
 
       const historyDots = '.'.repeat(chatHistory.length)
       console.log(color.yellow + historyDots + color.reset)
-    }
-
-    catch (error) {
+    } catch (error) {
       const errMessage = `${error.message.toLowerCase()} trying to reconect...`
       console.log('\n🤬' + color.red + errMessage + color.reset)
-    }
-
-    finally {
+    } finally {
       console.timeEnd('time to respond')
       console.log('')
     }
   }
-
 }
 
 main()
@@ -118,7 +113,7 @@ function help(obj) {
     console.log(
       color.reset + prop.toLowerCase().padEnd(20, ' '),
       command.padEnd(32, ' '),
-      sortedObj[prop].description,
+      sortedObj[prop].description
     )
   }
 }
