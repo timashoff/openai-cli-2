@@ -11,6 +11,12 @@ const historyLength = 10
 async function main() {
   const chatHistory = []
 
+  /*TODO Implement model selection
+  const list = await openai.models.list()
+  list.data.forEach((model) => {
+    if (model.id.includes('gpt-4o')) console.log(model.id)
+  })
+  */
   while (true) {
     let userInput = await rl.question(`${color.green}> `)
     const userInputWords = userInput.trim().split(' ').length
@@ -43,7 +49,7 @@ async function main() {
       console.time('time to respond')
 
       const stream = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo-0125',
+        model: 'gpt-4o-mini',
         messages, // messages: [{ role: 'user', content: input }],
         stream: true,
       })

@@ -55,7 +55,7 @@ export const INSTRUCTIONS = {
     key: ['ssc'],
     description: 'create a simple sentence in chinese, and translate it',
     instruction: 'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
-  }
+  },
 }
 
 export const SYS_INSTRUCTIONS = {
@@ -67,5 +67,10 @@ export const SYS_INSTRUCTIONS = {
     key: ['hh', 'хх', 'help'],
     description: 'print help info',
   },
+  /*
+  MODEL:{
+  key:['model'],
+  description: 'choose the AI model'
+  },
+  */
 }
-
