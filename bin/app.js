@@ -6,18 +6,21 @@ import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 process.title = 'OpenAI_cli-tool'
 
-const historyLength = 10
+let model = 'gpt-4o-mini'
+let flag = true // let isUserInputEnabled = true
+let historyLength = 10
+
+/* TODO: turn history on and off
+let historyON = true // let isHistoryEnabled = true
+if (!historyON) {
+   historyLength = 0
+}
+*/
 
 async function main() {
   const chatHistory = []
 
-  /*TODO Implement model selection
-  const list = await openai.models.list()
-  list.data.forEach((model) => {
-    if (model.id.includes('gpt-4o')) console.log(model.id)
-  })
-  */
-  while (true) {
+  while (flag) {
     let userInput = await rl.question(`${color.green}> `)
     const userInputWords = userInput.trim().split(' ').length
 
@@ -49,7 +52,7 @@ async function main() {
       console.time('time to respond')
 
       const stream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model,
         messages, // messages: [{ role: 'user', content: input }],
         stream: true,
       })
@@ -90,6 +93,48 @@ function isCommand(str) {
 
 function exec(str) {
   if (SYS_INSTRUCTIONS.EXIT.key.includes(str)) process.exit()
+  //TODO Refactor the code below
+  if (SYS_INSTRUCTIONS.MODEL.key.includes(str)) {
+    console.log(color.reset + '\nYour current model is: ' + color.cyan + model + color.reset)
+    console.log('\nYou can choose another model:')
+    flag = false
+    ;(async () => {
+      const list = await openai.models.list()
+      const models = list.data.filter((model) => model.id.includes('gpt'))
+      models.forEach((model, indx) =>
+        console.log(color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset, model.id)
+      )
+      flag = true
+      console.log('')
+      const userInput = await rl.question(`${color.green}choose the model number >${color.yellow} `)
+      if (+userInput && +userInput <= models.length) {
+        model = models[+userInput - 1].id
+        console.log(color.reset + '\nNow your model is: ' + color.cyan + model + color.reset + '\n')
+      } else {
+        console.log(
+          color.reset +
+            '\nInput was not correct! You should use only numbers from ' +
+            color.yellow +
+            '1 ' +
+            color.reset +
+            'to ' +
+            color.yellow +
+            models.length +
+            color.reset
+        )
+        console.log(color.reset + 'Your model stays at: ' + color.cyan + model + color.reset + '\n')
+      }
+      main()
+      return
+    })()
+  }
+  //TODO Refactor the code above
+
+  /*TODO: turn history on and off
+  if (SYS_INSTRUCTIONS.HISTORY.key.includes(str)) {
+  //
+  }
+  */
   if (SYS_INSTRUCTIONS.HELP.key.includes(str)) {
     console.log(`\n${color.yellow}system:${color.reset}`)
     help(SYS_INSTRUCTIONS)

@@ -1,6 +1,6 @@
 {
   "name": "openai-cli",
-  "version": "2.0.0",
+  "version": "2.1.1",
   "description": "",
   "type": "module",
   "main": "bin/app.js",
@@ -8,7 +8,7 @@
     "ai": "bin/app.js"
   },
   "scripts": {
-    "start": "node --env-file=.env bin/app.js"
+    "start": "node --watch ."
   },
   "author": "",
   "license": "MIT",

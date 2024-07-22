@@ -67,10 +67,16 @@ export const SYS_INSTRUCTIONS = {
     key: ['hh', 'хх', 'help'],
     description: 'print help info',
   },
+
+  MODEL: {
+    key: ['model'],
+    description: 'choose the AI model',
+  },
   /*
-  MODEL:{
-  key:['model'],
-  description: 'choose the AI model'
+  TODO: Turn history on and off
+  HISTORY:{
+  key:['history'],
+  description: 'turn history on and off'
   },
   */
 }
