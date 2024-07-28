@@ -1,33 +1,37 @@
 #!/usr/bin/env node
 
-import { openai, rl, getBuffer } from '../config/utils.js'
+import { openai, rl, getBuffer, execModel, execHelp } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 process.title = 'OpenAI_cli-tool'
 
 let model = 'gpt-4o-mini'
-let flag = true // let isUserInputEnabled = true
-let historyLength = 10
 
-/* TODO: turn history on and off
-let historyON = true // let isHistoryEnabled = true
-if (!historyON) {
-   historyLength = 0
+const list = await openai.models.list()
+const models = list.data.filter((model) => model.id.includes('gpt'))
+
+let isUserInputEnabled = true
+let contextLength = 10
+
+/* TODO: turn context on and off
+let isContextEnabled = true
+if (!isContextEnabled) {
+   contextLength = 0
 }
 */
 
 async function main() {
-  const chatHistory = []
+  const contextHistory = []
 
-  while (flag) {
+  while (isUserInputEnabled) {
     let userInput = await rl.question(`${color.green}> `)
     const userInputWords = userInput.trim().split(' ').length
 
     if (!userInput) {
-      if (chatHistory.length) {
-        chatHistory.length = 0
-        console.log(color.yellow + 'history context is empty')
+      if (contextHistory.length) {
+        contextHistory.length = 0
+        console.log(color.yellow + 'the context history is empty')
       }
       continue
     }
@@ -46,7 +50,10 @@ async function main() {
     const input = findCommand(userInput) || userInput
 
     try {
-      const messages = chatHistory.map(([role, content]) => ({ role, content }))
+      const messages = contextHistory.map(([role, content]) => ({
+        role,
+        content,
+      }))
       messages.push({ role: 'user', content: input })
 
       console.time('time to respond')
@@ -65,11 +72,11 @@ async function main() {
         process.stdout.write(content || `\n${color.reset}`)
       }
 
-      chatHistory.push(['user', input], ['assistant', response.join('')])
+      contextHistory.push(['user', input], ['assistant', response.join('')])
 
-      if (chatHistory.length > historyLength) chatHistory.splice(0, 2)
+      if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
 
-      const historyDots = '.'.repeat(chatHistory.length)
+      const historyDots = '.'.repeat(contextHistory.length)
       console.log(color.yellow + historyDots + color.reset)
     } catch (error) {
       const errMessage = `${error.message.toLowerCase()} trying to reconect...`
@@ -93,23 +100,45 @@ function isCommand(str) {
 
 function exec(str) {
   if (SYS_INSTRUCTIONS.EXIT.key.includes(str)) process.exit()
-  //TODO Refactor the code below
+  if (SYS_INSTRUCTIONS.HELP.key.includes(str)) execHelp()
+
+  //TODO: implement execModel
   if (SYS_INSTRUCTIONS.MODEL.key.includes(str)) {
-    console.log(color.reset + '\nYour current model is: ' + color.cyan + model + color.reset)
+    console.log(
+      color.reset +
+        '\nYour current model is: ' +
+        color.cyan +
+        model +
+        color.reset
+    )
+
     console.log('\nYou can choose another model:')
-    flag = false
+
+    isUserInputEnabled = false
     ;(async () => {
-      const list = await openai.models.list()
-      const models = list.data.filter((model) => model.id.includes('gpt'))
       models.forEach((model, indx) =>
-        console.log(color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset, model.id)
+        console.log(
+          color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset,
+          model.id
+        )
       )
-      flag = true
+      isUserInputEnabled = true
       console.log('')
-      const userInput = await rl.question(`${color.green}choose the model number >${color.yellow} `)
+
+      const userInput = await rl.question(
+        `${color.green}choose the model number >${color.yellow} `
+      )
+
       if (+userInput && +userInput <= models.length) {
         model = models[+userInput - 1].id
-        console.log(color.reset + '\nNow your model is: ' + color.cyan + model + color.reset + '\n')
+        console.log(
+          color.reset +
+            '\nNow your model is: ' +
+            color.cyan +
+            model +
+            color.reset +
+            '\n'
+        )
       } else {
         console.log(
           color.reset +
@@ -122,26 +151,23 @@ function exec(str) {
             models.length +
             color.reset
         )
-        console.log(color.reset + 'Your model stays at: ' + color.cyan + model + color.reset + '\n')
+        console.log(
+          color.reset +
+            'Your model stays at: ' +
+            color.cyan +
+            model +
+            color.reset +
+            '\n'
+        )
       }
       main()
       return
     })()
   }
-  //TODO Refactor the code above
 
-  /*TODO: turn history on and off
-  if (SYS_INSTRUCTIONS.HISTORY.key.includes(str)) {
-  //
-  }
+  /*TODO: turn context on and off
+  if (SYS_INSTRUCTIONS.HISTORY.key.includes(str)) execContext(str)
   */
-  if (SYS_INSTRUCTIONS.HELP.key.includes(str)) {
-    console.log(`\n${color.yellow}system:${color.reset}`)
-    help(SYS_INSTRUCTIONS)
-    console.log(`\n${color.yellow}openai prompts:${color.reset}`)
-    help(INSTRUCTIONS)
-    console.log('')
-  }
 }
 
 function findCommand(str) {
@@ -152,19 +178,5 @@ function findCommand(str) {
       const restString = arr.join(' ')
       return `${INSTRUCTIONS[prop].instruction}: ${restString}`
     }
-  }
-}
-
-function help(obj) {
-  const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b))
-  const sortedObj = {}
-  sortedKeys.forEach((key) => (sortedObj[key] = obj[key]))
-  for (let prop in sortedObj) {
-    const command = color.cyan + sortedObj[prop].key.sort().reverse().join('  ') + color.reset
-    console.log(
-      color.reset + prop.toLowerCase().padEnd(20, ' '),
-      command.padEnd(32, ' '),
-      sortedObj[prop].description
-    )
   }
 }

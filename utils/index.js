@@ -1,8 +1,12 @@
 import OpenAI from 'openai'
+
 import readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { exec } from 'node:child_process'
 import util from 'node:util'
+
+import { execModel } from './model/execModel.js'
+import { execHelp } from './help/execHelp.js'
 
 const execution = util.promisify(exec)
 //change the variable name getBuffer to clipboard
@@ -18,4 +22,4 @@ const openai = new OpenAI({
   timeout: 2 * 1000,
 })
 
-export { rl, openai, getBuffer }
+export { rl, openai, getBuffer, execModel, execHelp }

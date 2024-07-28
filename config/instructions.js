@@ -2,12 +2,14 @@ export const INSTRUCTIONS = {
   LITERARY: {
     key: ['-l', ':l'],
     description: 'make a sentence more literary',
-    instruction: 'Rewrite the following sentence in a modern literary style and simplify it',
+    instruction:
+      'Rewrite the following sentence in a modern literary style and simplify it',
   },
   GRAMMAR: {
     key: ['-g', ':g', 'gg'],
     description: 'check the grammar',
-    instruction: 'check the grammar of the following and replace all mistakes and typos',
+    instruction:
+      'check the grammar of the following and replace all mistakes and typos',
   },
   RUSSIAN: {
     key: ['rr', 'рр', 'ру'],
@@ -54,7 +56,8 @@ export const INSTRUCTIONS = {
   HSK_SS: {
     key: ['ssc'],
     description: 'create a simple sentence in chinese, and translate it',
-    instruction: 'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
+    instruction:
+      'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
   },
 }
 
@@ -73,10 +76,10 @@ export const SYS_INSTRUCTIONS = {
     description: 'choose the AI model',
   },
   /*
-  TODO: Turn history on and off
-  HISTORY:{
-  key:['history'],
-  description: 'turn history on and off'
+  TODO: Turn context on and off
+  CONTEXT:{
+  key:['context'],
+  description: 'turn context on and off'
   },
   */
 }
