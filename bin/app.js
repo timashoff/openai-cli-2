@@ -9,7 +9,7 @@ process.title = 'OpenAI_cli-tool'
 let model = 'gpt-4o-mini'
 
 const list = await openai.models.list()
-const models = list.data.filter((model) => model.id.includes('gpt'))
+const models = list.data.filter((model) => model.id.includes('mini'))
 
 let isUserInputEnabled = true
 let contextLength = 10
@@ -32,7 +32,7 @@ async function main() {
       if (contextHistory.length) {
         contextHistory.length = 0
         console.log(color.yellow + 'the context history is empty')
-      }
+      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 400) //clear the CLI window
       continue
     }
 
@@ -109,7 +109,7 @@ function exec(str) {
         '\nYour current model is: ' +
         color.cyan +
         model +
-        color.reset
+        color.reset,
     )
 
     console.log('\nYou can choose another model:')
@@ -119,14 +119,14 @@ function exec(str) {
       models.forEach((model, indx) =>
         console.log(
           color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset,
-          model.id
-        )
+          model.id,
+        ),
       )
       isUserInputEnabled = true
       console.log('')
 
       const userInput = await rl.question(
-        `${color.green}choose the model number >${color.yellow} `
+        `${color.green}choose the model number >${color.yellow} `,
       )
 
       if (+userInput && +userInput <= models.length) {
@@ -137,7 +137,7 @@ function exec(str) {
             color.cyan +
             model +
             color.reset +
-            '\n'
+            '\n',
         )
       } else {
         console.log(
@@ -149,7 +149,7 @@ function exec(str) {
             'to ' +
             color.yellow +
             models.length +
-            color.reset
+            color.reset,
         )
         console.log(
           color.reset +
@@ -157,7 +157,7 @@ function exec(str) {
             color.cyan +
             model +
             color.reset +
-            '\n'
+            '\n',
         )
       }
       main()
