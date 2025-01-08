@@ -26,17 +26,18 @@ async function main() {
 
   while (isUserInputEnabled) {
     let userInput = await rl.question(`${color.green}> `)
-    const userInputWords = userInput.trim().split(' ').length
+    userInput = userInput.trim()
+    const userInputWords = userInput.split(' ')
 
     if (!userInput) {
       if (contextHistory.length) {
         contextHistory.length = 0
         console.log(color.yellow + 'the context history is empty')
-      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 400) //clear the CLI window
+      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 100) //clear the CLI window
       continue
     }
 
-    if (userInputWords === 1) {
+    if (userInputWords.length === 1) {
       if (isCommand(userInput)) exec(userInput)
       continue
     }
