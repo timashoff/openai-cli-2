@@ -23,9 +23,10 @@ if (!isContextEnabled) {
 
 async function main() {
   const contextHistory = []
-
+  // const colorInput = model.includes('4o') ? color.green : color.orangeLight
+  const colorInput = model.includes('4o') ? color.green : color.gold
   while (isUserInputEnabled) {
-    let userInput = await rl.question(`${color.green}> `)
+    let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()
     const userInputWords = userInput.split(' ')
 
