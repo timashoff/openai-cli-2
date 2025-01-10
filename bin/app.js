@@ -24,7 +24,7 @@ if (!isContextEnabled) {
 async function main() {
   const contextHistory = []
   // const colorInput = model.includes('4o') ? color.green : color.orangeLight
-  const colorInput = model.includes('4o') ? color.green : color.gold
+  const colorInput = model.includes('4o') ? color.green : color.yellow
   while (isUserInputEnabled) {
     let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()

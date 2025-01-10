@@ -59,6 +59,12 @@ export const INSTRUCTIONS = {
     instruction:
       'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
   },
+  CODE: {
+    key: ['code'],
+    description: 'check the code',
+    instruction:
+      'проверь следующий код на ошибки и, в целом, дай свою оценку о его качестве',
+  },
 }
 
 export const SYS_INSTRUCTIONS = {
