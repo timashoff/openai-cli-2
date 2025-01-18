@@ -6,7 +6,15 @@ export const execHelp = () => {
   help(SYS_INSTRUCTIONS)
   console.log(`\n${color.yellow}openai prompts:${color.reset}`)
   help(INSTRUCTIONS)
-  console.log('')
+  /*
+  TODO:
+  show how to use short commands
+  show how to use $$
+  */
+  console.log(
+    `\nUsage:\nuser> ${color.cyan}gg${color.reset} i will arrive in airport at 8:00 pm`,
+    '\nopenai> Corrected sentence: I will arrive at the airport at 8:00 PM\n',
+  )
 }
 
 //helpers
@@ -20,7 +28,7 @@ function help(obj) {
     console.log(
       color.reset + prop.toLowerCase().padEnd(20, ' '),
       command.padEnd(32, ' '),
-      sortedObj[prop].description
+      sortedObj[prop].description,
     )
   }
 }
