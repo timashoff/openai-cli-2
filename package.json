@@ -1,6 +1,6 @@
 {
   "name": "openai-cli",
-  "version": "2.1.1",
+  "version": "2.3.5",
   "description": "",
   "type": "module",
   "main": "bin/app.js",
@@ -13,6 +13,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "openai": "^4.77.3"
+    "openai": "^4.78.1"
   }
 }

@@ -4,14 +4,47 @@ import { openai, rl, getBuffer, execModel, execHelp } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
-process.title = 'OpenAI_cli-tool'
-
+let models = []
 let model = 'gpt-4o-mini'
 
-const list = await openai.models.list()
-const models = list.data.filter((model) => model.id.includes('mini'))
+let isUserInputEnabled = false
+rl.pause()
+const loading = () => {
+  const loadingText = 'AI models are loading. Please wait... . . . '
+  let index = 0
+  let str = ''
+  const intervalId = setInterval(() => {
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
+    str += loadingText[index]
+    if (models.length) {
+      clearInterval(intervalId)
+      console.log(
+        `\x1b[2J\x1b[0;0H${color.reset}Loading is complete! Type '${color.cyan}help${color.reset}' or '${color.cyan}hh${color.reset}' to see information`,
+      )
+      main()
+      return
+    }
+    if (str.length === loadingText.length) str = ''
+    process.stdout.write(`${color.orangeLight}${str}`)
+    index = (index + 1) % loadingText.length
+  }, 50)
+  return
+}
+loading()
+try {
+  const list = await openai.models.list()
+  models = list.data.filter(
+    (model) => model.id.includes('o1') || model.id.includes('mini'),
+  )
+} catch (e) {
+  process.stdout.clearLine()
+  process.stdout.cursorTo(0)
+  console.log(`\n${color.red}Error:${color.reset}`, e.message, '\n')
+  process.exit(0)
+}
+isUserInputEnabled = true
 
-let isUserInputEnabled = true
 let contextLength = 10
 
 /* TODO: turn context on and off
@@ -22,10 +55,11 @@ if (!isContextEnabled) {
 */
 
 async function main() {
+  process.title = model
   const contextHistory = []
-  // const colorInput = model.includes('4o') ? color.green : color.orangeLight
   const colorInput = model.includes('4o') ? color.green : color.yellow
   while (isUserInputEnabled) {
+    rl.resume()
     let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()
     const userInputWords = userInput.split(' ')
@@ -89,8 +123,6 @@ async function main() {
     }
   }
 }
-
-main()
 
 // helpers
 
