@@ -2,6 +2,7 @@
 
 import { openai, rl, getBuffer, execModel, execHelp } from '../utils/index.js'
 import { color } from '../config/color.js'
+import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 let models = []
@@ -21,7 +22,9 @@ const loading = () => {
     if (models.length) {
       clearInterval(intervalId)
       console.log(
-        `\x1b[2J\x1b[0;0H${color.reset}Loading is complete! Type '${color.cyan}help${color.reset}' or '${color.cyan}hh${color.reset}' to see information`,
+        `\x1b[2J\x1b[0;0H${color.reset}Your current model is '${color.yellow}${model}${color.reset}'.
+Type '${color.cyan}help${color.reset}' or '${color.cyan}hh${color.reset}' to see more information, or
+Type '${color.cyan}model${color.reset}' to change your current AI model.\n`,
       )
       main()
       return
@@ -38,7 +41,7 @@ loading()
 try {
   const list = await openai.models.list()
   models = list.data.toSorted()
-  model = models[0].id
+  model = findModel(DEFAULT_MODELS, models)
 } catch (e) {
   process.stdout.clearLine()
   process.stdout.cursorTo(0)
@@ -60,7 +63,7 @@ if (!isContextEnabled) {
 async function main() {
   process.title = model
   const contextHistory = []
-  const colorInput = model.includes('4o') ? color.green : color.yellow
+  const colorInput = model.includes('chat') ? color.green : color.yellow
   while (isUserInputEnabled) {
     rl.resume()
     let userInput = await rl.question(`${colorInput}> `)
@@ -220,4 +223,14 @@ function findCommand(str) {
       return `${INSTRUCTIONS[prop].instruction}: ${restString}`
     }
   }
+}
+
+function findModel(defaultModels, models) {
+  for (const defaultModel of defaultModels) {
+    const currentModel = models.find((model) => model.id.includes(defaultModel))
+    if (currentModel) {
+      return currentModel.id
+    }
+  }
+  return models[0].id
 }

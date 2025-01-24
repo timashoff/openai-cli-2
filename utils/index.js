@@ -18,9 +18,12 @@ const getBuffer = async () => {
 const rl = readline.createInterface({ input, output })
 
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com/v1',
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  // apiKey: process.env.OPENAI_API_KEY,
+  /*TODO
+  implement a toggle between a few APIs
+  */
+  // baseURL: 'https://api.deepseek.com/v1',
+  // apiKey: process.env.DEEPSEEK_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,
   timeout: 10 * 1000,
 })
 
