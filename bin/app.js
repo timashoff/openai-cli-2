@@ -5,10 +5,11 @@ import { color } from '../config/color.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 let models = []
-let model = 'gpt-4o-mini'
-
+let model = ''
 let isUserInputEnabled = false
+
 rl.pause()
+
 const loading = () => {
   const loadingText = 'AI models are loading. Please wait... . . . '
   let index = 0
@@ -31,18 +32,20 @@ const loading = () => {
   }, 50)
   return
 }
+
 loading()
+
 try {
   const list = await openai.models.list()
-  models = list.data.filter(
-    (model) => model.id.includes('o1') || model.id.includes('mini'),
-  )
+  models = list.data.toSorted()
+  model = models[0].id
 } catch (e) {
   process.stdout.clearLine()
   process.stdout.cursorTo(0)
   console.log(`\n${color.red}Error:${color.reset}`, e.message, '\n')
   process.exit(0)
 }
+
 isUserInputEnabled = true
 
 let contextLength = 10
@@ -104,9 +107,13 @@ async function main() {
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content
-        if (content) response.push(content)
-        process.stdout.write(content || `\n${color.reset}`)
+        if (content) {
+          response.push(content)
+          process.stdout.write(color.reset + content)
+        }
       }
+
+      console.log('')
 
       contextHistory.push(['user', input], ['assistant', response.join('')])
 
