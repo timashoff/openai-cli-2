@@ -119,9 +119,10 @@ async function main() {
       userInput = userInput.replace(/ --force$| -f$/, '').trim()
     }
 
-    const input = findCommand(userInput) || userInput
+    const command = findCommand(userInput)
+    const input = command ? command.fullInstruction : userInput
 
-    if (!forceRequest && cache.has(input)) {
+    if (command && command.isTranslation && !forceRequest && cache.has(input)) {
       console.log(`\n${color.yellow}[from cache]${color.reset}`)
       process.stdout.write(cache.get(input))
       console.log('\n')
@@ -215,15 +216,29 @@ async function exec(str) {
   */
 }
 
+const TRANSLATION_KEYS = [
+  'RUSSIAN',
+  'ENGLISH',
+  'CHINESE',
+  'PINYIN',
+  'TRANSCRIPTION',
+  'HSK',
+  'HSK_SS',
+]
+
 function findCommand(str) {
   const arr = str.trim().split(' ')
-  const command = arr.shift()
+  const commandKey = arr.shift()
   for (const prop in INSTRUCTIONS) {
-    if (INSTRUCTIONS[prop].key.includes(command)) {
+    if (INSTRUCTIONS[prop].key.includes(commandKey)) {
       const restString = arr.join(' ')
-      return `${INSTRUCTIONS[prop].instruction}: ${restString}`
+      return {
+        fullInstruction: `${INSTRUCTIONS[prop].instruction}: ${restString}`,
+        isTranslation: TRANSLATION_KEYS.includes(prop),
+      }
     }
   }
+  return null
 }
 
 function findModel(defaultModels, models) {
