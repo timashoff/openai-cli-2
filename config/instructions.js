@@ -63,7 +63,7 @@ export const INSTRUCTIONS = {
     key: ['code'],
     description: 'check the code',
     instruction:
-      'проверь следующий код на ошибки и, в целом, дай свою оценку о его качестве',
+      'check the following code for errors and, in general, give your assessment of its quality',
   },
 }
 

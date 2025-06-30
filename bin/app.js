@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-import { openai, rl, getBuffer, execModel, execHelp } from '../utils/index.js'
+import { openai, rl, getClipboardContent, execModel, execHelp } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
+import readline from 'node:readline'
 
 let models = []
 let model = ''
-let isUserInputEnabled = false
+let requestController = null
 
 rl.pause()
 
@@ -49,8 +50,6 @@ try {
   process.exit(0)
 }
 
-isUserInputEnabled = true
-
 let contextLength = 10
 
 /* TODO: turn context on and off
@@ -61,10 +60,28 @@ if (!isContextEnabled) {
 */
 
 async function main() {
+  readline.emitKeypressEvents(process.stdin)
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true)
+  }
+
+  process.stdin.on('keypress', (str, key) => {
+    if (key.ctrl && key.name === 'c') {
+      process.exit()
+    }
+    if (key.name === 'escape') {
+      if (requestController) {
+        requestController.abort()
+        requestController = null
+      }
+    }
+  })
+
   process.title = model
   const contextHistory = []
-  const colorInput = model.includes('chat') ? color.green : color.yellow
-  while (isUserInputEnabled) {
+
+  while (true) {
+    const colorInput = model.includes('chat') ? color.green : color.yellow
     rl.resume()
     let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()
@@ -78,18 +95,20 @@ async function main() {
       continue
     }
 
-    if (userInputWords.length === 1) {
-      if (isCommand(userInput)) exec(userInput)
+    if (userInputWords.length === 1 && isCommand(userInput)) {
+      await exec(userInput)
       continue
     }
 
     if (userInput.includes('$$')) {
-      const buffer = await getBuffer()
+      const buffer = await getClipboardContent()
       userInput = userInput.replace('$$', '') + buffer
       console.log(buffer)
     }
 
     const input = findCommand(userInput) || userInput
+
+    requestController = new AbortController()
 
     try {
       const messages = contextHistory.map(([role, content]) => ({
@@ -100,11 +119,14 @@ async function main() {
 
       console.time('time to respond')
 
-      const stream = await openai.chat.completions.create({
-        model,
-        messages, // messages: [{ role: 'user', content: input }],
-        stream: true,
-      })
+      const stream = await openai.chat.completions.create(
+        {
+          model,
+          messages, // messages: [{ role: 'user', content: input }],
+          stream: true,
+        },
+        { signal: requestController.signal },
+      )
 
       const response = []
 
@@ -125,9 +147,14 @@ async function main() {
       const historyDots = '.'.repeat(contextHistory.length)
       console.log(color.yellow + historyDots + color.reset)
     } catch (error) {
-      const errMessage = `${error.message.toLowerCase()} trying to reconect...`
-      console.log('\n🤬' + color.red + errMessage + color.reset)
+      if (error.name === 'AbortError') {
+        console.log(`\n${color.yellow}Request cancelled.${color.reset}`)
+      } else {
+        const errMessage = `${error.message.toLowerCase()} trying to reconect...`
+        console.log('\n🤬' + color.red + errMessage + color.reset)
+      }
     } finally {
+      requestController = null
       console.timeEnd('time to respond')
       console.log('')
     }
@@ -142,71 +169,19 @@ function isCommand(str) {
   }
 }
 
-function exec(str) {
+async function exec(str) {
   if (SYS_INSTRUCTIONS.EXIT.key.includes(str)) process.exit()
-  if (SYS_INSTRUCTIONS.HELP.key.includes(str)) execHelp()
+  if (SYS_INSTRUCTIONS.HELP.key.includes(str)) {
+    execHelp()
+    return
+  }
 
-  //TODO: implement execModel
   if (SYS_INSTRUCTIONS.MODEL.key.includes(str)) {
-    console.log(
-      color.reset +
-        '\nYour current model is: ' +
-        color.cyan +
-        model +
-        color.reset,
-    )
-
-    console.log('\nYou can choose another model:')
-
-    isUserInputEnabled = false
-    ;(async () => {
-      models.forEach((model, indx) =>
-        console.log(
-          color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset,
-          model.id,
-        ),
-      )
-      isUserInputEnabled = true
-      console.log('')
-
-      const userInput = await rl.question(
-        `${color.green}choose the model number >${color.yellow} `,
-      )
-
-      if (+userInput && +userInput <= models.length) {
-        model = models[+userInput - 1].id
-        console.log(
-          color.reset +
-            '\nNow your model is: ' +
-            color.cyan +
-            model +
-            color.reset +
-            '\n',
-        )
-      } else {
-        console.log(
-          color.reset +
-            '\nInput was not correct! You should use only numbers from ' +
-            color.yellow +
-            '1 ' +
-            color.reset +
-            'to ' +
-            color.yellow +
-            models.length +
-            color.reset,
-        )
-        console.log(
-          color.reset +
-            'Your model stays at: ' +
-            color.cyan +
-            model +
-            color.reset +
-            '\n',
-        )
-      }
-      main()
-      return
-    })()
+    rl.pause()
+    const newModel = await execModel(model, models, rl)
+    model = newModel
+    process.title = model
+    return
   }
 
   /*TODO: turn context on and off
