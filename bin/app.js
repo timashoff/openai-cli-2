@@ -1,53 +1,62 @@
 #!/usr/bin/env node
 
-import { openai, rl, getClipboardContent, execModel, execHelp } from '../utils/index.js'
+import { rl, getClipboardContent, execModel, execHelp, initializeApi } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { API_PROVIDERS } from '../config/api_providers.js'
 import readline from 'node:readline'
 
+let openai
 let models = []
 let model = ''
 let requestController = null
+const bufferSign = '$$'
 
-rl.pause()
+async function switchProvider() {
+  console.log('Please select an API provider:')
+  const providerKeys = Object.keys(API_PROVIDERS)
+  providerKeys.forEach((key, index) => {
+    console.log(`[${index + 1}] ${API_PROVIDERS[key].name}`)
+  })
+  console.log('')
 
-const loading = () => {
-  const loadingText = 'AI models are loading. Please wait... . . . '
-  let index = 0
-  let str = ''
-  const intervalId = setInterval(() => {
+  const choice = await rl.question(
+    `${color.green}Choose the provider number >${color.yellow} `,
+  )
+  const selectedProviderKey = providerKeys[+choice - 1]
+
+  if (!selectedProviderKey) {
+    console.log(`${color.red}Invalid selection. No changes made.${color.reset}`)
+    return
+  }
+
+  openai = initializeApi(selectedProviderKey)
+  const providerName = API_PROVIDERS[selectedProviderKey].name
+
+  console.log(`Loading models from ${providerName}...`)
+  try {
+    const list = await openai.models.list()
+    models = list.data.sort((a, b) => a.id.localeCompare(b.id))
+    model = findModel(DEFAULT_MODELS, models)
+    process.title = model
+    console.log(
+      `
+Provider changed to ${color.cyan}${providerName}${color.reset}.`,
+    )
+    console.log(
+      `Current model is now '${color.yellow}${model}${color.reset}'.
+`,
+    )
+  } catch (e) {
     process.stdout.clearLine()
     process.stdout.cursorTo(0)
-    str += loadingText[index]
-    if (models.length) {
-      clearInterval(intervalId)
-      console.log(
-        `\x1b[2J\x1b[0;0H${color.reset}Your current model is '${color.yellow}${model}${color.reset}'.
-Type '${color.cyan}help${color.reset}' or '${color.cyan}hh${color.reset}' to see more information, or
-Type '${color.cyan}model${color.reset}' to change your current AI model.\n`,
-      )
-      main()
-      return
+    console.log(` ${color.red}Error:${color.reset}`, e.message, ' ')
+    // Exit if it's the initial load, otherwise just report error and continue
+    if (!model) {
+      process.exit(0)
     }
-    if (str.length === loadingText.length) str = ''
-    process.stdout.write(`${color.orangeLight}${str}`)
-    index = (index + 1) % loadingText.length
-  }, 50)
-  return
-}
-
-loading()
-
-try {
-  const list = await openai.models.list()
-  models = list.data.toSorted()
-  model = findModel(DEFAULT_MODELS, models)
-} catch (e) {
-  process.stdout.clearLine()
-  process.stdout.cursorTo(0)
-  console.log(`\n${color.red}Error:${color.reset}`, e.message, '\n')
-  process.exit(0)
+  }
 }
 
 let contextLength = 10
@@ -91,7 +100,7 @@ async function main() {
       if (contextHistory.length) {
         contextHistory.length = 0
         console.log(color.yellow + 'the context history is empty')
-      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 100) //clear the CLI window
+      } else setTimeout(() => process.stdout.write(' > '), 100) //clear the CLI window
       continue
     }
 
@@ -100,9 +109,9 @@ async function main() {
       continue
     }
 
-    if (userInput.includes('$$')) {
+    if (userInput.includes(bufferSign)) {
       const buffer = await getClipboardContent()
-      userInput = userInput.replace('$$', '') + buffer
+      userInput = userInput.replace(bufferSign, '') + buffer
       console.log(buffer)
     }
 
@@ -148,10 +157,13 @@ async function main() {
       console.log(color.yellow + historyDots + color.reset)
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log(`\n${color.yellow}Request cancelled.${color.reset}`)
+        console.log(
+          `
+${color.yellow}Request cancelled.${color.reset}`,
+        )
       } else {
         const errMessage = `${error.message.toLowerCase()} trying to reconect...`
-        console.log('\n🤬' + color.red + errMessage + color.reset)
+        console.log(' 🤬' + color.red + errMessage + color.reset)
       }
     } finally {
       requestController = null
@@ -173,6 +185,10 @@ async function exec(str) {
   if (SYS_INSTRUCTIONS.EXIT.key.includes(str)) process.exit()
   if (SYS_INSTRUCTIONS.HELP.key.includes(str)) {
     execHelp()
+    return
+  }
+  if (SYS_INSTRUCTIONS.PROVIDER.key.includes(str)) {
+    await switchProvider()
     return
   }
 
@@ -209,3 +225,10 @@ function findModel(defaultModels, models) {
   }
   return models[0].id
 }
+
+async function start() {
+  await switchProvider()
+  main()
+}
+
+start()

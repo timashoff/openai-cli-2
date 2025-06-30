@@ -1,5 +1,4 @@
 import OpenAI from 'openai'
-
 import readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { exec } from 'node:child_process'
@@ -8,6 +7,8 @@ import { platform } from 'node:os'
 
 import { execModel } from './model/execModel.js'
 import { execHelp } from './help/execHelp.js'
+import { API_PROVIDERS } from '../config/api_providers.js'
+import { color } from '../config/color.js'
 
 const execution = util.promisify(exec)
 
@@ -43,14 +44,27 @@ const getClipboardContent = async () => {
 
 const rl = readline.createInterface({ input, output })
 
-const openai = new OpenAI({
-  /*TODO
-  implement a toggle between a few APIs
-  */
-  // baseURL: 'https://api.deepseek.com/v1',
-  // apiKey: process.env.DEEPSEEK_API_KEY,
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 100 * 1000,
-})
+const initializeApi = (providerKey) => {
+  const provider = API_PROVIDERS[providerKey]
+  if (!provider) {
+    console.log(`${color.red}Error: Invalid provider selected.${color.reset}`)
+    process.exit(1)
+  }
 
-export { rl, openai, getClipboardContent, execModel, execHelp }
+  const apiKey = process.env[provider.apiKeyEnv]
+  if (!apiKey) {
+    console.log(
+      `${color.red}Error: API key for ${provider.name} not found.${color.reset}`,
+    )
+    console.log(`Please set the ${color.yellow}${provider.apiKeyEnv}${color.reset} environment variable.`)
+    process.exit(1)
+  }
+
+  return new OpenAI({
+    baseURL: provider.baseURL,
+    apiKey: apiKey,
+    timeout: 100 * 1000,
+  })
+}
+
+export { rl, initializeApi, getClipboardContent, execModel, execHelp }

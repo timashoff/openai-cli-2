@@ -76,10 +76,13 @@ export const SYS_INSTRUCTIONS = {
     key: ['hh', 'хх', 'help'],
     description: 'print help info',
   },
-
   MODEL: {
     key: ['model'],
     description: 'choose the AI model',
+  },
+  PROVIDER: {
+    key: ['provider'],
+    description: 'change the API provider',
   },
   /*
   TODO: Turn context on and off
