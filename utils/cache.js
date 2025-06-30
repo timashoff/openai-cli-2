@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 
-const CACHE_DIR = path.join(process.cwd(), 'AI_responses')
+const CACHE_DIR = path.join(os.homedir(), 'AI_responses')
 const CACHE_FILE_PATH = path.join(CACHE_DIR, 'cache.json')
 
 let cache = {}

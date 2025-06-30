@@ -132,18 +132,23 @@ async function main() {
     requestController = new AbortController()
 
     try {
-      const messages = contextHistory.map(([role, content]) => ({
-        role,
-        content,
-      }))
-      messages.push({ role: 'user', content: input })
+      let messages = []
+      if (command && command.isTranslation) {
+        messages = [{ role: 'user', content: input }]
+      } else {
+        messages = contextHistory.map(([role, content]) => ({
+          role,
+          content,
+        }))
+        messages.push({ role: 'user', content: input })
+      }
 
       console.time('time to respond')
 
       const stream = await openai.chat.completions.create(
         {
           model,
-          messages, // messages: [{ role: 'user', content: input }],
+          messages,
           stream: true,
         },
         { signal: requestController.signal },
@@ -161,14 +166,15 @@ async function main() {
 
       console.log('')
       const fullResponse = response.join('')
-      await cache.set(input, fullResponse)
 
-      contextHistory.push(['user', input], ['assistant', fullResponse])
-
-      if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
-
-      const historyDots = '.'.repeat(contextHistory.length)
-      console.log(color.yellow + historyDots + color.reset)
+      if (command && command.isTranslation) {
+        await cache.set(input, fullResponse)
+      } else {
+        contextHistory.push(['user', input], ['assistant', fullResponse])
+        if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
+        const historyDots = '.'.repeat(contextHistory.length)
+        console.log(color.yellow + historyDots + color.reset)
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log(`\n${color.yellow}Request cancelled.${color.reset}`)
