@@ -24,8 +24,7 @@ export const INSTRUCTIONS = {
   CHINESE: {
     key: ['cc', 'сс', 'кк'],
     description: 'translate into Chinese',
-    instruction:
-      'Translate the following sentence into Chinese and provide the Pinyin transcription',
+    instruction: 'Translate the following sentence into Chinese',
   },
   PINYIN: {
     key: ['пп', 'pp'],
@@ -51,7 +50,8 @@ export const INSTRUCTIONS = {
   HSK: {
     key: ['hsk'],
     description: 'translate into Eng, Ru, Pinyin ',
-    instruction: 'translate the following into English, Russian, and Pinyin',
+    instruction:
+      'translate the following into English, Russian, and provide the Pinyin transcription',
   },
   HSK_SS: {
     key: ['ssc'],
@@ -63,7 +63,7 @@ export const INSTRUCTIONS = {
     key: ['code'],
     description: 'check the code',
     instruction:
-      'check the following code for errors and, in general, give your assessment of its quality',
+      'check the following code for errors and, in general, give your assessment of its quality. the answer must be in Russian',
   },
 }
 
