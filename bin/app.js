@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { rl, getClipboardContent, execModel, execHelp, initializeApi } from '../utils/index.js'
+import cache from '../utils/cache.js'
 import { color } from '../config/color.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
@@ -11,10 +12,9 @@ let openai
 let models = []
 let model = ''
 let requestController = null
-const bufferSign = '$$'
 
 async function switchProvider() {
-  console.log('Please select an API provider:')
+  console.log('\nPlease select an API provider:')
   const providerKeys = Object.keys(API_PROVIDERS)
   providerKeys.forEach((key, index) => {
     console.log(`[${index + 1}] ${API_PROVIDERS[key].name}`)
@@ -41,17 +41,15 @@ async function switchProvider() {
     model = findModel(DEFAULT_MODELS, models)
     process.title = model
     console.log(
-      `
-Provider changed to ${color.cyan}${providerName}${color.reset}.`,
+      `\nProvider changed to ${color.cyan}${providerName}${color.reset}.`,
     )
     console.log(
-      `Current model is now '${color.yellow}${model}${color.reset}'.
-`,
+      `Current model is now '${color.yellow}${model}${color.reset}'.\n`,
     )
   } catch (e) {
     process.stdout.clearLine()
     process.stdout.cursorTo(0)
-    console.log(` ${color.red}Error:${color.reset}`, e.message, ' ')
+    console.log(`\n${color.red}Error:${color.reset}`, e.message, '\n')
     // Exit if it's the initial load, otherwise just report error and continue
     if (!model) {
       process.exit(0)
@@ -100,7 +98,7 @@ async function main() {
       if (contextHistory.length) {
         contextHistory.length = 0
         console.log(color.yellow + 'the context history is empty')
-      } else setTimeout(() => process.stdout.write(' > '), 100) //clear the CLI window
+      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 100) //clear the CLI window
       continue
     }
 
@@ -109,13 +107,26 @@ async function main() {
       continue
     }
 
-    if (userInput.includes(bufferSign)) {
+    if (userInput.includes('$$')) {
       const buffer = await getClipboardContent()
-      userInput = userInput.replace(bufferSign, '') + buffer
+      userInput = userInput.replace('$$', '') + buffer
       console.log(buffer)
     }
 
+    let forceRequest = false
+    if (userInput.endsWith(' --force') || userInput.endsWith(' -f')) {
+      forceRequest = true
+      userInput = userInput.replace(/ --force$| -f$/, '').trim()
+    }
+
     const input = findCommand(userInput) || userInput
+
+    if (!forceRequest && cache.has(input)) {
+      console.log(`\n${color.yellow}[from cache]${color.reset}`)
+      process.stdout.write(cache.get(input))
+      console.log('\n')
+      continue
+    }
 
     requestController = new AbortController()
 
@@ -148,8 +159,10 @@ async function main() {
       }
 
       console.log('')
+      const fullResponse = response.join('')
+      await cache.set(input, fullResponse)
 
-      contextHistory.push(['user', input], ['assistant', response.join('')])
+      contextHistory.push(['user', input], ['assistant', fullResponse])
 
       if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
 
@@ -157,13 +170,10 @@ async function main() {
       console.log(color.yellow + historyDots + color.reset)
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log(
-          `
-${color.yellow}Request cancelled.${color.reset}`,
-        )
+        console.log(`\n${color.yellow}Request cancelled.${color.reset}`)
       } else {
         const errMessage = `${error.message.toLowerCase()} trying to reconect...`
-        console.log(' 🤬' + color.red + errMessage + color.reset)
+        console.log('\n🤬' + color.red + errMessage + color.reset)
       }
     } finally {
       requestController = null
@@ -227,6 +237,7 @@ function findModel(defaultModels, models) {
 }
 
 async function start() {
+  await cache.initialize()
   await switchProvider()
   main()
 }

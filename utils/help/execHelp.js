@@ -17,7 +17,11 @@ user> ${color.cyan}gg${color.reset} i will arrive in airport at 8:00 pm`,
   )
   console.log(
     `${color.yellow}Clipboard Integration:${color.reset}\nTo include text from your clipboard, add ${color.cyan}'$'${color.reset} to your prompt.`,
-    `\nuser> ${color.cyan}code $${color.reset}\n`,
+    `\nuser> ${color.cyan}code $$${color.reset}\n`,
+  )
+  console.log(
+    `${color.yellow}Force Request:${color.reset}\nTo bypass the cache and force a new request, end your prompt with ${color.cyan}'--force'${color.reset} or ${color.cyan}'-f'${color.reset}.`,
+    `\nuser> ${color.cyan}gg how are you? --force${color.reset}\n`,
   )
 }
 
