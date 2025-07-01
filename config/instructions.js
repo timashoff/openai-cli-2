@@ -6,23 +6,23 @@ export const INSTRUCTIONS = {
       'Rewrite the following sentence in a modern literary style and simplify it',
   },
   GRAMMAR: {
-    key: ['-g', ':g', 'gg'],
+    key: ['gg'],
     description: 'check the grammar',
     instruction:
       'check the grammar of the following and replace all mistakes and typos',
   },
   RUSSIAN: {
-    key: ['rr', 'рр', 'ру'],
+    key: ['rr', 'ru', 'ру'],
     description: 'translate into Russian',
     instruction: 'translate the following sentence into Russian',
   },
   ENGLISH: {
-    key: ['ee', 'аа', 'aa'],
+    key: ['eng', 'аа', 'aa'],
     description: 'translate into English',
     instruction: 'translate the following sentence into English',
   },
   CHINESE: {
-    key: ['cc', 'сс', 'кк'],
+    key: ['cc', 'сс'],
     description: 'translate into Chinese',
     instruction: 'Translate the following sentence into Chinese',
   },
@@ -32,7 +32,7 @@ export const INSTRUCTIONS = {
     instruction: 'Provide the Pinyin transcription of the following sentence',
   },
   TRANSCRIPTION: {
-    key: ['tr', 'тр'],
+    key: ['tr'],
     description: 'show the English transcription',
     instruction:
       'show the English transcription of the following sentence. The response should only contain the transcription',
@@ -43,21 +43,21 @@ export const INSTRUCTIONS = {
     instruction: 'correlate the following words with CEFR levels of difficulty',
   },
   SENTENCE: {
-    key: [':s', 'ss'],
+    key: ['ss'],
     description: 'create a simple sentence',
     instruction: 'create a simple sentence using the following words',
   },
   HSK: {
     key: ['hsk'],
-    description: 'translate into Eng, Ru, Pinyin ',
+    description: 'translate into Eng, Ru, Pinyin',
     instruction:
       'translate the following into English, Russian, and provide the Pinyin transcription',
   },
   HSK_SS: {
-    key: ['ssc'],
+    key: ['hskss'],
     description: 'create a simple sentence in chinese, and translate it',
     instruction:
-      'create a sentence in Chinese and translate it into English, Russian, and Pinyin',
+      'create a sentence in Chinese using the following word or words, and translate it into English, Russian, and Pinyin',
   },
   CODE: {
     key: ['code'],
@@ -65,15 +65,21 @@ export const INSTRUCTIONS = {
     instruction:
       'check the following code for errors and, in general, give your assessment of its quality. the answer must be in Russian',
   },
+  WTF: {
+    key: ['wtf', 'втф'],
+    description: 'explain what this means?',
+    instruction:
+      'Can you explain what this means? the answer must be in Russian',
+  },
 }
 
 export const SYS_INSTRUCTIONS = {
   EXIT: {
-    key: ['exit', 'выход'],
+    key: ['exit', 'q'],
     description: 'close the programm',
   },
   HELP: {
-    key: ['hh', 'хх', 'help'],
+    key: ['help'],
     description: 'print help info',
   },
   MODEL: {
