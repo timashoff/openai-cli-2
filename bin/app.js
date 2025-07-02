@@ -7,6 +7,14 @@ import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import readline from 'node:readline'
+import { marked } from 'marked'
+import TerminalRenderer from 'marked-terminal'
+
+marked.setOptions({
+  renderer: new TerminalRenderer(),
+  gfm: true,
+  breaks: true,
+})
 
 let openai
 let models = []
@@ -66,6 +74,10 @@ if (!isContextEnabled) {
 }
 */
 
+function preProcessMarkdown(text) {
+  return text.replace(/•/g, '*').replace(/\n{3,}/g, '\n\n')
+}
+
 async function main() {
   readline.emitKeypressEvents(process.stdin)
   if (process.stdin.isTTY) {
@@ -107,9 +119,9 @@ async function main() {
       continue
     }
 
-    if (userInput.includes('$$')) {
+    if (userInput.includes('$')) {
       const buffer = await getClipboardContent()
-      userInput = userInput.replace('$$', '') + buffer
+      userInput = userInput.replace('$', '') + buffer
       console.log(buffer)
     }
 
@@ -155,17 +167,25 @@ async function main() {
       )
 
       const response = []
+      const spinner = ['|', '/', '-', '\\']
+      let i = 0
+      const interval = setInterval(() => {
+        process.stdout.write(`\r${color.yellow}${spinner[i++ % spinner.length]}${color.reset}`)
+      }, 100)
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content
         if (content) {
           response.push(content)
-          process.stdout.write(color.reset + content)
         }
       }
 
-      console.log('')
+      clearInterval(interval)
+      process.stdout.write('\r \r')
+
       const fullResponse = response.join('')
+      const processedResponse = preProcessMarkdown(fullResponse)
+      console.log(marked(processedResponse))
 
       if (command && command.isTranslation) {
         await cache.set(input, fullResponse)
