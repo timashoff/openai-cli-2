@@ -195,31 +195,46 @@ async function main() {
       }
 
       clearInterval(interval)
-      process.stdout.write('\r')
-      const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      console.log(`${color.green}✓${color.reset} ${finalTime}s`)
 
-      const fullResponse = response.join('')
-      const processedResponse = preProcessMarkdown(fullResponse)
-      const finalOutput = marked(processedResponse)
-
-      for (let j = 0; j < finalOutput.length; j++) {
-        process.stdout.write(finalOutput[j])
-        await new Promise((resolve) => setTimeout(resolve, 10)) // Adjust delay as needed
-      }
-      // New line after typing
-
-      if (command && command.isTranslation) {
-        await cache.set(input, fullResponse)
+      if (requestController.signal.aborted) {
+        const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+        console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
       } else {
-        contextHistory.push(['user', input], ['assistant', fullResponse])
-        if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
-        const historyDots = '.'.repeat(contextHistory.length)
-        console.log(color.yellow + historyDots + color.reset)
+        process.stdout.clearLine(0)
+        process.stdout.cursorTo(0)
+        const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+        console.log(`${color.green}✓${color.reset} ${finalTime}s`)
+
+        const fullResponse = response.join('')
+        const processedResponse = preProcessMarkdown(fullResponse)
+        const finalOutput = marked(processedResponse)
+
+        for (let j = 0; j < finalOutput.length; j++) {
+          process.stdout.write(finalOutput[j])
+          await new Promise((resolve) => setTimeout(resolve, 10)) // Adjust delay as needed
+        }
+        // New line after typing
+
+        if (command && command.isTranslation) {
+          await cache.set(input, fullResponse)
+        } else {
+          contextHistory.push(['user', input], ['assistant', fullResponse])
+          if (contextHistory.length > contextLength) contextHistory.splice(0, 2)
+          const historyDots = '.'.repeat(contextHistory.length)
+          console.log(color.yellow + historyDots + color.reset)
+        }
       }
     } catch (error) {
+      clearInterval(interval)
+      process.stdout.write('')
+      const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+
       if (error.name === 'AbortError') {
-        console.log(`\n${color.yellow}Request cancelled.${color.reset}`)
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+        console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
       } else {
         const errMessage = `${error.message.toLowerCase()} trying to reconect...`
         console.log('\n🤬' + color.red + errMessage + color.reset)
