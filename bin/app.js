@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 
-import { rl, getClipboardContent, execModel, execHelp, initializeApi } from '../utils/index.js'
+import {
+  rl,
+  getClipboardContent,
+  execModel,
+  execHelp,
+  initializeApi,
+} from '../utils/index.js'
+import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import cache from '../utils/cache.js'
 import { color } from '../config/color.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
@@ -22,22 +29,22 @@ let model = ''
 let requestController = null
 
 async function switchProvider() {
-  console.log('\nPlease select an API provider:')
   const providerKeys = Object.keys(API_PROVIDERS)
-  providerKeys.forEach((key, index) => {
-    console.log(`[${index + 1}] ${API_PROVIDERS[key].name}`)
-  })
-  console.log('')
+  const providerOptions = providerKeys.map((key) => API_PROVIDERS[key].name)
 
-  const choice = await rl.question(
-    `${color.green}Choose the provider number >${color.yellow} `,
+  const selectedIndex = await createInteractiveMenu(
+    'Select an AI provider:',
+    providerOptions,
   )
-  const selectedProviderKey = providerKeys[+choice - 1]
 
-  if (!selectedProviderKey) {
-    console.log(`${color.red}Invalid selection. No changes made.${color.reset}`)
+  if (selectedIndex === -1) {
+    console.log(
+      `${color.red}Выбор отменен. Изменения не внесены.${color.reset}`,
+    )
     return
   }
+
+  const selectedProviderKey = providerKeys[selectedIndex]
 
   openai = initializeApi(selectedProviderKey)
   const providerName = API_PROVIDERS[selectedProviderKey].name
@@ -76,8 +83,12 @@ if (!isContextEnabled) {
 
 function preProcessMarkdown(text) {
   // Remove common emoji ranges that might not render correctly
-  const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
-  return text.replace(/•/g, '*').replace(/\n{3,}/g, '\n\n').replace(emojiRegex, '');
+  const emojiRegex =
+    /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g
+  return text
+    .replace(/•/g, '*')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(emojiRegex, '')
 }
 
 async function main() {
@@ -159,8 +170,6 @@ async function main() {
         messages.push({ role: 'user', content: input })
       }
 
-      
-
       const stream = await openai.chat.completions.create(
         {
           model,
@@ -179,7 +188,9 @@ async function main() {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
-        process.stdout.write(`${color.reset}${spinner[i++ % spinner.length]} ${elapsedTime}s${color.reset}`)
+        process.stdout.write(
+          `${color.reset}${spinner[i++ % spinner.length]} ${elapsedTime}s${color.reset}`,
+        )
       }, 100)
 
       for await (const chunk of stream) {
@@ -199,10 +210,9 @@ async function main() {
 
       for (let j = 0; j < finalOutput.length; j++) {
         process.stdout.write(finalOutput[j])
-        await new Promise(resolve => setTimeout(resolve, 10)) // Adjust delay as needed
+        await new Promise((resolve) => setTimeout(resolve, 10)) // Adjust delay as needed
       }
       // New line after typing
-      
 
       if (command && command.isTranslation) {
         await cache.set(input, fullResponse)
@@ -221,7 +231,7 @@ async function main() {
       }
     } finally {
       requestController = null
-      
+
       process.stdout.write('\x1B[?25h') // Show cursor
     }
   }
@@ -242,15 +252,58 @@ async function exec(str) {
     return
   }
   if (SYS_INSTRUCTIONS.PROVIDER.key.includes(str)) {
-    await switchProvider()
+    try {
+      // Временно отключаем raw mode для интерактивного меню
+      const wasRawMode = process.stdin.isRaw
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(false)
+      }
+
+      await switchProvider()
+
+      // Восстанавливаем raw mode
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(true)
+      }
+    } catch (error) {
+      console.log(
+        `${color.red}Error switching provider:${color.reset}`,
+        error.message,
+      )
+      // Убеждаемся, что raw mode восстановлен
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true)
+      }
+    }
     return
   }
 
   if (SYS_INSTRUCTIONS.MODEL.key.includes(str)) {
-    rl.pause()
-    const newModel = await execModel(model, models, rl)
-    model = newModel
-    process.title = model
+    try {
+      // Временно отключаем raw mode для интерактивного меню
+      const wasRawMode = process.stdin.isRaw
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(false)
+      }
+
+      const newModel = await execModel(model, models, rl)
+      model = newModel
+      process.title = model
+
+      // Восстанавливаем raw mode
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(true)
+      }
+    } catch (error) {
+      console.log(
+        `${color.red}Error selecting model:${color.reset}`,
+        error.message,
+      )
+      // Убеждаемся, что raw mode восстановлен
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true)
+      }
+    }
     return
   }
 

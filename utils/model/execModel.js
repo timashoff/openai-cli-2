@@ -1,59 +1,42 @@
 import { color } from '../../config/color.js'
+import { createInteractiveMenu } from '../interactive_menu.js'
 
 export const execModel = async (currentModel, models, rl) => {
   console.log(
     color.reset +
-      '\nYour current model is: ' +
+      'Текущая модель: ' +
       color.cyan +
       currentModel +
-      color.reset,
+      color.reset + '\n'
   )
 
-  console.log('\nYou can choose another model:')
-
-  models.forEach((model, indx) =>
-    console.log(
-      color.yellow + `[${indx + 1}]`.padStart(4, ' ') + color.reset,
-      model.id,
-    ),
+  const modelOptions = models.map(model => model.id)
+  const currentModelIndex = models.findIndex(model => model.id === currentModel)
+  
+  const selectedIndex = await createInteractiveMenu(
+    `Select model (${models.length} available):`,
+    modelOptions,
+    currentModelIndex >= 0 ? currentModelIndex : 0
   )
-  console.log('')
-
-  const userInput = await rl.question(
-    `${color.green}choose the model number >${color.yellow} `,
-  )
-
-  if (+userInput && +userInput > 0 && +userInput <= models.length) {
-    const newModel = models[+userInput - 1].id
+  
+  if (selectedIndex === -1) {
     console.log(
       color.reset +
-        '\nNow your model is: ' +
-        color.cyan +
-        newModel +
-        color.reset +
-        '\n',
-    )
-    return newModel
-  } else {
-    console.log(
-      color.reset +
-        '\nInput was not correct! You should use only numbers from ' +
-        color.yellow +
-        '1 ' +
-        color.reset +
-        'to ' +
-        color.yellow +
-        models.length +
-        color.reset,
-    )
-    console.log(
-      color.reset +
-        'Your model stays at: ' +
+        'Выбор отменен. Модель остается: ' +
         color.cyan +
         currentModel +
-        color.reset +
-        '\n',
+        color.reset + '\n'
     )
     return currentModel
   }
+  
+  const newModel = models[selectedIndex].id
+  console.log(
+    color.reset +
+      'Your model is now: ' +
+      color.cyan +
+      newModel +
+      color.reset + '\n'
+  )
+  return newModel
 }
