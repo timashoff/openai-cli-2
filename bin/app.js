@@ -201,8 +201,9 @@ async function main() {
       }
 
       clearInterval(interval)
-      process.stdout.write('\r \r')
-      console.log('') // Move to a new line before typing animation
+      process.stdout.write('\r')
+      const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+      console.log(`${color.green}✓${color.reset} ${finalTime}s`)
 
       const fullResponse = response.join('')
       const processedResponse = preProcessMarkdown(fullResponse)
