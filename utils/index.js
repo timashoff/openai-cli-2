@@ -10,6 +10,7 @@ import { execHelp } from './help/execHelp.js'
 import cache from './cache.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { color } from '../config/color.js'
+import { getAllSystemCommands } from './autocomplete.js'
 
 const execution = util.promisify(exec)
 
@@ -43,7 +44,19 @@ const getClipboardContent = async () => {
   }
 }
 
-const rl = readline.createInterface({ input, output })
+// Создаём completer функцию для автокомплита системных команд
+function completer(line) {
+  const commands = getAllSystemCommands()
+  const hits = commands.filter((cmd) => cmd.startsWith(line))
+  // Показываем совпадения или все команды, если совпадений нет
+  return [hits.length ? hits : [], line]
+}
+
+const rl = readline.createInterface({ 
+  input, 
+  output,
+  completer
+})
 
 const initializeApi = (providerKey) => {
   const provider = API_PROVIDERS[providerKey]

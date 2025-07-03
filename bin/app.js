@@ -92,25 +92,6 @@ function preProcessMarkdown(text) {
 }
 
 async function main() {
-  readline.emitKeypressEvents(process.stdin)
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(true)
-  }
-
-  process.stdin.on('keypress', (str, key) => {
-    if (key.ctrl && key.name === 'c') {
-      process.exit()
-    }
-    // If a request is active, only allow 'escape' to abort
-    if (requestController) {
-      if (key.name === 'escape') {
-        requestController.abort()
-        requestController = null
-      }
-      // Note: Removed re-rendering of spinner since startTime and i are not accessible here
-      // The spinner will continue running in the main request loop
-    }
-  })
 
   process.title = model
   const contextHistory = []
@@ -157,6 +138,19 @@ async function main() {
     }
 
     requestController = new AbortController()
+
+    const onKeyPress = (str, key) => {
+      if (key.name === 'escape' && requestController) {
+        requestController.abort()
+      }
+    }
+
+    readline.emitKeypressEvents(process.stdin)
+    const wasRaw = process.stdin.isRaw
+    if (process.stdin.isTTY && !wasRaw) {
+      process.stdin.setRawMode(true)
+    }
+    process.stdin.on('keypress', onKeyPress)
 
     try {
       let messages = []
@@ -231,6 +225,10 @@ async function main() {
         console.log('\n🤬' + color.red + errMessage + color.reset)
       }
     } finally {
+      process.stdin.removeListener('keypress', onKeyPress)
+      if (process.stdin.isTTY && !wasRaw) {
+        process.stdin.setRawMode(false)
+      }
       requestController = null
 
       process.stdout.write('\x1B[?25h') // Show cursor
