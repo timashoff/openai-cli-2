@@ -75,7 +75,9 @@ if (!isContextEnabled) {
 */
 
 function preProcessMarkdown(text) {
-  return text.replace(/•/g, '*').replace(/\n{3,}/g, '\n\n')
+  // Remove common emoji ranges that might not render correctly
+  const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+  return text.replace(/•/g, '*').replace(/\n{3,}/g, '\n\n').replace(emojiRegex, '');
 }
 
 async function main() {
@@ -88,11 +90,14 @@ async function main() {
     if (key.ctrl && key.name === 'c') {
       process.exit()
     }
-    if (key.name === 'escape') {
-      if (requestController) {
+    // If a request is active, only allow 'escape' to abort
+    if (requestController) {
+      if (key.name === 'escape') {
         requestController.abort()
         requestController = null
       }
+      // Note: Removed re-rendering of spinner since startTime and i are not accessible here
+      // The spinner will continue running in the main request loop
     }
   })
 
@@ -101,7 +106,6 @@ async function main() {
 
   while (true) {
     const colorInput = model.includes('chat') ? color.green : color.yellow
-    rl.resume()
     let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()
     const userInputWords = userInput.split(' ')
@@ -119,9 +123,9 @@ async function main() {
       continue
     }
 
-    if (userInput.includes('$')) {
+    if (userInput.includes('$$')) {
       const buffer = await getClipboardContent()
-      userInput = userInput.replace('$', '') + buffer
+      userInput = userInput.replace(/\$\$/g, buffer)
       console.log(buffer)
     }
 
@@ -155,7 +159,7 @@ async function main() {
         messages.push({ role: 'user', content: input })
       }
 
-      console.time('time to respond')
+      
 
       const stream = await openai.chat.completions.create(
         {
@@ -167,10 +171,15 @@ async function main() {
       )
 
       const response = []
-      const spinner = ['|', '/', '-', '\\']
+      const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
       let i = 0
+      let startTime = Date.now()
+      process.stdout.write('\x1B[?25l') // Hide cursor
       const interval = setInterval(() => {
-        process.stdout.write(`\r${color.yellow}${spinner[i++ % spinner.length]}${color.reset}`)
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+        const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
+        process.stdout.write(`${color.reset}${spinner[i++ % spinner.length]} ${elapsedTime}s${color.reset}`)
       }, 100)
 
       for await (const chunk of stream) {
@@ -182,10 +191,18 @@ async function main() {
 
       clearInterval(interval)
       process.stdout.write('\r \r')
+      console.log('') // Move to a new line before typing animation
 
       const fullResponse = response.join('')
       const processedResponse = preProcessMarkdown(fullResponse)
-      console.log(marked(processedResponse))
+      const finalOutput = marked(processedResponse)
+
+      for (let j = 0; j < finalOutput.length; j++) {
+        process.stdout.write(finalOutput[j])
+        await new Promise(resolve => setTimeout(resolve, 10)) // Adjust delay as needed
+      }
+      // New line after typing
+      
 
       if (command && command.isTranslation) {
         await cache.set(input, fullResponse)
@@ -204,8 +221,8 @@ async function main() {
       }
     } finally {
       requestController = null
-      console.timeEnd('time to respond')
-      console.log('')
+      
+      process.stdout.write('\x1B[?25h') // Show cursor
     }
   }
 }

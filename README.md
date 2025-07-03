@@ -211,7 +211,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
     OPENAI_API_KEY="sk-OpenAI_API_Ключ"
 
     # Генерировать здесь: https://platform.deepseek.com/api_keys
-    DEEPSEEK_API_KEY=="sk-OpenAI_API_Ключ"
+    DEEPSEEK_API_KEY="sk-DeepSeek_API_Ключ"
     ```
     **Важно:** Файл `.env` включен в `.gitignore`, поэтому ключи никогда не будут случайно отправлены в Git.
 

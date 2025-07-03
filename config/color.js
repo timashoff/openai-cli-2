@@ -10,4 +10,5 @@ export const color = {
   orangeDark: '\x1b[38;5;204m',
   gold: '\x1b[38;5;220m',
   lightGoldenrod: '\x1b[38;5;222m',
+  grey: '\x1b[90m',
 }

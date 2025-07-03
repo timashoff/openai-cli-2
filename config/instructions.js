@@ -17,7 +17,7 @@ export const INSTRUCTIONS = {
     instruction: 'translate the following sentence into Russian',
   },
   ENGLISH: {
-    key: ['eng', 'аа', 'aa'],
+    key: ['ee', 'аа', 'aa'],
     description: 'translate into English',
     instruction: 'translate the following sentence into English',
   },
