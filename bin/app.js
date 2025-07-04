@@ -26,6 +26,7 @@ marked.setOptions({
 let openai
 let models = []
 let model = ''
+let selectedProviderKey = ''
 let requestController = null
 
 async function switchProvider() {
@@ -44,14 +45,31 @@ async function switchProvider() {
     return
   }
 
-  const selectedProviderKey = providerKeys[selectedIndex]
+  selectedProviderKey = providerKeys[selectedIndex]
 
-  openai = initializeApi(selectedProviderKey)
+  if (!API_PROVIDERS[selectedProviderKey]?.isClaude) {
+    openai = initializeApi(selectedProviderKey)
+  }
   const providerName = API_PROVIDERS[selectedProviderKey].name
 
   console.log(`Loading models from ${providerName}...`)
   try {
-    const list = await openai.models.list()
+    let list
+    if (API_PROVIDERS[selectedProviderKey]?.isClaude) {
+      const response = await fetch('https://api.anthropic.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        }
+      })
+      list = await response.json()
+      if (!response.ok) {
+        throw new Error(list.error.message)
+      }
+    } else {
+      list = await openai.models.list()
+    }
     models = list.data.sort((a, b) => a.id.localeCompare(b.id))
     model = findModel(DEFAULT_MODELS, models)
     process.title = model
@@ -92,6 +110,8 @@ function preProcessMarkdown(text) {
 }
 
 async function main() {
+  let interval
+  let startTime
 
   process.title = model
   const contextHistory = []
@@ -164,21 +184,47 @@ async function main() {
         messages.push({ role: 'user', content: input })
       }
 
-      const stream = await openai.chat.completions.create(
-        {
+      const isClaude = API_PROVIDERS[selectedProviderKey]?.isClaude;
+
+      let stream;
+      if (isClaude) {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
           model,
           messages,
           stream: true,
-        },
-        { signal: requestController.signal },
-      )
+          max_tokens: 4096
+        }),
+        signal: requestController.signal
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error.message)
+      }
+      stream = response.body
+      } else {
+        stream = await openai.chat.completions.create(
+          {
+            model,
+            messages,
+            stream: true,
+          },
+          { signal: requestController.signal },
+        );
+      }
 
       const response = []
       const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
       let i = 0
-      let startTime = Date.now()
+      startTime = Date.now()
       process.stdout.write('\x1B[?25l') // Hide cursor
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
@@ -187,10 +233,34 @@ async function main() {
         )
       }, 100)
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content
-        if (content) {
-          response.push(content)
+      if (isClaude) {
+        const reader = stream.getReader()
+        const decoder = new TextDecoder()
+        let done = false
+        while (!done) {
+          const { value, done: readerDone } = await reader.read()
+          done = readerDone
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              try {
+                const json = JSON.parse(line.substring(5))
+                if (json.delta && json.delta.text) {
+                  response.push(json.delta.text)
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+          }
+        }
+      } else {
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content
+          if (content) {
+            response.push(content)
+          }
         }
       }
 
@@ -227,9 +297,11 @@ async function main() {
         }
       }
     } catch (error) {
-      clearInterval(interval)
+      if (interval) clearInterval(interval)
       process.stdout.write('')
-      const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+      const finalTime = startTime
+        ? ((Date.now() - startTime) / 1000).toFixed(1)
+        : 'N/A'
 
       if (error.name === 'AbortError') {
         process.stdout.clearLine()
