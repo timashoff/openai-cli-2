@@ -1,6 +1,6 @@
 {
   "name": "openai-cli",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "",
   "type": "module",
   "main": "bin/app.js",
