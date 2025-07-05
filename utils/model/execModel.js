@@ -4,7 +4,7 @@ import { createInteractiveMenu } from '../interactive_menu.js'
 export const execModel = async (currentModel, models, rl) => {
   console.log(
     color.reset +
-      'Текущая модель: ' +
+      'Current model: ' +
       color.cyan +
       currentModel +
       color.reset + '\n'
@@ -22,7 +22,7 @@ export const execModel = async (currentModel, models, rl) => {
   if (selectedIndex === -1) {
     console.log(
       color.reset +
-        'Выбор отменен. Модель остается: ' +
+        'Selection cancelled. Model remains: ' +
         color.cyan +
         currentModel +
         color.reset + '\n'

@@ -46,7 +46,7 @@ class ErrorHandler {
 
 export const errorHandler = new ErrorHandler()
 
-// Обработка необработанных ошибок
+// Handling unhandled errors
 process.on('uncaughtException', (error) => {
   console.error(`${color.red}Uncaught Exception:${color.reset}`, error.message)
   errorHandler.handleError(error)

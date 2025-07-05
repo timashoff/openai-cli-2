@@ -1,8 +1,8 @@
 import { SYS_INSTRUCTIONS } from '../config/instructions.js'
 
 /**
- * Получить все системные команды
- * @returns {string[]} массив всех системных команд
+ * Get all system commands
+ * @returns {string[]} array of all system commands
  */
 function getAllSystemCommands() {
   const commands = []
@@ -18,9 +18,9 @@ function getAllSystemCommands() {
 }
 
 /**
- * Найти автокомплит для введенного текста
- * @param {string} input - введенный текст
- * @returns {string|null} автокомплит или null если не найден
+ * Find autocomplete for entered text
+ * @param {string} input - entered text
+ * @returns {string|null} autocomplete or null if not found
  */
 function findAutocomplete(input) {
   if (!input) return null
@@ -28,15 +28,15 @@ function findAutocomplete(input) {
   const commands = getAllSystemCommands()
   const matches = commands.filter(cmd => cmd.startsWith(input))
   
-  // Возвращаем первое совпадение
+  // Return first match
   return matches.length > 0 ? matches[0] : null
 }
 
 /**
- * Получить остаток строки для автокомплита
- * @param {string} input - введенный текст
- * @param {string} completion - полная команда автокомплита
- * @returns {string} остаток строки для добавления
+ * Get remainder of string for autocomplete
+ * @param {string} input - entered text
+ * @param {string} completion - full autocomplete command
+ * @returns {string} remainder of string to add
  */
 function getCompletionSuffix(input, completion) {
   if (!completion || !completion.startsWith(input)) {

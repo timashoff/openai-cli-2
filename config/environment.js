@@ -1,8 +1,8 @@
 import { AppError } from '../utils/error-handler.js'
 
-// Валидация и конфигурация переменных окружения
+// Validation and configuration of environment variables
 const requiredEnvVars = {
-  // API ключи могут быть необязательными при старте, но нужны при использовании
+  // API keys can be optional at startup but needed when using
   OPENAI_API_KEY: { required: false, description: 'OpenAI API key' },
   DEEPSEEK_API_KEY: { required: false, description: 'DeepSeek API key' },
   ANTHROPIC_API_KEY: { required: false, description: 'Anthropic (Claude) API key' }
@@ -22,7 +22,7 @@ class EnvironmentConfig {
   }
 
   validateAndLoad() {
-    // Загружаем обязательные переменные
+    // Load required variables
     for (const [key, config] of Object.entries(requiredEnvVars)) {
       const value = process.env[key]
       if (config.required && !value) {
@@ -35,16 +35,16 @@ class EnvironmentConfig {
       this.config[key] = value
     }
 
-    // Загружаем опциональные переменные с дефолтными значениями
+    // Load optional variables with default values
     for (const [key, config] of Object.entries(optionalEnvVars)) {
       this.config[key] = process.env[key] || config.default
     }
 
-    // Валидация числовых значений
+    // Validation of numeric values
     this.config.CACHE_TTL = this.parseNumber('CACHE_TTL', this.config.CACHE_TTL)
     this.config.MAX_CACHE_SIZE = this.parseNumber('MAX_CACHE_SIZE', this.config.MAX_CACHE_SIZE)
 
-    // Валидация LOG_LEVEL
+    // LOG_LEVEL validation
     const validLogLevels = ['error', 'warn', 'info', 'debug']
     if (!validLogLevels.includes(this.config.LOG_LEVEL)) {
       console.warn(`Invalid LOG_LEVEL: ${this.config.LOG_LEVEL}. Using 'info'`)
@@ -77,7 +77,7 @@ class EnvironmentConfig {
     return this.config.NODE_ENV === 'production'
   }
 
-  // Проверка наличия API ключа для конкретного провайдера
+  // Check availability of API key for specific provider
   hasApiKey(providerKey) {
     const envKey = this.getApiKeyEnvName(providerKey)
     return this.has(envKey) && this.get(envKey)

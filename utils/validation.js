@@ -1,11 +1,11 @@
 import { AppError } from './error-handler.js'
 
 /**
- * Валидирует строку на пустоту и тип
- * @param {any} value - значение для проверки
- * @param {string} fieldName - название поля для ошибки
- * @param {boolean} required - обязательно ли поле
- * @returns {string|null} валидированная строка или null
+ * Validates string for emptiness and type
+ * @param {any} value - value to check
+ * @param {string} fieldName - field name for error
+ * @param {boolean} required - whether field is required
+ * @returns {string|null} validated string or null
  */
 export function validateString(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -28,11 +28,11 @@ export function validateString(value, fieldName = 'field', required = true) {
 }
 
 /**
- * Валидирует число
- * @param {any} value - значение для проверки
- * @param {string} fieldName - название поля для ошибки
- * @param {object} options - опции валидации
- * @returns {number} валидированное число
+ * Validates number
+ * @param {any} value - value to check
+ * @param {string} fieldName - field name for error
+ * @param {object} options - validation options
+ * @returns {number} validated number
  */
 export function validateNumber(value, fieldName = 'field', options = {}) {
   const { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER, required = true } = options
@@ -62,11 +62,11 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
 }
 
 /**
- * Валидирует массив
- * @param {any} value - значение для проверки
- * @param {string} fieldName - название поля для ошибки
- * @param {object} options - опции валидации
- * @returns {Array} валидированный массив
+ * Validates array
+ * @param {any} value - value to check
+ * @param {string} fieldName - field name for error
+ * @param {object} options - validation options
+ * @returns {Array} validated array
  */
 export function validateArray(value, fieldName = 'field', options = {}) {
   const { minLength = 0, maxLength = Number.MAX_SAFE_INTEGER, required = true } = options
@@ -94,11 +94,11 @@ export function validateArray(value, fieldName = 'field', options = {}) {
 }
 
 /**
- * Валидирует объект
- * @param {any} value - значение для проверки
- * @param {string} fieldName - название поля для ошибки
- * @param {boolean} required - обязательно ли поле
- * @returns {object|null} валидированный объект
+ * Validates object
+ * @param {any} value - value to check
+ * @param {string} fieldName - field name for error
+ * @param {boolean} required - whether field is required
+ * @returns {object|null} validated object
  */
 export function validateObject(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -116,12 +116,12 @@ export function validateObject(value, fieldName = 'field', required = true) {
 }
 
 /**
- * Валидирует выбор из списка возможных значений
- * @param {any} value - значение для проверки
- * @param {Array} allowedValues - массив допустимых значений
- * @param {string} fieldName - название поля для ошибки
- * @param {boolean} required - обязательно ли поле
- * @returns {any} валидированное значение
+ * Validates choice from list of possible values
+ * @param {any} value - value to check
+ * @param {Array} allowedValues - array of allowed values
+ * @param {string} fieldName - field name for error
+ * @param {boolean} required - whether field is required
+ * @returns {any} validated value
  */
 export function validateChoice(value, allowedValues, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -143,10 +143,10 @@ export function validateChoice(value, allowedValues, fieldName = 'field', requir
 }
 
 /**
- * Валидирует email адрес
- * @param {string} email - email для проверки
- * @param {boolean} required - обязательно ли поле
- * @returns {string|null} валидированный email
+ * Validates email address
+ * @param {string} email - email to validate
+ * @param {boolean} required - whether field is required
+ * @returns {string|null} validated email
  */
 export function validateEmail(email, required = true) {
   const validatedString = validateString(email, 'email', required)
@@ -164,28 +164,28 @@ export function validateEmail(email, required = true) {
 }
 
 /**
- * Очищает строку от потенциально опасных символов
- * @param {string} input - входная строка
- * @returns {string} очищенная строка
+ * Cleans string from potentially dangerous characters
+ * @param {string} input - input string
+ * @returns {string} cleaned string
  */
 export function sanitizeString(input) {
   if (typeof input !== 'string') {
     return ''
   }
 
-  // Удаляем потенциально опасные символы и управляющие последовательности
+  // Remove potentially dangerous characters and control sequences
   return input
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Управляющие символы
-    .replace(/[<>]/g, '') // HTML теги
+    .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Control characters
+    .replace(/[<>]/g, '') // HTML tags
     .trim()
 }
 
 /**
- * Проверяет размер данных
- * @param {any} data - данные для проверки
- * @param {number} maxSizeBytes - максимальный размер в байтах
- * @param {string} fieldName - название поля
- * @returns {boolean} true если размер допустимый
+ * Checks data size
+ * @param {any} data - data to check
+ * @param {number} maxSizeBytes - maximum size in bytes
+ * @param {string} fieldName - field name
+ * @returns {boolean} true if size is acceptable
  */
 export function validateDataSize(data, maxSizeBytes, fieldName = 'data') {
   const size = JSON.stringify(data).length
@@ -202,10 +202,10 @@ export function validateDataSize(data, maxSizeBytes, fieldName = 'data') {
 }
 
 /**
- * Валидирует параметры функции по схеме
- * @param {object} params - параметры для валидации
- * @param {object} schema - схема валидации
- * @returns {object} валидированные параметры
+ * Validates function parameters by schema
+ * @param {object} params - parameters to validate
+ * @param {object} schema - validation schema
+ * @returns {object} validated parameters
  */
 export function validateParams(params, schema) {
   const validated = {}

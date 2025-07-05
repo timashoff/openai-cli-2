@@ -2,22 +2,22 @@ import { color } from '../config/color.js'
 import readline from 'node:readline'
 
 /**
- * Создает интерактивное меню с возможностью навигации стрелками
- * @param {string} title - Заголовок меню
- * @param {Array} options - Массив опций для выбора
- * @param {number} [initialIndex=0] - Изначально выбранный индекс
- * @returns {Promise<number>} - Индекс выбранной опции
+ * Creates an interactive menu with arrow key navigation
+ * @param {string} title - Menu title
+ * @param {Array} options - Array of options to choose from
+ * @param {number} [initialIndex=0] - Initially selected index
+ * @returns {Promise<number>} - Index of selected option
  */
 export async function createInteractiveMenu(title, options, initialIndex = 0) {
-  const pageSize = 10 // Количество опций для отображения на одной странице
+  const pageSize = 10 // Number of options to display on one page
   return new Promise((resolve) => {
     let selectedIndex = initialIndex
     let currentPage = Math.floor(initialIndex / pageSize)
 
-    // Настройка readline для обработки клавиш
+    // Setup readline for key handling
     readline.emitKeypressEvents(process.stdin)
     const wasRawMode = process.stdin.isRaw
-    // Только устанавливаем raw mode если он еще не установлен
+    // Only set raw mode if it's not already set
     if (process.stdin.isTTY && !wasRawMode) {
       process.stdin.setRawMode(true)
     }
@@ -26,14 +26,14 @@ export async function createInteractiveMenu(title, options, initialIndex = 0) {
       const start = currentPage * pageSize
       const end = Math.min(start + pageSize, options.length)
 
-      // Очистка экрана и возврат курсора
+      // Clear screen and return cursor
       process.stdout.write('\x1b[2J\x1b[H')
 
-      // Вывод заголовка
+      // Output title
       console.log(color.cyan + title + color.reset)
       console.log('')
 
-      // Вывод опций
+      // Output options
       for (let i = start; i < end; i++) {
         const isSelected = i === selectedIndex
         const prefix = isSelected ? color.green + '▶ ' : '  '
@@ -57,41 +57,41 @@ export async function createInteractiveMenu(title, options, initialIndex = 0) {
     const onKeypress = (str, key) => {
       if (key.name === 'up' && selectedIndex > 0) {
         selectedIndex--
-        // Проверяем, нужно ли переключиться на предыдущую страницу
+        // Check if we need to switch to previous page
         if (selectedIndex < currentPage * pageSize) {
           currentPage--
         }
         renderMenu()
       } else if (key.name === 'down' && selectedIndex < options.length - 1) {
         selectedIndex++
-        // Проверяем, нужно ли переключиться на следующую страницу
+        // Check if we need to switch to next page
         if (selectedIndex >= (currentPage + 1) * pageSize) {
           currentPage++
         }
         renderMenu()
       } else if (key.name === 'return') {
-        // Восстановление режима терминала
+        // Restore terminal mode
         process.stdin.removeListener('keypress', onKeypress)
         if (process.stdin.isTTY && !wasRawMode) {
           process.stdin.setRawMode(false)
         }
 
-        // Очистка экрана
+        // Clear screen
         process.stdout.write('\x1b[2J\x1b[H')
         resolve(selectedIndex)
       } else if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
-        // Восстановление режима терминала
+        // Restore terminal mode
         process.stdin.removeListener('keypress', onKeypress)
         if (process.stdin.isTTY && !wasRawMode) {
           process.stdin.setRawMode(false)
         }
 
-        // Очистка экрана
+        // Clear screen
         process.stdout.write('\x1b[2J\x1b[H')
-        resolve(-1) // -1 означает отмену
+        resolve(-1) // -1 means cancelled
       } else if (key.name === 'left' && currentPage > 0) {
         currentPage--
-        // Перемещаем выбранный элемент на новую страницу
+        // Move selected element to new page
         selectedIndex = Math.min(
           selectedIndex,
           (currentPage + 1) * pageSize - 1,
@@ -102,7 +102,7 @@ export async function createInteractiveMenu(title, options, initialIndex = 0) {
         (currentPage + 1) * pageSize < options.length
       ) {
         currentPage++
-        // Перемещаем выбранный элемент на новую страницу
+        // Move selected element to new page
         selectedIndex = Math.max(selectedIndex, currentPage * pageSize)
         renderMenu()
       }
@@ -110,7 +110,7 @@ export async function createInteractiveMenu(title, options, initialIndex = 0) {
 
     process.stdin.on('keypress', onKeypress)
 
-    // Первоначальный рендер меню
+    // Initial menu render
     renderMenu()
   })
 }

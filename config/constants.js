@@ -1,24 +1,24 @@
-// Константы приложения
+// Application constants
 export const APP_CONSTANTS = {
-  // Лимиты
-  MAX_INPUT_LENGTH: 10000, // Максимальная длина пользовательского ввода
-  MAX_CONTEXT_HISTORY: 10, // Максимальное количество сообщений в контексте
-  MAX_CACHE_ENTRIES: 1000, // Максимальное количество записей в кеше
-  MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Максимальный размер одной записи кеша (1MB)
+  // Limits
+  MAX_INPUT_LENGTH: 10000, // Maximum length of user input
+  MAX_CONTEXT_HISTORY: 10, // Maximum number of messages in context
+  MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
+  MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
   
-  // Таймауты
-  API_TIMEOUT: 100000, // 100 секунд для API запросов
-  CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 дней в миллисекундах
+  // Timeouts
+  API_TIMEOUT: 100000, // 100 seconds for API requests
+  CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
   
-  // Размеры спиннера и анимации
-  SPINNER_INTERVAL: 100, // Интервал обновления спиннера в мс
-  TYPING_DELAY: 10, // Задержка между символами при печати ответа
+  // Spinner and animation sizes
+  SPINNER_INTERVAL: 100, // Spinner update interval in ms
+  TYPING_DELAY: 10, // Delay between characters when typing response
   
-  // Пути
+  // Paths
   CACHE_DIR_NAME: 'AI_responses',
   CACHE_FILE_NAME: 'cache.json',
   
-  // Регулярные выражения для валидации
+  // Regular expressions for validation
   REGEX: {
     EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     SAFE_STRING: /^[a-zA-Z0-9\s\-_.,!?]+$/,
@@ -28,26 +28,26 @@ export const APP_CONSTANTS = {
   }
 }
 
-// Константы ошибок
+// Error constants
 export const ERROR_CODES = {
-  // Пользовательские ошибки
+  // User errors
   INVALID_INPUT: 'INVALID_INPUT',
   MISSING_PARAMETER: 'MISSING_PARAMETER',
   INVALID_API_KEY: 'INVALID_API_KEY',
   
-  // Системные ошибки
+  // System errors
   API_TIMEOUT: 'API_TIMEOUT',
   NETWORK_ERROR: 'NETWORK_ERROR',
   CACHE_ERROR: 'CACHE_ERROR',
   FILE_SYSTEM_ERROR: 'FILE_SYSTEM_ERROR',
   
-  // Безопасность
+  // Security
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN'
 }
 
-// Константы логирования
+// Logging constants
 export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
@@ -55,7 +55,7 @@ export const LOG_LEVELS = {
   DEBUG: 'debug'
 }
 
-// Статусы HTTP
+// HTTP statuses
 export const HTTP_STATUS = {
   OK: 200,
   BAD_REQUEST: 400,
@@ -69,21 +69,21 @@ export const HTTP_STATUS = {
   SERVICE_UNAVAILABLE: 503
 }
 
-// Поддерживаемые операционные системы
+// Supported operating systems
 export const SUPPORTED_PLATFORMS = {
   DARWIN: 'darwin',   // macOS
   LINUX: 'linux',
   WIN32: 'win32'      // Windows
 }
 
-// Команды для работы с буфером обмена по платформам
+// Clipboard commands by platform
 export const CLIPBOARD_COMMANDS = {
   [SUPPORTED_PLATFORMS.DARWIN]: 'pbpaste',
   [SUPPORTED_PLATFORMS.LINUX]: 'xclip -selection clipboard -o',
   [SUPPORTED_PLATFORMS.WIN32]: 'powershell.exe -command "Get-Clipboard"'
 }
 
-// Поддерживаемые модели по умолчанию
+// Default supported models
 export const DEFAULT_MODEL_PRIORITIES = [
   'o1-mini',
   'gpt-4o-mini', 
@@ -93,7 +93,7 @@ export const DEFAULT_MODEL_PRIORITIES = [
   'deepseek-chat'
 ]
 
-// Ключи для команд перевода
+// Keys for translation commands
 export const TRANSLATION_COMMAND_KEYS = [
   'RUSSIAN',
   'ENGLISH', 
@@ -104,7 +104,7 @@ export const TRANSLATION_COMMAND_KEYS = [
   'HSK_SS'
 ]
 
-// Цвета для вывода (дублируем для удобства)
+// Colors for output (duplicated for convenience)
 export const COLORS = {
   RESET: '\x1b[0m',
   CYAN: '\x1b[36m',
@@ -115,7 +115,7 @@ export const COLORS = {
   GREY: '\x1b[90m'
 }
 
-// Символы для интерфейса
+// Symbols for interface
 export const UI_SYMBOLS = {
   SPINNER: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
   CHECK: '✓',

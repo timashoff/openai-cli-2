@@ -45,11 +45,11 @@ const getClipboardContent = async () => {
   }
 }
 
-// Создаём completer функцию для автокомплита системных команд
+// Create completer function for system commands autocomplete
 function completer(line) {
   const commands = getAllSystemCommands()
   const hits = commands.filter((cmd) => cmd.startsWith(line))
-  // Показываем совпадения или все команды, если совпадений нет
+  // Show matches or all commands if no matches
   return [hits.length ? hits : [], line]
 }
 

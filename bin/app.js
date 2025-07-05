@@ -41,7 +41,7 @@ async function switchProvider() {
 
   if (selectedIndex === -1) {
     console.log(
-      `${color.red}Выбор отменен. Изменения не внесены.${color.reset}`,
+      `${color.red}Selection cancelled. No changes made.${color.reset}`,
     )
     return
   }
@@ -126,7 +126,7 @@ async function main() {
     if (!userInput) {
       if (contextHistory.length) {
         contextHistory.length = 0
-        console.log(color.yellow + 'the context history is empty')
+        console.log(color.yellow + 'Context history cleared')
       } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 100) //clear the CLI window
       continue
     }
@@ -340,7 +340,7 @@ async function exec(str) {
   }
   if (SYS_INSTRUCTIONS.PROVIDER.key.includes(str)) {
     try {
-      // Временно отключаем raw mode для интерактивного меню
+      // Temporarily disable raw mode for interactive menu
       const wasRawMode = process.stdin.isRaw
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(false)
@@ -348,7 +348,7 @@ async function exec(str) {
 
       await switchProvider()
 
-      // Восстанавливаем raw mode
+      // Restore raw mode
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(true)
       }
@@ -357,7 +357,7 @@ async function exec(str) {
         `${color.red}Error switching provider:${color.reset}`,
         error.message,
       )
-      // Убеждаемся, что raw mode восстановлен
+      // Ensure raw mode is restored
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(true)
       }
@@ -367,7 +367,7 @@ async function exec(str) {
 
   if (SYS_INSTRUCTIONS.MODEL.key.includes(str)) {
     try {
-      // Временно отключаем raw mode для интерактивного меню
+      // Temporarily disable raw mode for interactive menu
       const wasRawMode = process.stdin.isRaw
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(false)
@@ -377,7 +377,7 @@ async function exec(str) {
       model = newModel
       process.title = model
 
-      // Восстанавливаем raw mode
+      // Restore raw mode
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(true)
       }
@@ -386,7 +386,7 @@ async function exec(str) {
         `${color.red}Error selecting model:${color.reset}`,
         error.message,
       )
-      // Убеждаемся, что raw mode восстановлен
+      // Ensure raw mode is restored
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(true)
       }

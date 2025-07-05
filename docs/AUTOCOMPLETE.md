@@ -1,49 +1,49 @@
-# Автокомплит для системных команд
+# Autocomplete for System Commands
 
-Реализован простой автокомплит по нажатию клавиши Tab для системных команд OpenAI CLI.
+A simple autocomplete feature implemented using the Tab key for OpenAI CLI system commands.
 
-## Как использовать
+## How to Use
 
-1. Начните вводить команду, например: `he`
-2. Нажмите клавишу `Tab`
-3. Команда автоматически дополнится до `help`
+1. Start typing a command, for example: `he`
+2. Press the `Tab` key
+3. The command will automatically complete to `help`
 
-## Поддерживаемые команды
+## Supported Commands
 
-Автокомплит работает для всех системных команд, определенных в `SYS_INSTRUCTIONS`:
+Autocomplete works for all system commands defined in `SYS_INSTRUCTIONS`:
 
-- `help` - показать справку
-- `model` - выбрать модель AI
-- `provider` - изменить API провайдера
-- `exit`, `q` - выйти из программы
+- `help` - show help
+- `model` - select AI model
+- `provider` - change API provider
+- `exit`, `q` - exit the program
 
-## Реализация
+## Implementation
 
-Автокомплит реализован в следующих модулях:
+Autocomplete is implemented in the following modules:
 
-- `utils/autocomplete.js` - логика поиска системных команд
-- `utils/index.js` - добавлен completer в существующий readline interface
-- `bin/app.js` - использует стандартный rl.question с автокомплитом
+- `utils/autocomplete.js` - system command search logic
+- `utils/index.js` - completer added to existing readline interface
+- `bin/app.js` - uses standard rl.question with autocomplete
 
-## Особенности
+## Features
 
-- Автокомплит работает только для системных команд, не затрагивая обычные пользовательские запросы
-- Использует встроенный completer функционал Node.js readline
-- Простая интеграция с существующим readline interface
-- Сохраняется совместимость с существующим функционалом
-- Не требует дополнительного управления raw mode или keypress events
-- Полностью совместим со стандартным поведением терминала
+- Autocomplete works only for system commands, not affecting regular user queries
+- Uses built-in completer functionality of Node.js readline
+- Simple integration with existing readline interface
+- Maintains compatibility with existing functionality
+- Doesn't require additional raw mode or keypress events management
+- Fully compatible with standard terminal behavior
 
-## Техническое решение
+## Technical Solution
 
-**Финальное решение использует стандартный completer readline:**
-- Добавлена функция `completer` в `utils/index.js`
-- Completer интегрирован в существующий `readline.createInterface`
-- Убраны все custom обработчики keypress events
-- Используется стандартный `rl.question` без модификаций
+**Final solution uses standard readline completer:**
+- Added `completer` function in `utils/index.js`
+- Completer integrated into existing `readline.createInterface`
+- Removed all custom keypress event handlers
+- Uses standard `rl.question` without modifications
 
-**Преимущества этого подхода:**
-- Нет задваивания символов
-- Нет конфликтов с существующими обработчиками
-- Полная совместимость со стандартным readline
-- Минимальные изменения в существующем коде
+**Advantages of this approach:**
+- No character duplication
+- No conflicts with existing handlers
+- Full compatibility with standard readline
+- Minimal changes in existing code

@@ -63,13 +63,13 @@ export const INSTRUCTIONS = {
     key: ['code'],
     description: 'check the code',
     instruction:
-      'check the following code for errors and, in general, give your assessment of its quality. the answer must be in Russian',
+      'check the following code for errors and, in general, give your assessment of its quality',
   },
   WTF: {
     key: ['wtf', 'втф'],
     description: 'explain what this means?',
     instruction:
-      'Can you explain what this means? the answer must be in Russian',
+      'Can you explain what this means?',
   },
 }
 

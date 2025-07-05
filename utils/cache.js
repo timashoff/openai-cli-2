@@ -5,8 +5,8 @@ import { AppError } from './error-handler.js'
 
 const CACHE_DIR = path.join(os.homedir(), 'AI_responses')
 const CACHE_FILE_PATH = path.join(CACHE_DIR, 'cache.json')
-const MAX_CACHE_SIZE = 1000 // Максимальное количество записей в кеше
-const MAX_CACHE_AGE = 30 * 24 * 60 * 60 * 1000 // 30 дней в миллисекундах
+const MAX_CACHE_SIZE = 1000 // Maximum number of cache entries
+const MAX_CACHE_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
 
 let cache = {}
 
@@ -23,14 +23,14 @@ const loadCache = async () => {
     const data = await fs.readFile(CACHE_FILE_PATH, 'utf-8')
     const loadedCache = JSON.parse(data)
     
-    // Валидация структуры кеша
+    // Cache structure validation
     if (typeof loadedCache === 'object' && loadedCache !== null) {
       cache = loadedCache
     } else {
       cache = {}
     }
     
-    // Очистка старых записей при загрузке
+    // Clean old entries on load
     await cleanupExpiredEntries()
   } catch (error) {
     if (error.code === 'ENOENT') {
@@ -51,7 +51,7 @@ const saveCache = async () => {
   }
 }
 
-// Очистка устаревших записей
+// Cleanup expired entries
 const cleanupExpiredEntries = async () => {
   const now = Date.now()
   const keysToDelete = []
@@ -72,11 +72,11 @@ const cleanupExpiredEntries = async () => {
   }
 }
 
-// Ограничение размера кеша
+// Cache size limitation
 const enforceCacheLimit = async () => {
   const keys = Object.keys(cache)
   if (keys.length > MAX_CACHE_SIZE) {
-    // Удаляем самые старые записи
+    // Remove oldest entries
     const entries = Object.entries(cache)
       .filter(([_, entry]) => typeof entry === 'object' && entry.timestamp)
       .sort(([_a, a], [_b, b]) => a.timestamp - b.timestamp)
@@ -91,7 +91,7 @@ const enforceCacheLimit = async () => {
   }
 }
 
-// Валидация входных данных
+// Input data validation
 const validateCacheInput = (key, value) => {
   if (typeof key !== 'string' || key.trim() === '') {
     throw new AppError('Cache key must be a non-empty string', true, 400)
@@ -101,7 +101,7 @@ const validateCacheInput = (key, value) => {
     throw new AppError('Cache value cannot be null or undefined', true, 400)
   }
   
-  // Проверка размера значения (например, не больше 1MB)
+  // Check value size (e.g., no more than 1MB)
   const valueSize = JSON.stringify(value).length
   if (valueSize > 1024 * 1024) {
     throw new AppError('Cache value is too large (max 1MB)', true, 400)
@@ -121,16 +121,16 @@ export default {
     
     const entry = cache[key]
     if (typeof entry === 'object' && entry.value !== undefined) {
-      // Проверяем, не истекла ли запись
+      // Check if entry has expired
       if (entry.timestamp && Date.now() - entry.timestamp > MAX_CACHE_AGE) {
         delete cache[key]
-        this.saveCache() // Асинхронно сохраняем без ожидания
+        this.saveCache() // Save asynchronously without waiting
         return undefined
       }
       return entry.value
     }
     
-    // Поддержка старого формата кеша
+    // Support for old cache format
     return entry
   },
   
@@ -141,10 +141,10 @@ export default {
     
     const entry = cache[key]
     if (typeof entry === 'object' && entry.timestamp) {
-      // Проверяем, не истекла ли запись
+      // Check if entry has expired
       if (Date.now() - entry.timestamp > MAX_CACHE_AGE) {
         delete cache[key]
-        this.saveCache() // Асинхронно сохраняем без ожидания
+        this.saveCache() // Save asynchronously without waiting
         return false
       }
     }
