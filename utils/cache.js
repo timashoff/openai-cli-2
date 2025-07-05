@@ -13,6 +13,13 @@ let cache = {}
 const ensureCacheDir = async () => {
   try {
     await fs.mkdir(CACHE_DIR, { recursive: true })
+    
+    // Set secure permissions for cache directory (owner read/write/execute only)
+    try {
+      await fs.chmod(CACHE_DIR, 0o700)
+    } catch (chmodError) {
+      console.warn('Warning: Could not set secure permissions on cache directory')
+    }
   } catch (error) {
     console.error('Error creating cache directory:', error)
   }
@@ -46,6 +53,13 @@ const loadCache = async () => {
 const saveCache = async () => {
   try {
     await fs.writeFile(CACHE_FILE_PATH, JSON.stringify(cache, null, 2))
+    
+    // Set secure permissions for cache file (owner read/write only)
+    try {
+      await fs.chmod(CACHE_FILE_PATH, 0o600)
+    } catch (chmodError) {
+      console.warn('Warning: Could not set secure permissions on cache file')
+    }
   } catch (error) {
     console.error('Error saving cache file:', error)
   }

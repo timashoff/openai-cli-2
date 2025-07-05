@@ -7,6 +7,9 @@ import {
   execHelp,
   initializeApi,
 } from '../utils/index.js'
+import { validateString, sanitizeString } from '../utils/validation.js'
+import { APP_CONSTANTS } from '../config/constants.js'
+import { validateApiKey, sanitizeErrorMessage, createSecureHeaders } from '../utils/security.js'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import cache from '../utils/cache.js'
 import { color } from '../config/color.js'
@@ -57,12 +60,12 @@ async function switchProvider() {
   try {
     let list
     if (API_PROVIDERS[selectedProviderKey]?.isClaude) {
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      validateApiKey(apiKey, 'anthropic')
+      
       const response = await fetch('https://api.anthropic.com/v1/models', {
         method: 'GET',
-        headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        }
+        headers: createSecureHeaders(apiKey, 'anthropic')
       })
       list = await response.json()
       if (!response.ok) {
@@ -83,7 +86,8 @@ async function switchProvider() {
   } catch (e) {
     process.stdout.clearLine()
     process.stdout.cursorTo(0)
-    console.log(`\n${color.red}Error:${color.reset}`, e.message, '\n')
+    const sanitizedMessage = sanitizeErrorMessage(e.message)
+    console.log(`\n${color.red}Error:${color.reset}`, sanitizedMessage, '\n')
     // Exit if it's the initial load, otherwise just report error and continue
     if (!model) {
       process.exit(0)
@@ -121,7 +125,6 @@ async function main() {
     const colorInput = model.includes('chat') ? color.green : color.yellow
     let userInput = await rl.question(`${colorInput}> `)
     userInput = userInput.trim()
-    const userInputWords = userInput.split(' ')
 
     if (!userInput) {
       if (contextHistory.length) {
@@ -131,15 +134,50 @@ async function main() {
       continue
     }
 
+    // Validate and sanitize user input
+    try {
+      userInput = sanitizeString(userInput)
+      
+      // Check input length limits
+      if (userInput.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
+        console.log(`${color.red}Error: Input too long (max ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)${color.reset}`)
+        continue
+      }
+      
+      validateString(userInput, 'user input', true)
+    } catch (error) {
+      console.log(`${color.red}Invalid input: ${error.message}${color.reset}`)
+      continue
+    }
+
+    const userInputWords = userInput.split(' ')
+
     if (userInputWords.length === 1 && isCommand(userInput)) {
       await exec(userInput)
       continue
     }
 
     if (userInput.includes('$$')) {
-      const buffer = await getClipboardContent()
-      userInput = userInput.replace(/\$\$/g, buffer)
-      console.log(buffer)
+      try {
+        const buffer = await getClipboardContent()
+        
+        // Validate and sanitize clipboard content
+        const sanitizedBuffer = sanitizeString(buffer)
+        validateString(sanitizedBuffer, 'clipboard content', false)
+        
+        // Check size limits
+        if (sanitizedBuffer.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
+          console.log(`${color.red}Error: Clipboard content too large (max ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)${color.reset}`)
+          continue
+        }
+        
+        // Replace $$ with sanitized content
+        userInput = userInput.replace(/\$\$/g, sanitizedBuffer)
+        console.log(`${color.grey}[Clipboard content inserted (${sanitizedBuffer.length} chars)]${color.reset}`)
+      } catch (error) {
+        console.log(`${color.red}Error reading clipboard: ${error.message}${color.reset}`)
+        continue
+      }
     }
 
     let forceRequest = false
@@ -189,13 +227,12 @@ async function main() {
 
       let stream;
       if (isClaude) {
+        const apiKey = process.env.ANTHROPIC_API_KEY
+        validateApiKey(apiKey, 'anthropic')
+        
         const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
+        headers: createSecureHeaders(apiKey, 'anthropic'),
         body: JSON.stringify({
           model,
           messages,
@@ -309,7 +346,8 @@ async function main() {
         process.stdout.cursorTo(0)
         console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
       } else {
-        const errMessage = `${error.message.toLowerCase()} trying to reconect...`
+        const sanitizedMessage = sanitizeErrorMessage(error.message)
+        const errMessage = `${sanitizedMessage.toLowerCase()} trying to reconnect...`
         console.log('\n🤬' + color.red + errMessage + color.reset)
       }
     } finally {
