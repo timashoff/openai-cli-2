@@ -1,20 +1,54 @@
 {
   "name": "openai-cli",
-  "version": "2.5.0",
-  "description": "",
+  "version": "2.5.1",
+  "description": "A command-line AI assistant with multi-provider support, caching, and modern error handling",
   "type": "module",
   "main": "bin/app.js",
   "bin": {
     "ai": "bin/app.js"
   },
   "scripts": {
-    "start": "node --watch ."
+    "start": "node bin/app.js",
+    "dev": "node --watch bin/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "echo \"Add ESLint configuration for linting\"",
+    "format": "echo \"Add Prettier configuration for formatting\"",
+    "clean-cache": "node -e \"import('./utils/cache.js').then(cache => cache.default.clear())\"",
+    "check-env": "node -e \"import('./config/environment.js').then(env => console.log('Environment check passed'))\""
   },
+  "keywords": [
+    "ai",
+    "cli",
+    "openai",
+    "deepseek",
+    "anthropic",
+    "claude",
+    "chatgpt",
+    "terminal",
+    "assistant"
+  ],
   "author": "Roman Timashev",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timashoff/openai-cli-2.git"
+  },
   "dependencies": {
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
     "openai": "^4.96.2"
-  }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
+  "files": [
+    "bin/",
+    "config/",
+    "utils/",
+    "README.md",
+    "LICENSE"
+  ]
 }

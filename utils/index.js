@@ -11,6 +11,7 @@ import cache from './cache.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { color } from '../config/color.js'
 import { getAllSystemCommands } from './autocomplete.js'
+import { AppError } from './error-handler.js'
 
 const execution = util.promisify(exec)
 
