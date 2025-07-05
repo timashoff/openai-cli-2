@@ -127,13 +127,15 @@ export function createSecureHeaders(apiKey, provider) {
 }
 
 /**
- * Rate limiting utility
+ * Rate limiting utility with exponential backoff
  */
 export class RateLimiter {
-  constructor(maxRequests = 10, timeWindow = 60000) {
+  constructor(maxRequests = 10, timeWindow = 60000, backoffMultiplier = 2) {
     this.maxRequests = maxRequests
     this.timeWindow = timeWindow
+    this.backoffMultiplier = backoffMultiplier
     this.requests = []
+    this.violations = 0
   }
 
   canMakeRequest() {
@@ -146,10 +148,13 @@ export class RateLimiter {
 
   recordRequest() {
     if (!this.canMakeRequest()) {
-      throw new AppError('Rate limit exceeded. Please wait before making another request.', true, 429)
+      this.violations++
+      const backoffTime = this.getBackoffTime()
+      throw new AppError(`Rate limit exceeded. Please wait ${Math.ceil(backoffTime / 1000)} seconds before making another request.`, true, 429)
     }
     
     this.requests.push(Date.now())
+    this.violations = 0 // Reset violations on successful request
   }
 
   getWaitTime() {
@@ -160,4 +165,97 @@ export class RateLimiter {
     
     return Math.max(0, waitTime)
   }
+
+  getBackoffTime() {
+    return Math.min(this.timeWindow * Math.pow(this.backoffMultiplier, this.violations), 300000) // Max 5 minutes
+  }
+
+  reset() {
+    this.requests = []
+    this.violations = 0
+  }
+}
+
+/**
+ * Content Security Policy checker
+ */
+export class CSPChecker {
+  constructor() {
+    this.allowedDomains = [
+      'api.openai.com',
+      'api.anthropic.com',
+      'api.deepseek.com'
+    ]
+  }
+
+  validateUrl(url) {
+    try {
+      const parsedUrl = new URL(url)
+      
+      // Check protocol
+      if (!['https:'].includes(parsedUrl.protocol)) {
+        throw new AppError('Only HTTPS URLs are allowed', true, 400)
+      }
+      
+      // Check domain
+      if (!this.allowedDomains.includes(parsedUrl.hostname)) {
+        throw new AppError(`Domain ${parsedUrl.hostname} is not allowed`, true, 403)
+      }
+      
+      return true
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error
+      }
+      throw new AppError('Invalid URL format', true, 400)
+    }
+  }
+
+  addAllowedDomain(domain) {
+    if (!this.allowedDomains.includes(domain)) {
+      this.allowedDomains.push(domain)
+    }
+  }
+}
+
+/**
+ * Input sanitization with additional security measures
+ */
+export function sanitizeInput(input, options = {}) {
+  const {
+    allowHTML = false,
+    maxLength = 10000,
+    stripScripts = true,
+    removeControlChars = true
+  } = options
+
+  if (typeof input !== 'string') {
+    return ''
+  }
+
+  let sanitized = input
+
+  // Remove control characters
+  if (removeControlChars) {
+    sanitized = sanitized.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+  }
+
+  // Remove script tags and javascript: URLs
+  if (stripScripts) {
+    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    sanitized = sanitized.replace(/javascript:/gi, '')
+    sanitized = sanitized.replace(/on\w+\s*=/gi, '')
+  }
+
+  // Remove HTML tags if not allowed
+  if (!allowHTML) {
+    sanitized = sanitized.replace(/<[^>]*>/g, '')
+  }
+
+  // Truncate if too long
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength)
+  }
+
+  return sanitized.trim()
 }

@@ -225,6 +225,9 @@ async function main() {
 
       const isClaude = API_PROVIDERS[selectedProviderKey]?.isClaude;
 
+      // Start timing before API request
+      startTime = Date.now()
+
       let stream;
       if (isClaude) {
         const apiKey = process.env.ANTHROPIC_API_KEY
@@ -260,7 +263,6 @@ async function main() {
       const response = []
       const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
       let i = 0
-      startTime = Date.now()
       process.stdout.write('\x1B[?25l') // Hide cursor
       interval = setInterval(() => {
         process.stdout.clearLine()
@@ -275,20 +277,57 @@ async function main() {
         const reader = stream.getReader()
         const decoder = new TextDecoder()
         let done = false
+        let buffer = ''
+        
         while (!done) {
           const { value, done: readerDone } = await reader.read()
           done = readerDone
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                const json = JSON.parse(line.substring(5))
-                if (json.delta && json.delta.text) {
-                  response.push(json.delta.text)
+          
+          if (value) {
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            
+            // Keep the last incomplete line in buffer
+            buffer = lines.pop() || ''
+            
+            for (const line of lines) {
+              const trimmedLine = line.trim()
+              
+              // Skip empty lines and comments
+              if (!trimmedLine || trimmedLine.startsWith(':')) {
+                continue
+              }
+              
+              if (trimmedLine.startsWith('data: ')) {
+                const data = trimmedLine.substring(6).trim()
+                
+                // Check for end of stream
+                if (data === '[DONE]') {
+                  done = true
+                  break
                 }
-              } catch (e) {
-                // ignore
+                
+                // Skip empty data
+                if (!data) {
+                  continue
+                }
+                
+                try {
+                  const json = JSON.parse(data)
+                  
+                  // Handle different event types
+                  if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
+                    response.push(json.delta.text)
+                  } else if (json.delta && json.delta.text) {
+                    // Fallback for older format
+                    response.push(json.delta.text)
+                  }
+                } catch (e) {
+                  // Only log if it's not a known non-JSON line
+                  if (data !== '[DONE]' && !data.startsWith('event:')) {
+                    console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
+                  }
+                }
               }
             }
           }
@@ -471,6 +510,7 @@ function findModel(defaultModels, models) {
   }
   return models[0].id
 }
+
 
 async function start() {
   await cache.initialize()

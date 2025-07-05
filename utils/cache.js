@@ -138,7 +138,7 @@ export default {
       // Check if entry has expired
       if (entry.timestamp && Date.now() - entry.timestamp > MAX_CACHE_AGE) {
         delete cache[key]
-        this.saveCache() // Save asynchronously without waiting
+        this.saveCache().catch(console.error) // Save asynchronously with error handling
         return undefined
       }
       return entry.value
@@ -158,7 +158,7 @@ export default {
       // Check if entry has expired
       if (Date.now() - entry.timestamp > MAX_CACHE_AGE) {
         delete cache[key]
-        this.saveCache() // Save asynchronously without waiting
+        this.saveCache().catch(console.error) // Save asynchronously with error handling
         return false
       }
     }

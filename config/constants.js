@@ -5,27 +5,27 @@ export const APP_CONSTANTS = {
   MAX_CONTEXT_HISTORY: 10, // Maximum number of messages in context
   MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
   MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
-  
+
   // Timeouts
   API_TIMEOUT: 100000, // 100 seconds for API requests
   CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
-  
+
   // Spinner and animation sizes
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
   TYPING_DELAY: 10, // Delay between characters when typing response
-  
+
   // Paths
   CACHE_DIR_NAME: 'AI_responses',
   CACHE_FILE_NAME: 'cache.json',
-  
+
   // Regular expressions for validation
   REGEX: {
     EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     SAFE_STRING: /^[a-zA-Z0-9\s\-_.,!?]+$/,
     API_KEY_OPENAI: /^sk-[a-zA-Z0-9]{20,}$/,
     API_KEY_DEEPSEEK: /^sk-[a-zA-Z0-9]{20,}$/,
-    API_KEY_ANTHROPIC: /^sk-ant-api03-[a-zA-Z0-9\-_]{95}$/
-  }
+    API_KEY_ANTHROPIC: /^sk-ant-api03-[a-zA-Z0-9\-_]{95}$/,
+  },
 }
 
 // Error constants
@@ -34,17 +34,17 @@ export const ERROR_CODES = {
   INVALID_INPUT: 'INVALID_INPUT',
   MISSING_PARAMETER: 'MISSING_PARAMETER',
   INVALID_API_KEY: 'INVALID_API_KEY',
-  
+
   // System errors
   API_TIMEOUT: 'API_TIMEOUT',
   NETWORK_ERROR: 'NETWORK_ERROR',
   CACHE_ERROR: 'CACHE_ERROR',
   FILE_SYSTEM_ERROR: 'FILE_SYSTEM_ERROR',
-  
+
   // Security
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN'
+  FORBIDDEN: 'FORBIDDEN',
 }
 
 // Logging constants
@@ -52,7 +52,7 @@ export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
   INFO: 'info',
-  DEBUG: 'debug'
+  DEBUG: 'debug',
 }
 
 // HTTP statuses
@@ -66,42 +66,33 @@ export const HTTP_STATUS = {
   TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
-  SERVICE_UNAVAILABLE: 503
+  SERVICE_UNAVAILABLE: 503,
 }
 
 // Supported operating systems
 export const SUPPORTED_PLATFORMS = {
-  DARWIN: 'darwin',   // macOS
+  DARWIN: 'darwin', // macOS
   LINUX: 'linux',
-  WIN32: 'win32'      // Windows
+  WIN32: 'win32', // Windows
 }
 
 // Clipboard commands by platform
 export const CLIPBOARD_COMMANDS = {
   [SUPPORTED_PLATFORMS.DARWIN]: 'pbpaste',
   [SUPPORTED_PLATFORMS.LINUX]: 'xclip -selection clipboard -o',
-  [SUPPORTED_PLATFORMS.WIN32]: 'powershell.exe -command "Get-Clipboard"'
+  [SUPPORTED_PLATFORMS.WIN32]: 'powershell.exe -command "Get-Clipboard"',
 }
 
-// Default supported models
-export const DEFAULT_MODEL_PRIORITIES = [
-  'o1-mini',
-  'gpt-4o-mini', 
-  'gpt-4o',
-  'claude-3-opus-20240229',
-  'claude-3-sonnet-20240229',
-  'deepseek-chat'
-]
 
 // Keys for translation commands
 export const TRANSLATION_COMMAND_KEYS = [
   'RUSSIAN',
-  'ENGLISH', 
+  'ENGLISH',
   'CHINESE',
   'PINYIN',
   'TRANSCRIPTION',
   'HSK',
-  'HSK_SS'
+  'HSK_SS',
 ]
 
 // Colors for output (duplicated for convenience)
@@ -112,7 +103,7 @@ export const COLORS = {
   RED: '\x1b[31m',
   YELLOW: '\x1b[33m',
   BOLD: '\x1b[1m',
-  GREY: '\x1b[90m'
+  GREY: '\x1b[90m',
 }
 
 // Symbols for interface
@@ -122,12 +113,12 @@ export const UI_SYMBOLS = {
   CROSS: '☓',
   ARROW: '▶',
   DOT: '•',
-  ELLIPSIS: '...'
+  ELLIPSIS: '...',
 }
 
 // Environments
 export const ENVIRONMENTS = {
   DEVELOPMENT: 'development',
   PRODUCTION: 'production',
-  TEST: 'test'
+  TEST: 'test',
 }
