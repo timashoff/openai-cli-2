@@ -61,37 +61,6 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
   return num
 }
 
-/**
- * Validates array
- * @param {any} value - value to check
- * @param {string} fieldName - field name for error
- * @param {object} options - validation options
- * @returns {Array} validated array
- */
-export function validateArray(value, fieldName = 'field', options = {}) {
-  const { minLength = 0, maxLength = Number.MAX_SAFE_INTEGER, required = true } = options
-
-  if (value === null || value === undefined) {
-    if (required) {
-      throw new AppError(`${fieldName} is required`, true, 400)
-    }
-    return null
-  }
-
-  if (!Array.isArray(value)) {
-    throw new AppError(`${fieldName} must be an array`, true, 400)
-  }
-
-  if (value.length < minLength) {
-    throw new AppError(`${fieldName} must have at least ${minLength} items`, true, 400)
-  }
-
-  if (value.length > maxLength) {
-    throw new AppError(`${fieldName} must have at most ${maxLength} items`, true, 400)
-  }
-
-  return value
-}
 
 /**
  * Validates object
@@ -142,26 +111,6 @@ export function validateChoice(value, allowedValues, fieldName = 'field', requir
   return value
 }
 
-/**
- * Validates email address
- * @param {string} email - email to validate
- * @param {boolean} required - whether field is required
- * @returns {string|null} validated email
- */
-export function validateEmail(email, required = true) {
-  const validatedString = validateString(email, 'email', required)
-  
-  if (!validatedString) {
-    return null
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(validatedString)) {
-    throw new AppError('Invalid email format', true, 400)
-  }
-
-  return validatedString
-}
 
 /**
  * Cleans string from potentially dangerous characters
@@ -180,43 +129,4 @@ export function sanitizeString(input) {
     .trim()
 }
 
-/**
- * Checks data size
- * @param {any} data - data to check
- * @param {number} maxSizeBytes - maximum size in bytes
- * @param {string} fieldName - field name
- * @returns {boolean} true if size is acceptable
- */
-export function validateDataSize(data, maxSizeBytes, fieldName = 'data') {
-  const size = JSON.stringify(data).length
-  
-  if (size > maxSizeBytes) {
-    throw new AppError(
-      `${fieldName} size (${size} bytes) exceeds maximum allowed size (${maxSizeBytes} bytes)`,
-      true,
-      400
-    )
-  }
 
-  return true
-}
-
-/**
- * Validates function parameters by schema
- * @param {object} params - parameters to validate
- * @param {object} schema - validation schema
- * @returns {object} validated parameters
- */
-export function validateParams(params, schema) {
-  const validated = {}
-
-  for (const [key, validator] of Object.entries(schema)) {
-    try {
-      validated[key] = validator(params[key])
-    } catch (error) {
-      throw new AppError(`Parameter ${key}: ${error.message}`, true, 400)
-    }
-  }
-
-  return validated
-}

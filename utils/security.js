@@ -35,26 +35,6 @@ export function validateApiKey(apiKey, provider) {
   return true
 }
 
-/**
- * Masks API key for logging
- * @param {string} apiKey - API key to mask
- * @returns {string} masked API key
- */
-export function maskApiKey(apiKey) {
-  if (!apiKey || typeof apiKey !== 'string') {
-    return '[INVALID_KEY]'
-  }
-
-  if (apiKey.length <= 8) {
-    return '[MASKED]'
-  }
-
-  const start = apiKey.substring(0, 4)
-  const end = apiKey.substring(apiKey.length - 4)
-  const masked = '*'.repeat(apiKey.length - 8)
-  
-  return `${start}${masked}${end}`
-}
 
 /**
  * Sanitizes error messages to prevent key exposure
@@ -81,20 +61,6 @@ export function sanitizeErrorMessage(errorMessage) {
   return sanitized
 }
 
-/**
- * Securely clears variable from memory
- * @param {object} obj - object containing sensitive data
- * @param {string} key - key to clear
- */
-export function secureDelete(obj, key) {
-  if (obj && typeof obj === 'object' && key in obj) {
-    // Overwrite with random data before deletion
-    if (typeof obj[key] === 'string') {
-      obj[key] = Math.random().toString(36).repeat(obj[key].length)
-    }
-    delete obj[key]
-  }
-}
 
 /**
  * Creates a secure headers object for API requests
@@ -218,44 +184,3 @@ export class CSPChecker {
   }
 }
 
-/**
- * Input sanitization with additional security measures
- */
-export function sanitizeInput(input, options = {}) {
-  const {
-    allowHTML = false,
-    maxLength = 10000,
-    stripScripts = true,
-    removeControlChars = true
-  } = options
-
-  if (typeof input !== 'string') {
-    return ''
-  }
-
-  let sanitized = input
-
-  // Remove control characters
-  if (removeControlChars) {
-    sanitized = sanitized.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-  }
-
-  // Remove script tags and javascript: URLs
-  if (stripScripts) {
-    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    sanitized = sanitized.replace(/javascript:/gi, '')
-    sanitized = sanitized.replace(/on\w+\s*=/gi, '')
-  }
-
-  // Remove HTML tags if not allowed
-  if (!allowHTML) {
-    sanitized = sanitized.replace(/<[^>]*>/g, '')
-  }
-
-  // Truncate if too long
-  if (sanitized.length > maxLength) {
-    sanitized = sanitized.substring(0, maxLength)
-  }
-
-  return sanitized.trim()
-}
