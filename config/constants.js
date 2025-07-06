@@ -13,10 +13,15 @@ export const APP_CONSTANTS = {
   // Spinner and animation sizes
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
   TYPING_DELAY: 10, // Delay between characters when typing response
+  CLEAR_TIMEOUT: 100, // Timeout for screen clear
 
   // Paths
   CACHE_DIR_NAME: 'AI_responses',
   CACHE_FILE_NAME: 'cache.json',
+  
+  // Special markers
+  CLIPBOARD_MARKER: '$$',
+  FORCE_FLAGS: [' --force', ' -f'],
 
   // Regular expressions for validation
   REGEX: {
@@ -114,6 +119,23 @@ export const UI_SYMBOLS = {
   ARROW: '▶',
   DOT: '•',
   ELLIPSIS: '...',
+}
+
+// Commands and stream markers
+export const APP_COMMANDS = {
+  EXIT: 'exit',
+  HELP: 'help',
+  PROVIDER: 'provider',
+  MODEL: 'model',
+  CLEAR: 'clear',
+  HISTORY: 'history'
+}
+
+export const STREAM_MARKERS = {
+  CLAUDE_DATA_PREFIX: 'data: ',
+  CLAUDE_DONE_MARKER: '[DONE]',
+  CLAUDE_EVENT_PREFIX: 'event:',
+  CLAUDE_COMMENT_PREFIX: ':'
 }
 
 // Environments

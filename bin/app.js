@@ -4,16 +4,14 @@ import { Application } from '../utils/application.js'
 import { CommandManager } from '../utils/command-manager.js'
 import { rl } from '../utils/index.js'
 import { color } from '../config/color.js'
-import { CLIPBOARD_MARKER, FORCE_FLAGS, SPINNER_FRAMES, TIMING_CONFIG } from '../config/app_constants.js'
+import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
 import { getClipboardContent } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
-import { APP_CONSTANTS } from '../config/constants.js'
 import { configManager } from '../config/config-manager.js'
 import { createProvider } from '../utils/provider-factory.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
-import { initializeApi } from '../utils/index.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS } from '../config/instructions.js'
 import cache from '../utils/cache.js'
@@ -26,14 +24,6 @@ import readline from 'node:readline'
 // Create application instance
 const app = new Application()
 
-// Application state
-let openai
-let models = []
-let model = ''
-let selectedProviderKey = ''
-let requestController = null
-let contextLength = 10
-
 /**
  * Enhanced Application class with AI functionality
  */
@@ -41,11 +31,10 @@ class AIApplication extends Application {
   constructor() {
     super()
     this.aiState = {
-      openai: null,
+      provider: null,
       models: [],
       model: '',
-      selectedProviderKey: '',
-      contextLength: 10
+      selectedProviderKey: ''
     }
     
     // Use separate command manager to avoid conflicts
@@ -196,9 +185,8 @@ class AIApplication extends Application {
     }
 
     this.aiState.selectedProviderKey = providerKeys[selectedIndex]
-    selectedProviderKey = this.aiState.selectedProviderKey
     
-    const providerConfig = API_PROVIDERS[selectedProviderKey]
+    const providerConfig = API_PROVIDERS[this.aiState.selectedProviderKey]
     const providerName = providerConfig.name
 
     console.log(`Loading models from ${providerName}...`)
@@ -206,7 +194,7 @@ class AIApplication extends Application {
     
     try {
       // Create provider using factory
-      const provider = createProvider(selectedProviderKey, providerConfig)
+      const provider = createProvider(this.aiState.selectedProviderKey, providerConfig)
       await provider.initializeClient()
       
       this.aiState.provider = provider
@@ -214,24 +202,22 @@ class AIApplication extends Application {
       // Fetch models through provider
       const list = await provider.listModels()
       this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
-      models = this.aiState.models
       
-      this.aiState.model = this.findModel(DEFAULT_MODELS, models)
-      model = this.aiState.model
+      this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
       
-      process.title = model
+      process.title = this.aiState.model
       
       console.log(`\nProvider changed to ${color.cyan}${providerName}${color.reset}.`)
-      console.log(`Current model is now '${color.yellow}${model}${color.reset}'.\n`)
+      console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.\n`)
       
-      logger.debug(`Provider switched successfully. Model: ${model}, Available models: ${models.length}`)
+      logger.debug(`Provider switched successfully. Model: ${this.aiState.model}, Available models: ${this.aiState.models.length}`)
       // Note: Don't emit provider:changed event here as it causes duplicate logging
     } catch (e) {
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
       errorHandler.handleError(e, { context: 'provider_switch' })
       
-      if (!model) {
+      if (!this.aiState.model) {
         process.exit(0)
       }
     }
@@ -254,10 +240,9 @@ class AIApplication extends Application {
       const modelsForMenu = this.aiState.models.map(id => ({ id }))
       const newModel = await execModel(this.aiState.model, modelsForMenu, rl)
       this.aiState.model = newModel
-      model = newModel
-      process.title = model
+      process.title = this.aiState.model
 
-      logger.debug(`Model changed to: ${newModel}`)
+      logger.debug(`Model changed to: ${this.aiState.model}`)
 
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(true)
@@ -278,7 +263,7 @@ class AIApplication extends Application {
     let startTime
     
     // Check for clipboard content
-    if (input.includes(CLIPBOARD_MARKER)) {
+    if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
       try {
         const buffer = await getClipboardContent()
         const sanitizedBuffer = sanitizeString(buffer)
@@ -289,7 +274,7 @@ class AIApplication extends Application {
           return
         }
         
-        input = input.replace(new RegExp(CLIPBOARD_MARKER.replace(/\$/g, '\\$'), 'g'), sanitizedBuffer)
+        input = input.replace(new RegExp(APP_CONSTANTS.CLIPBOARD_MARKER.replace(/\$/g, '\\$'), 'g'), sanitizedBuffer)
         console.log(`${color.grey}[Clipboard content inserted (${sanitizedBuffer.length} chars)]${color.reset}`)
       } catch (error) {
         errorHandler.handleError(error, { context: 'clipboard_read' })
@@ -299,7 +284,7 @@ class AIApplication extends Application {
 
     // Check for force flags
     let forceRequest = false
-    for (const flag of FORCE_FLAGS) {
+    for (const flag of APP_CONSTANTS.FORCE_FLAGS) {
       if (input.endsWith(flag)) {
         forceRequest = true
         input = input.replace(new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '').trim()
@@ -321,7 +306,6 @@ class AIApplication extends Application {
     // Setup request state for global handler
     this.currentRequestController = new AbortController()
     this.isProcessingRequest = true
-    requestController = this.currentRequestController
 
     try {
       let messages = []
@@ -342,18 +326,18 @@ class AIApplication extends Application {
         process.stdout.cursorTo(0)
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
         process.stdout.write(
-          `${color.reset}${SPINNER_FRAMES[i++ % SPINNER_FRAMES.length]} ${elapsedTime}s${color.reset}`,
+          `${color.reset}${UI_SYMBOLS.SPINNER[i++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s${color.reset}`,
         )
       }, configManager.get('spinnerInterval'))
       interval = this.currentSpinnerInterval
 
       // Use provider for API calls
-      const stream = await this.aiState.provider.createChatCompletion(model, messages, {
+      const stream = await this.aiState.provider.createChatCompletion(this.aiState.model, messages, {
         stream: true,
-        signal: requestController.signal
+        signal: this.currentRequestController.signal
       })
 
-      const streamProcessor = new StreamProcessor(selectedProviderKey)
+      const streamProcessor = new StreamProcessor(this.aiState.selectedProviderKey)
       this.currentStreamProcessor = streamProcessor
       let response = []
       let firstChunk = true
@@ -390,7 +374,7 @@ class AIApplication extends Application {
       try {
         // Use Promise.race for IMMEDIATE cancellation
         response = await Promise.race([
-          streamProcessor.processStream(stream, requestController.signal, onChunk),
+          streamProcessor.processStream(stream, this.currentRequestController.signal, onChunk),
           // Immediate abort promise that resolves instantly on cancellation
           new Promise((resolve, reject) => {
             // Set up immediate abort listener
@@ -400,20 +384,20 @@ class AIApplication extends Application {
             }
             
             // Safety check before adding listener
-            if (requestController && requestController.signal) {
-              requestController.signal.addEventListener('abort', abortHandler, { once: true })
+            if (this.currentRequestController && this.currentRequestController.signal) {
+              this.currentRequestController.signal.addEventListener('abort', abortHandler, { once: true })
             }
             
             // Also check termination flag very rapidly
             const rapidCheck = () => {
               // Safety check for null controller
-              if (!requestController || !requestController.signal) {
+              if (!this.currentRequestController || !this.currentRequestController.signal) {
                 return // Stop checking if controller is gone
               }
               
               if (this.currentStreamProcessor?.isTerminated || this.shouldReturnToPrompt) {
                 setTimeout(() => reject(new Error('AbortError')), 0)
-              } else if (!requestController.signal.aborted) {
+              } else if (!this.currentRequestController.signal.aborted) {
                 setTimeout(rapidCheck, 5) // Check every 5ms
               }
             }
@@ -423,11 +407,11 @@ class AIApplication extends Application {
           new Promise((_, reject) => {
             const forceTimeout = () => {
               // Safety check for null controller
-              if (!requestController || !requestController.signal) {
+              if (!this.currentRequestController || !this.currentRequestController.signal) {
                 return // Stop checking if controller is gone
               }
               
-              if (requestController.signal.aborted) {
+              if (this.currentRequestController.signal.aborted) {
                 setTimeout(() => reject(new Error('AbortError')), 200)
               } else {
                 setTimeout(forceTimeout, 100)
@@ -447,7 +431,7 @@ class AIApplication extends Application {
 
       clearInterval(interval)
 
-      if (requestController.signal.aborted || this.shouldReturnToPrompt) {
+      if (this.currentRequestController.signal.aborted || this.shouldReturnToPrompt) {
         // Only show cancellation if no content was output yet
         if (firstChunk) {
           const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
@@ -529,7 +513,6 @@ class AIApplication extends Application {
       this.isProcessingRequest = false
       this.currentRequestController = null
       this.currentStreamProcessor = null
-      requestController = null
       
       // Show cursor
       process.stdout.write('\x1B[?25h') // Show cursor
@@ -579,11 +562,11 @@ class AIApplication extends Application {
    * Main application loop
    */
   async run() {
-    process.title = model
+    process.title = this.aiState.model
     // Don't log here as it interferes with the prompt
     
     while (true) {
-      const colorInput = model.includes('chat') ? color.green : color.yellow
+      const colorInput = this.aiState.model.includes('chat') ? color.green : color.yellow
       let userInput = await rl.question(`${colorInput}> `)
       userInput = userInput.trim()
 
@@ -592,7 +575,7 @@ class AIApplication extends Application {
           this.clearContext()
           console.log(color.yellow + 'Context history cleared')
         } else {
-          setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), TIMING_CONFIG.CLEAR_TIMEOUT)
+          setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), APP_CONSTANTS.CLEAR_TIMEOUT)
         }
         continue
       }
@@ -634,10 +617,10 @@ class AIApplication extends Application {
             }
             
             const duration = Date.now() - startTime
-            this.emitter.emit('command:executed', commandName, args, duration)
+            logger.debug(`Command executed: ${commandName} (${duration}ms)`)
             
           } catch (error) {
-            this.emitter.emit('command:failed', commandName, error)
+            logger.error(`Command failed: ${commandName} - ${error.message}`)
             errorHandler.handleError(error, { context: 'command_execution', command: commandName })
             throw error
           }

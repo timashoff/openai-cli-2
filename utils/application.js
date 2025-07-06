@@ -1,8 +1,6 @@
 import { configManager } from '../config/config-manager.js'
 import { logger } from './logger.js'
-import { pluginManager } from './plugin-manager.js'
 import { commandManager, BaseCommand } from './command-manager.js'
-import { globalEmitter } from './event-emitter.js'
 import { providerFactory } from './provider-factory.js'
 import { AppError, errorHandler } from './error-handler.js'
 import { validateString, sanitizeString } from './validation.js'
@@ -15,8 +13,6 @@ export class Application {
   constructor(options = {}) {
     this.config = configManager
     this.logger = logger
-    this.emitter = globalEmitter
-    this.plugins = pluginManager
     this.commands = commandManager
     this.providers = providerFactory
     
@@ -32,49 +28,7 @@ export class Application {
       }
     }
     
-    this.setupEventHandlers()
     this.registerCoreCommands()
-  }
-
-  /**
-   * Setup global event handlers
-   */
-  setupEventHandlers() {
-    // Application events
-    this.emitter.on('app:start', () => {
-      this.logger.debug('Application started')
-    })
-    
-    this.emitter.on('app:stop', () => {
-      this.logger.debug('Application stopped')
-    })
-    
-    this.emitter.on('app:error', (error) => {
-      this.state.userSession.errorCount++
-      errorHandler.handleError(error)
-    })
-    
-    // Command events
-    this.emitter.on('command:executed', (commandName, args, duration) => {
-      this.state.userSession.commandCount++
-      this.logger.debug(`Command executed: ${commandName} (${duration}ms)`)
-    })
-    
-    this.emitter.on('command:failed', (commandName, error) => {
-      this.state.userSession.errorCount++
-      this.logger.error(`Command failed: ${commandName} - ${error.message}`)
-    })
-    
-    // Provider events
-    this.emitter.on('provider:changed', (providerName) => {
-      this.state.currentProvider = providerName
-      this.logger.debug(`Provider changed to: ${providerName}`)
-    })
-    
-    // Input events
-    this.emitter.on('input:received', (input) => {
-      this.logger.debug(`User input received: ${input.substring(0, 50)}...`)
-    })
   }
 
   /**
@@ -206,16 +160,13 @@ export class Application {
       // Initialize logger
       await this.logger.initialize()
       
-      // Initialize plugins
-      await this.plugins.initializeAll()
       
       // Emit initialization event
-      this.emitter.emit('app:initialized')
       
       this.state.initialized = true
       this.logger.debug('Application initialized successfully')
     } catch (error) {
-      this.emitter.emit('app:error', error)
+      errorHandler.handleError(error)
       throw error
     }
   }
@@ -229,7 +180,7 @@ export class Application {
     }
     
     this.state.running = true
-    this.emitter.emit('app:start')
+    this.logger.debug('Application started')
     
     // Main application loop would go here
     // For now, this is just a framework
@@ -244,7 +195,7 @@ export class Application {
     }
     
     this.state.running = false
-    this.emitter.emit('app:stop')
+    this.logger.debug('Application stopped')
     
     // Cleanup resources
     await this.cleanup()
@@ -259,7 +210,7 @@ export class Application {
       const sanitizedInput = sanitizeString(input)
       validateString(sanitizedInput, 'user input', true)
       
-      this.emitter.emit('input:received', sanitizedInput)
+      this.logger.debug(`User input received: ${sanitizedInput.substring(0, 50)}...`)
       
       // Check if it's a command
       const words = sanitizedInput.trim().split(' ')
@@ -275,11 +226,13 @@ export class Application {
           })
           
           const duration = Date.now() - startTime
-          this.emitter.emit('command:executed', commandName, args, duration)
+          this.state.userSession.commandCount++
+          this.logger.debug(`Command executed: ${commandName} (${duration}ms)`)
           
           return result
         } catch (error) {
-          this.emitter.emit('command:failed', commandName, error)
+          this.state.userSession.errorCount++
+          this.logger.error(`Command failed: ${commandName} - ${error.message}`)
           throw error
         }
       }
@@ -287,7 +240,7 @@ export class Application {
       // Process as regular AI input
       return await this.processAIInput(sanitizedInput)
     } catch (error) {
-      this.emitter.emit('app:error', error)
+      errorHandler.handleError(error)
       throw error
     }
   }
@@ -318,7 +271,7 @@ export class Application {
    */
   clearContext() {
     this.state.contextHistory = []
-    this.emitter.emit('context:cleared')
+    this.logger.debug('Context cleared')
   }
 
   /**
@@ -328,9 +281,7 @@ export class Application {
     return {
       session: this.state.userSession,
       config: this.config.getAll(),
-      plugins: this.plugins.getStats(),
       commands: this.commands.getStats(),
-      events: this.emitter.getStats(),
       providers: this.providers.getProviderStats()
     }
   }
@@ -341,17 +292,6 @@ export class Application {
   async cleanup() {
     this.logger.debug('Cleaning up application resources...')
     
-    // Deactivate plugins
-    for (const plugin of this.plugins.getActivePlugins()) {
-      try {
-        await this.plugins.deactivatePlugin(plugin.name)
-      } catch (error) {
-        this.logger.error(`Failed to deactivate plugin ${plugin.name}:`, error.message)
-      }
-    }
-    
-    // Clear event listeners
-    this.emitter.removeAllListeners()
     
     this.logger.debug('Application cleanup completed')
   }
