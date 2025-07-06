@@ -6,18 +6,59 @@ export class StreamProcessor {
     this.providerKey = providerKey
     // Check if provider is Claude-based (Anthropic)
     this.isClaudeProvider = providerKey === 'anthropic'
+    this.isTerminated = false
+    this.currentReader = null
+    this.currentStream = null
+  }
+
+  /**
+   * Force terminate any ongoing stream processing
+   */
+  forceTerminate() {
+    this.isTerminated = true
+    
+    // Cancel reader if active
+    if (this.currentReader) {
+      try {
+        this.currentReader.cancel()
+      } catch (e) {
+        // Ignore cancellation errors
+      }
+    }
+    
+    // Close stream if active
+    if (this.currentStream) {
+      try {
+        this.currentStream.destroy?.()
+      } catch (e) {
+        // Ignore destruction errors
+      }
+    }
   }
 
   /**
    * Processes stream and returns response chunks
    */
-  async processStream(stream) {
+  async processStream(stream, signal = null) {
+    this.isTerminated = false
+    this.currentStream = stream
+    
+    // Check for immediate termination
+    if (this.isTerminated) {
+      throw new Error('AbortError')
+    }
+    
     const response = []
 
-    if (this.isClaudeProvider) {
-      await this.processClaudeStream(stream, response)
-    } else {
-      await this.processOpenAIStream(stream, response)
+    try {
+      if (this.isClaudeProvider) {
+        await this.processClaudeStream(stream, response, signal)
+      } else {
+        await this.processOpenAIStream(stream, response, signal)
+      }
+    } finally {
+      this.currentStream = null
+      this.currentReader = null
     }
 
     return response
@@ -26,13 +67,26 @@ export class StreamProcessor {
   /**
    * Processes Claude streaming response
    */
-  async processClaudeStream(stream, response) {
+  async processClaudeStream(stream, response, signal = null) {
     const reader = stream.getReader()
+    this.currentReader = reader
     const decoder = new TextDecoder()
     let done = false
     let buffer = ''
     
     while (!done) {
+      // Check for termination first
+      if (this.isTerminated) {
+        reader.cancel()
+        throw new Error('AbortError')
+      }
+      
+      // Check for abort signal
+      if (signal && signal.aborted) {
+        reader.cancel()
+        throw new Error('AbortError')
+      }
+      
       const { value, done: readerDone } = await reader.read()
       done = readerDone
       
@@ -90,12 +144,29 @@ export class StreamProcessor {
   /**
    * Processes OpenAI-compatible streaming response
    */
-  async processOpenAIStream(stream, response) {
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content
-      if (content) {
-        response.push(content)
+  async processOpenAIStream(stream, response, signal = null) {
+    try {
+      for await (const chunk of stream) {
+        // Check for termination first
+        if (this.isTerminated) {
+          throw new Error('Stream processing aborted')
+        }
+        
+        // Check for abort signal
+        if (signal && signal.aborted) {
+          throw new Error('Stream processing aborted')
+        }
+        
+        const content = chunk.choices[0]?.delta?.content
+        if (content) {
+          response.push(content)
+        }
       }
+    } catch (error) {
+      if (this.isTerminated || (signal && signal.aborted)) {
+        throw new Error('AbortError')
+      }
+      throw error
     }
   }
 }

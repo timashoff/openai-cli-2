@@ -42,11 +42,11 @@ export class Application {
   setupEventHandlers() {
     // Application events
     this.emitter.on('app:start', () => {
-      this.logger.info('Application started')
+      this.logger.debug('Application started')
     })
     
     this.emitter.on('app:stop', () => {
-      this.logger.info('Application stopped')
+      this.logger.debug('Application stopped')
     })
     
     this.emitter.on('app:error', (error) => {
@@ -68,7 +68,7 @@ export class Application {
     // Provider events
     this.emitter.on('provider:changed', (providerName) => {
       this.state.currentProvider = providerName
-      this.logger.info(`Provider changed to: ${providerName}`)
+      this.logger.debug(`Provider changed to: ${providerName}`)
     })
     
     // Input events
@@ -81,43 +81,47 @@ export class Application {
    * Register core application commands
    */
   registerCoreCommands() {
-    // Help command
-    this.commands.registerCommand(new class extends BaseCommand {
-      constructor() {
-        super('help', 'Show help information', {
-          aliases: ['h', '?'],
-          usage: 'help [command]',
-          examples: ['help', 'help provider'],
-          category: 'core'
-        })
-      }
-      
-      async execute(args) {
-        if (args.length === 0) {
-          return commandManager.generateHelp()
-        } else {
-          const command = commandManager.getCommand(args[0])
-          if (command) {
-            return command.getHelp()
+    // Check if help command is already registered
+    if (!this.commands.hasCommand('help')) {
+      // Help command
+      this.commands.registerCommand(new class extends BaseCommand {
+        constructor() {
+          super('help', 'Show help information', {
+            aliases: ['h', '?'],
+            usage: 'help [command]',
+            examples: ['help', 'help provider'],
+            category: 'core'
+          })
+        }
+        
+        async execute(args) {
+          if (args.length === 0) {
+            return commandManager.generateHelp()
           } else {
-            throw new AppError(`Command not found: ${args[0]}`, true, 404)
+            const command = commandManager.getCommand(args[0])
+            if (command) {
+              return command.getHelp()
+            } else {
+              throw new AppError(`Command not found: ${args[0]}`, true, 404)
+            }
           }
         }
-      }
-    })
+      })
+    }
     
     // Status command
-    this.commands.registerCommand(new class extends BaseCommand {
-      constructor() {
-        super('status', 'Show application status', {
-          aliases: ['stat'],
-          category: 'core'
-        })
-      }
-      
-      async execute() {
-        const app = this
-        return `Application Status:
+    if (!this.commands.hasCommand('status')) {
+      this.commands.registerCommand(new class extends BaseCommand {
+        constructor() {
+          super('status', 'Show application status', {
+            aliases: ['stat'],
+            category: 'core'
+          })
+        }
+        
+        async execute() {
+          const app = this
+          return `Application Status:
 - Uptime: ${Math.floor((Date.now() - app.state.userSession.startTime) / 1000)}s
 - Commands executed: ${app.state.userSession.commandCount}
 - Errors: ${app.state.userSession.errorCount}
@@ -125,60 +129,65 @@ export class Application {
 - Context history: ${app.state.contextHistory.length} messages
 - Plugins: ${app.plugins.getStats().active}/${app.plugins.getStats().total}
 - Configuration: ${Object.keys(app.config.getAll()).length} keys`
-      }
-    })
+        }
+      })
+    }
     
     // Exit command
-    this.commands.registerCommand(new class extends BaseCommand {
-      constructor() {
-        super('exit', 'Exit the application', {
-          aliases: ['quit', 'q'],
-          category: 'core'
-        })
-      }
-      
-      async execute() {
-        process.exit(0)
-      }
-    })
+    if (!this.commands.hasCommand('exit')) {
+      this.commands.registerCommand(new class extends BaseCommand {
+        constructor() {
+          super('exit', 'Exit the application', {
+            aliases: ['quit', 'q'],
+            category: 'core'
+          })
+        }
+        
+        async execute() {
+          process.exit(0)
+        }
+      })
+    }
     
     // Config command
-    this.commands.registerCommand(new class extends BaseCommand {
-      constructor() {
-        super('config', 'Manage configuration', {
-          usage: 'config <get|set|list> [key] [value]',
-          examples: [
-            'config list',
-            'config get maxInputLength',
-            'config set typingDelay 20'
-          ],
-          category: 'core'
-        })
-      }
-      
-      async execute(args) {
-        const [action, key, value] = args
-        
-        switch (action) {
-          case 'list':
-            return JSON.stringify(configManager.getAll(), null, 2)
-          
-          case 'get':
-            if (!key) throw new AppError('Key required for get action', true, 400)
-            return `${key}: ${configManager.get(key)}`
-          
-          case 'set':
-            if (!key || value === undefined) {
-              throw new AppError('Key and value required for set action', true, 400)
-            }
-            configManager.set(key, parseInt(value) || value)
-            return `${key} set to: ${configManager.get(key)}`
-          
-          default:
-            throw new AppError('Invalid action. Use: get, set, or list', true, 400)
+    if (!this.commands.hasCommand('config')) {
+      this.commands.registerCommand(new class extends BaseCommand {
+        constructor() {
+          super('config', 'Manage configuration', {
+            usage: 'config <get|set|list> [key] [value]',
+            examples: [
+              'config list',
+              'config get maxInputLength',
+              'config set typingDelay 20'
+            ],
+            category: 'core'
+          })
         }
-      }
-    })
+        
+        async execute(args) {
+          const [action, key, value] = args
+          
+          switch (action) {
+            case 'list':
+              return JSON.stringify(configManager.getAll(), null, 2)
+            
+            case 'get':
+              if (!key) throw new AppError('Key required for get action', true, 400)
+              return `${key}: ${configManager.get(key)}`
+            
+            case 'set':
+              if (!key || value === undefined) {
+                throw new AppError('Key and value required for set action', true, 400)
+              }
+              configManager.set(key, parseInt(value) || value)
+              return `${key} set to: ${configManager.get(key)}`
+            
+            default:
+              throw new AppError('Invalid action. Use: get, set, or list', true, 400)
+          }
+        }
+      })
+    }
   }
 
   /**
@@ -204,7 +213,7 @@ export class Application {
       this.emitter.emit('app:initialized')
       
       this.state.initialized = true
-      this.logger.info('Application initialized successfully')
+      this.logger.debug('Application initialized successfully')
     } catch (error) {
       this.emitter.emit('app:error', error)
       throw error
@@ -330,7 +339,7 @@ export class Application {
    * Cleanup resources
    */
   async cleanup() {
-    this.logger.info('Cleaning up application resources...')
+    this.logger.debug('Cleaning up application resources...')
     
     // Deactivate plugins
     for (const plugin of this.plugins.getActivePlugins()) {
@@ -344,7 +353,7 @@ export class Application {
     // Clear event listeners
     this.emitter.removeAllListeners()
     
-    this.logger.info('Application cleanup completed')
+    this.logger.debug('Application cleanup completed')
   }
 }
 

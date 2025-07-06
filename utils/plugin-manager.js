@@ -36,7 +36,7 @@ export class PluginManager {
         active: false
       })
       
-      logger.info(`Plugin ${pluginName} registered successfully`)
+      logger.debug(`Plugin ${pluginName} registered successfully`)
     } catch (error) {
       logger.error(`Failed to register plugin ${pluginName}:`, error.message)
       throw error
@@ -59,7 +59,7 @@ export class PluginManager {
     try {
       await plugin.init(this)
       plugin.active = true
-      logger.info(`Plugin ${pluginName} initialized successfully`)
+      logger.debug(`Plugin ${pluginName} initialized successfully`)
       return true
     } catch (error) {
       logger.error(`Failed to initialize plugin ${pluginName}:`, error.message)
@@ -80,7 +80,7 @@ export class PluginManager {
     
     await Promise.all(initPromises)
     this.initialized = true
-    logger.info('All plugins initialized')
+    logger.debug('All plugins initialized')
   }
 
   /**
@@ -101,7 +101,7 @@ export class PluginManager {
         await plugin.destroy()
       }
       plugin.active = false
-      logger.info(`Plugin ${pluginName} deactivated successfully`)
+      logger.debug(`Plugin ${pluginName} deactivated successfully`)
       return true
     } catch (error) {
       logger.error(`Failed to deactivate plugin ${pluginName}:`, error.message)
@@ -216,7 +216,7 @@ export class PluginManager {
     }
     
     this.plugins.delete(pluginName)
-    logger.info(`Plugin ${pluginName} removed`)
+    logger.debug(`Plugin ${pluginName} removed`)
     return true
   }
 

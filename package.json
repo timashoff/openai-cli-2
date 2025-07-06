@@ -1,7 +1,7 @@
 {
   "name": "openai-cli",
-  "version": "2.8.0",
-  "description": "A secure command-line AI assistant with multi-provider support, enhanced input validation, and modern error handling",
+  "version": "3.0.0",
+  "description": "Professional command-line AI assistant with modern OOP architecture, instant escape responsiveness, multi-provider support, and seamless UX",
   "type": "module",
   "main": "bin/app.js",
   "bin": {

@@ -96,10 +96,9 @@ export class OpenAIProvider extends BaseProvider {
   constructor(config) {
     super(config)
     this.validateConfig()
-    this.initializeClient()
   }
 
-  initializeClient() {
+  async initializeClient() {
     try {
       const { OpenAI } = await import('openai')
       this.client = new OpenAI({
@@ -134,12 +133,15 @@ export class OpenAIProvider extends BaseProvider {
     const startTime = Date.now()
     
     try {
+      // Extract signal for AbortController, but don't pass it to API
+      const { signal, ...apiOptions } = options
+      
       const response = await this.client.chat.completions.create({
         model,
         messages,
-        stream: options.stream || true,
-        ...options
-      })
+        stream: apiOptions.stream || true,
+        ...apiOptions
+      }, { signal }) // Pass signal to the request options, not API parameters
       
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
@@ -148,6 +150,12 @@ export class OpenAIProvider extends BaseProvider {
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
+      
+      // Handle abortion gracefully - don't treat as error
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw error // Re-throw as-is, don't wrap in AppError
+      }
+      
       throw new AppError(`Failed to create chat completion: ${error.message}`, true, 500)
     }
   }
@@ -218,14 +226,18 @@ export class AnthropicProvider extends BaseProvider {
     const startTime = Date.now()
     
     try {
+      // Extract signal for AbortController, but don't pass it to API
+      const { signal, ...apiOptions } = options
+      
       const response = await this.makeRequest('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal, // Pass signal to fetch options
         body: JSON.stringify({
           model,
           messages,
-          stream: options.stream || true,
-          max_tokens: options.max_tokens || 4096,
-          ...options
+          stream: apiOptions.stream || true,
+          max_tokens: apiOptions.max_tokens || 4096,
+          ...apiOptions
         })
       })
       
@@ -236,6 +248,12 @@ export class AnthropicProvider extends BaseProvider {
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
+      
+      // Handle abortion gracefully - don't treat as error
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw error // Re-throw as-is, don't wrap in AppError
+      }
+      
       throw new AppError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
     }
   }
@@ -298,7 +316,7 @@ export class ProviderFactory {
       const instanceId = `${type}:${config.name || 'default'}`
       this.instances.set(instanceId, instance)
       
-      logger.info(`Provider instance created: ${instanceId}`)
+      logger.debug(`Provider instance created: ${instanceId}`)
       return instance
     } catch (error) {
       throw new AppError(`Failed to create provider ${type}: ${error.message}`, true, 500)
@@ -338,7 +356,7 @@ export class ProviderFactory {
   removeProvider(instanceId) {
     const removed = this.instances.delete(instanceId)
     if (removed) {
-      logger.info(`Provider instance removed: ${instanceId}`)
+      logger.debug(`Provider instance removed: ${instanceId}`)
     }
     return removed
   }
@@ -372,3 +390,8 @@ export class ProviderFactory {
 
 // Export singleton instance
 export const providerFactory = new ProviderFactory()
+
+// Export convenience function
+export function createProvider(type, config) {
+  return providerFactory.createProvider(type, config)
+}
