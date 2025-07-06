@@ -214,7 +214,7 @@ class AIApplication extends Application {
     
     try {
       // Create provider using factory
-      const provider = createProvider('openai', providerConfig)
+      const provider = createProvider(selectedProviderKey, providerConfig)
       await provider.initializeClient()
       
       this.aiState.provider = provider

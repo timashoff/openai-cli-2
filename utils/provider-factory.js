@@ -181,6 +181,14 @@ export class AnthropicProvider extends BaseProvider {
     this.apiKey = this.getApiKey()
   }
 
+  async initializeClient() {
+    // For Anthropic, we don't need to initialize a client library
+    // We'll use fetch directly, but we validate the API key here
+    if (!this.apiKey) {
+      throw new AppError('Anthropic API key is required', true, 401)
+    }
+  }
+
   async makeRequest(url, options = {}) {
     this.cspChecker.validateUrl(url)
     
