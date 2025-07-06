@@ -363,11 +363,67 @@ class AIApplication extends Application {
       const streamProcessor = new StreamProcessor(selectedProviderKey)
       this.currentStreamProcessor = streamProcessor
       let response = []
+      let firstChunk = true
+      let contentBuffer = ''
+      let lastFormattedLength = 0
+      this.lastDisplayedContent = ''
+      
+      // Setup streaming output callback  
+      const onChunk = async (content) => {
+        // Check if typing was cancelled
+        if (!this.isTypingResponse && !firstChunk) {
+          return // Stop processing chunks if user cancelled
+        }
+        
+        if (firstChunk) {
+          // Stop spinner and show success on first chunk
+          clearInterval(this.currentSpinnerInterval)
+          this.currentSpinnerInterval = null
+          
+          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+          process.stdout.clearLine()
+          process.stdout.cursorTo(0)
+          console.log(`${color.green}✓${color.reset} ${finalTime}s`)
+          
+          // Switch to typing mode immediately
+          this.isProcessingRequest = false
+          this.isTypingResponse = true
+          firstChunk = false
+        }
+        
+        // Add to buffer and output at logical markdown boundaries
+        if (this.isTypingResponse) {
+          contentBuffer += content
+          
+          // Check if we should flush the buffer
+          const shouldFlush = this.shouldFlushBuffer(contentBuffer, content)
+          
+          if (shouldFlush) {
+            // Process and format the buffered content
+            const processedBuffer = this.preProcessMarkdown(contentBuffer)
+            const formattedOutput = marked(processedBuffer)
+            
+            // Clear what we had before and write new formatted content
+            if (lastFormattedLength > 0) {
+              // Clear previous output by counting actual lines
+              const previousLines = (this.lastDisplayedContent || '').split('\n').length
+              for (let i = 0; i < previousLines; i++) {
+                process.stdout.write('\x1b[1A\x1b[2K') // Move up and clear line
+              }
+            }
+            
+            // Output formatted content immediately (no typing animation for formatted text)
+            process.stdout.write(formattedOutput)
+            this.lastDisplayedContent = formattedOutput
+            contentBuffer = '' // Clear buffer after output
+          }
+        }
+      }
       
       try {
         // Use Promise.race for IMMEDIATE cancellation
         response = await Promise.race([
-          streamProcessor.processStream(stream, requestController.signal),
+          streamProcessor.processStream(stream, requestController.signal, onChunk),
           // Immediate abort promise that resolves instantly on cancellation
           new Promise((resolve, reject) => {
             // Set up immediate abort listener
@@ -388,7 +444,7 @@ class AIApplication extends Application {
                 return // Stop checking if controller is gone
               }
               
-              if (this.currentStreamProcessor?.isTerminated) {
+              if (this.currentStreamProcessor?.isTerminated || this.shouldReturnToPrompt) {
                 setTimeout(() => reject(new Error('AbortError')), 0)
               } else if (!requestController.signal.aborted) {
                 setTimeout(rapidCheck, 5) // Check every 5ms
@@ -424,45 +480,49 @@ class AIApplication extends Application {
 
       clearInterval(interval)
 
-      if (requestController.signal.aborted) {
-        const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-        process.stdout.clearLine()
-        process.stdout.cursorTo(0)
-        console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
-        return // Skip typing animation entirely when request was cancelled
-      } else {
-        process.stdout.clearLine(0)
-        process.stdout.cursorTo(0)
-        const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-        console.log(`${color.green}✓${color.reset} ${finalTime}s`)
-
-        // Request completed successfully, clear processing flag before typing starts
-        this.isProcessingRequest = false
-
-        const fullResponse = response.join('')
-        const processedResponse = this.preProcessMarkdown(fullResponse)
-        const finalOutput = marked(processedResponse)
-
-        // Enable escape during typing
-        this.isTypingResponse = true
-        
-        for (let j = 0; j < finalOutput.length && this.isTypingResponse; j++) {
-          // Check for early termination more frequently
-          if (!this.isTypingResponse) break
-          
-          process.stdout.write(finalOutput[j])
-          
-          // Break typing delay into smaller chunks for more responsive interruption
-          const delay = configManager.get('typingDelay')
-          const chunks = Math.max(1, Math.floor(delay / 10))
-          for (let k = 0; k < chunks && this.isTypingResponse; k++) {
-            await new Promise((resolve) => setTimeout(resolve, delay / chunks))
+      if (requestController.signal.aborted || this.shouldReturnToPrompt) {
+        // Only show cancellation if no content was output yet
+        if (firstChunk) {
+          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+          process.stdout.clearLine()
+          process.stdout.cursorTo(0)
+          console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
+        } else {
+          // Output any remaining content in buffer before cancellation  
+          if (contentBuffer.trim()) {
+            const processedBuffer = this.preProcessMarkdown(contentBuffer)
+            const formattedOutput = marked(processedBuffer)
+            process.stdout.write(formattedOutput)
           }
+          // Content was already streaming, just add newline
+          console.log()
         }
         
-        // Typing was interrupted, no need to show message
-        
+        // Reset flags when cancelled during streaming
+        this.shouldReturnToPrompt = false
         this.isTypingResponse = false
+        return
+      } else {
+        // Stream completed successfully
+        this.isTypingResponse = false
+        
+        // If no content was output (empty response), show completion
+        if (firstChunk) {
+          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
+          process.stdout.clearLine()
+          process.stdout.cursorTo(0)
+          console.log(`${color.green}✓${color.reset} ${finalTime}s`)
+          console.log('No content received.')
+        } else {
+          // Output any remaining content in buffer
+          if (contentBuffer.trim()) {
+            const processedBuffer = this.preProcessMarkdown(contentBuffer)
+            const formattedOutput = marked(processedBuffer)
+            process.stdout.write(formattedOutput)
+          }
+          // Content was streaming, just add newline
+          console.log()
+        }
         
         // Check if we should return to prompt immediately
         if (this.shouldReturnToPrompt) {
@@ -470,6 +530,8 @@ class AIApplication extends Application {
           return // Early return to avoid context processing
         }
 
+        // Handle caching and context
+        const fullResponse = response.join('')
         if (command && command.isTranslation) {
           await cache.set(finalInput, fullResponse)
         } else {
@@ -565,6 +627,48 @@ class AIApplication extends Application {
       .replace(/\n{3,}/g, '\n\n')
       .replace(emojiRegex, '')
   }
+
+  /**
+   * Apply basic terminal formatting for streaming content
+   */
+  applyBasicFormatting(content) {
+    // For streaming, we apply minimal formatting to maintain performance
+    // More complex formatting happens during full processing
+    return content
+      .replace(/\*\*(.*?)\*\*/g, `${color.yellow}$1${color.reset}`) // Bold -> Yellow
+      .replace(/\*(.*?)\*/g, `${color.cyan}$1${color.reset}`)       // Italic -> Cyan
+      .replace(/`(.*?)`/g, `${color.grey}$1${color.reset}`)         // Code -> Grey
+  }
+
+  /**
+   * Determine if buffer should be flushed based on markdown structure
+   */
+  shouldFlushBuffer(buffer, newContent) {
+    // Always flush if buffer gets too large (safety)
+    if (buffer.length > 500) return true
+    
+    // Don't flush in the middle of code blocks
+    const codeBlockCount = (buffer.match(/```/g) || []).length
+    if (codeBlockCount % 2 === 1) return false // Inside code block
+    
+    // Flush at double newlines (paragraph breaks)
+    if (newContent.includes('\n\n')) return true
+    
+    // Flush after complete list items
+    if (/\n\s*[\*\-\+]\s/.test(buffer) && newContent.includes('\n') && !/^\s*[\*\-\+]/.test(newContent)) {
+      return true
+    }
+    
+    // Flush after headers
+    if (/\n#{1,6}\s/.test(buffer) && newContent.includes('\n')) return true
+    
+    // Flush at end of sentences for long content
+    if (buffer.length > 150 && /[.!?]\s*$/.test(buffer.trim())) return true
+    
+    return false
+  }
+
+
 
   /**
    * Main application loop

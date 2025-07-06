@@ -39,7 +39,7 @@ export class StreamProcessor {
   /**
    * Processes stream and returns response chunks
    */
-  async processStream(stream, signal = null) {
+  async processStream(stream, signal = null, onChunk = null) {
     this.isTerminated = false
     this.currentStream = stream
     
@@ -52,9 +52,9 @@ export class StreamProcessor {
 
     try {
       if (this.isClaudeProvider) {
-        await this.processClaudeStream(stream, response, signal)
+        await this.processClaudeStream(stream, response, signal, onChunk)
       } else {
-        await this.processOpenAIStream(stream, response, signal)
+        await this.processOpenAIStream(stream, response, signal, onChunk)
       }
     } finally {
       this.currentStream = null
@@ -67,7 +67,7 @@ export class StreamProcessor {
   /**
    * Processes Claude streaming response
    */
-  async processClaudeStream(stream, response, signal = null) {
+  async processClaudeStream(stream, response, signal = null, onChunk = null) {
     const reader = stream.getReader()
     this.currentReader = reader
     const decoder = new TextDecoder()
@@ -125,9 +125,11 @@ export class StreamProcessor {
               // Handle different event types
               if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
                 response.push(json.delta.text)
+                if (onChunk) onChunk(json.delta.text)
               } else if (json.delta && json.delta.text) {
                 // Fallback for older format
                 response.push(json.delta.text)
+                if (onChunk) onChunk(json.delta.text)
               }
             } catch (e) {
               // Only log if it's not a known non-JSON line
@@ -144,7 +146,7 @@ export class StreamProcessor {
   /**
    * Processes OpenAI-compatible streaming response
    */
-  async processOpenAIStream(stream, response, signal = null) {
+  async processOpenAIStream(stream, response, signal = null, onChunk = null) {
     try {
       for await (const chunk of stream) {
         // Check for termination first
@@ -160,6 +162,7 @@ export class StreamProcessor {
         const content = chunk.choices[0]?.delta?.content
         if (content) {
           response.push(content)
+          if (onChunk) onChunk(content)
         }
       }
     } catch (error) {
