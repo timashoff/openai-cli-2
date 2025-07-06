@@ -37,8 +37,6 @@
     "url": "https://github.com/timashoff/openai-cli-2.git"
   },
   "dependencies": {
-    "marked": "~15.0.12",
-    "marked-terminal": "^7.3.0",
     "openai": "^5.8.2"
   },
   "devDependencies": {

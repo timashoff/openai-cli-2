@@ -11,8 +11,6 @@ import { APP_CONSTANTS } from '../config/constants.js'
 import { configManager } from '../config/config-manager.js'
 import { createProvider } from '../utils/provider-factory.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
-import { marked } from 'marked'
-import TerminalRenderer from 'marked-terminal'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { initializeApi } from '../utils/index.js'
@@ -24,12 +22,6 @@ import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
 import readline from 'node:readline'
 
-// Configure markdown renderer
-marked.setOptions({
-  renderer: new TerminalRenderer(),
-  gfm: true,
-  breaks: true,
-})
 
 // Create application instance
 const app = new Application()
@@ -342,12 +334,7 @@ class AIApplication extends Application {
 
       startTime = Date.now()
 
-      // Use provider for API calls
-      const stream = await this.aiState.provider.createChatCompletion(model, messages, {
-        stream: true,
-        signal: requestController.signal
-      })
-
+      // Start spinner before making API call
       let i = 0
       process.stdout.write('\x1B[?25l') // Hide cursor
       this.currentSpinnerInterval = setInterval(() => {
@@ -360,13 +347,16 @@ class AIApplication extends Application {
       }, configManager.get('spinnerInterval'))
       interval = this.currentSpinnerInterval
 
+      // Use provider for API calls
+      const stream = await this.aiState.provider.createChatCompletion(model, messages, {
+        stream: true,
+        signal: requestController.signal
+      })
+
       const streamProcessor = new StreamProcessor(selectedProviderKey)
       this.currentStreamProcessor = streamProcessor
       let response = []
       let firstChunk = true
-      let contentBuffer = ''
-      let lastFormattedLength = 0
-      this.lastDisplayedContent = ''
       
       // Setup streaming output callback  
       const onChunk = async (content) => {
@@ -391,32 +381,9 @@ class AIApplication extends Application {
           firstChunk = false
         }
         
-        // Add to buffer and output at logical markdown boundaries
+        // Simple chunk output - just write content as it comes
         if (this.isTypingResponse) {
-          contentBuffer += content
-          
-          // Check if we should flush the buffer
-          const shouldFlush = this.shouldFlushBuffer(contentBuffer, content)
-          
-          if (shouldFlush) {
-            // Process and format the buffered content
-            const processedBuffer = this.preProcessMarkdown(contentBuffer)
-            const formattedOutput = marked(processedBuffer)
-            
-            // Clear what we had before and write new formatted content
-            if (lastFormattedLength > 0) {
-              // Clear previous output by counting actual lines
-              const previousLines = (this.lastDisplayedContent || '').split('\n').length
-              for (let i = 0; i < previousLines; i++) {
-                process.stdout.write('\x1b[1A\x1b[2K') // Move up and clear line
-              }
-            }
-            
-            // Output formatted content immediately (no typing animation for formatted text)
-            process.stdout.write(formattedOutput)
-            this.lastDisplayedContent = formattedOutput
-            contentBuffer = '' // Clear buffer after output
-          }
+          process.stdout.write(content)
         }
       }
       
@@ -488,12 +455,6 @@ class AIApplication extends Application {
           process.stdout.cursorTo(0)
           console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
         } else {
-          // Output any remaining content in buffer before cancellation  
-          if (contentBuffer.trim()) {
-            const processedBuffer = this.preProcessMarkdown(contentBuffer)
-            const formattedOutput = marked(processedBuffer)
-            process.stdout.write(formattedOutput)
-          }
           // Content was already streaming, just add newline
           console.log()
         }
@@ -514,12 +475,6 @@ class AIApplication extends Application {
           console.log(`${color.green}✓${color.reset} ${finalTime}s`)
           console.log('No content received.')
         } else {
-          // Output any remaining content in buffer
-          if (contentBuffer.trim()) {
-            const processedBuffer = this.preProcessMarkdown(contentBuffer)
-            const formattedOutput = marked(processedBuffer)
-            process.stdout.write(formattedOutput)
-          }
           // Content was streaming, just add newline
           console.log()
         }
@@ -617,56 +572,6 @@ class AIApplication extends Application {
     return models[0]
   }
 
-  /**
-   * Pre-process markdown text
-   */
-  preProcessMarkdown(text) {
-    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g
-    return text
-      .replace(/•/g, '*')
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(emojiRegex, '')
-  }
-
-  /**
-   * Apply basic terminal formatting for streaming content
-   */
-  applyBasicFormatting(content) {
-    // For streaming, we apply minimal formatting to maintain performance
-    // More complex formatting happens during full processing
-    return content
-      .replace(/\*\*(.*?)\*\*/g, `${color.yellow}$1${color.reset}`) // Bold -> Yellow
-      .replace(/\*(.*?)\*/g, `${color.cyan}$1${color.reset}`)       // Italic -> Cyan
-      .replace(/`(.*?)`/g, `${color.grey}$1${color.reset}`)         // Code -> Grey
-  }
-
-  /**
-   * Determine if buffer should be flushed based on markdown structure
-   */
-  shouldFlushBuffer(buffer, newContent) {
-    // Always flush if buffer gets too large (safety)
-    if (buffer.length > 500) return true
-    
-    // Don't flush in the middle of code blocks
-    const codeBlockCount = (buffer.match(/```/g) || []).length
-    if (codeBlockCount % 2 === 1) return false // Inside code block
-    
-    // Flush at double newlines (paragraph breaks)
-    if (newContent.includes('\n\n')) return true
-    
-    // Flush after complete list items
-    if (/\n\s*[\*\-\+]\s/.test(buffer) && newContent.includes('\n') && !/^\s*[\*\-\+]/.test(newContent)) {
-      return true
-    }
-    
-    // Flush after headers
-    if (/\n#{1,6}\s/.test(buffer) && newContent.includes('\n')) return true
-    
-    // Flush at end of sentences for long content
-    if (buffer.length > 150 && /[.!?]\s*$/.test(buffer.trim())) return true
-    
-    return false
-  }
 
 
 
