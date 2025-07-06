@@ -9,8 +9,11 @@ import {
 } from '../utils/index.js'
 import { validateString, sanitizeString } from '../utils/validation.js'
 import { APP_CONSTANTS } from '../config/constants.js'
+import { APP_COMMANDS, CLIPBOARD_MARKER, FORCE_FLAGS, SPINNER_FRAMES, TIMING_CONFIG } from '../config/app_constants.js'
 import { validateApiKey, sanitizeErrorMessage, createSecureHeaders } from '../utils/security.js'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
+import { ApiHandler } from '../utils/api-handler.js'
+import { StreamProcessor } from '../utils/stream-processor.js'
 import cache from '../utils/cache.js'
 import { color } from '../config/color.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
@@ -50,30 +53,18 @@ async function switchProvider() {
   }
 
   selectedProviderKey = providerKeys[selectedIndex]
+  const apiHandler = new ApiHandler(selectedProviderKey)
 
   if (!API_PROVIDERS[selectedProviderKey]?.isClaude) {
+    // Validate API key and initialize OpenAI client
+    apiHandler.validateCurrentApiKey()
     openai = initializeApi(selectedProviderKey)
   }
   const providerName = API_PROVIDERS[selectedProviderKey].name
 
   console.log(`Loading models from ${providerName}...`)
   try {
-    let list
-    if (API_PROVIDERS[selectedProviderKey]?.isClaude) {
-      const apiKey = process.env.ANTHROPIC_API_KEY
-      validateApiKey(apiKey, 'anthropic')
-      
-      const response = await fetch('https://api.anthropic.com/v1/models', {
-        method: 'GET',
-        headers: createSecureHeaders(apiKey, 'anthropic')
-      })
-      list = await response.json()
-      if (!response.ok) {
-        throw new Error(list.error.message)
-      }
-    } else {
-      list = await openai.models.list()
-    }
+    const list = await apiHandler.fetchModels(openai)
     models = list.data.sort((a, b) => a.id.localeCompare(b.id))
     model = findModel(DEFAULT_MODELS, models)
     process.title = model
@@ -130,7 +121,7 @@ async function main() {
       if (contextHistory.length) {
         contextHistory.length = 0
         console.log(color.yellow + 'Context history cleared')
-      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), 100) //clear the CLI window
+      } else setTimeout(() => process.stdout.write('\x1b[2J\x1b[0;0H> '), TIMING_CONFIG.CLEAR_TIMEOUT) //clear the CLI window
       continue
     }
 
@@ -157,7 +148,7 @@ async function main() {
       continue
     }
 
-    if (userInput.includes('$$')) {
+    if (userInput.includes(CLIPBOARD_MARKER)) {
       try {
         const buffer = await getClipboardContent()
         
@@ -171,8 +162,8 @@ async function main() {
           continue
         }
         
-        // Replace $$ with sanitized content
-        userInput = userInput.replace(/\$\$/g, sanitizedBuffer)
+        // Replace clipboard marker with sanitized content
+        userInput = userInput.replace(new RegExp(CLIPBOARD_MARKER.replace(/\$/g, '\\$'), 'g'), sanitizedBuffer)
         console.log(`${color.grey}[Clipboard content inserted (${sanitizedBuffer.length} chars)]${color.reset}`)
       } catch (error) {
         console.log(`${color.red}Error reading clipboard: ${error.message}${color.reset}`)
@@ -181,9 +172,12 @@ async function main() {
     }
 
     let forceRequest = false
-    if (userInput.endsWith(' --force') || userInput.endsWith(' -f')) {
-      forceRequest = true
-      userInput = userInput.replace(/ --force$| -f$/, '').trim()
+    for (const flag of FORCE_FLAGS) {
+      if (userInput.endsWith(flag)) {
+        forceRequest = true
+        userInput = userInput.replace(new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '').trim()
+        break
+      }
     }
 
     const command = findCommand(userInput)
@@ -223,45 +217,13 @@ async function main() {
         messages.push({ role: 'user', content: input })
       }
 
-      const isClaude = API_PROVIDERS[selectedProviderKey]?.isClaude;
 
       // Start timing before API request
       startTime = Date.now()
 
-      let stream;
-      if (isClaude) {
-        const apiKey = process.env.ANTHROPIC_API_KEY
-        validateApiKey(apiKey, 'anthropic')
-        
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: createSecureHeaders(apiKey, 'anthropic'),
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: true,
-          max_tokens: 4096
-        }),
-        signal: requestController.signal
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error.message)
-      }
-      stream = response.body
-      } else {
-        stream = await openai.chat.completions.create(
-          {
-            model,
-            messages,
-            stream: true,
-          },
-          { signal: requestController.signal },
-        );
-      }
+      const apiHandler = new ApiHandler(selectedProviderKey)
+      const stream = await apiHandler.createChatStream(messages, model, requestController.signal, openai)
 
-      const response = []
-      const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
       let i = 0
       process.stdout.write('\x1B[?25l') // Hide cursor
       interval = setInterval(() => {
@@ -269,77 +231,12 @@ async function main() {
         process.stdout.cursorTo(0)
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
         process.stdout.write(
-          `${color.reset}${spinner[i++ % spinner.length]} ${elapsedTime}s${color.reset}`,
+          `${color.reset}${SPINNER_FRAMES[i++ % SPINNER_FRAMES.length]} ${elapsedTime}s${color.reset}`,
         )
-      }, 100)
+      }, TIMING_CONFIG.SPINNER_INTERVAL)
 
-      if (isClaude) {
-        const reader = stream.getReader()
-        const decoder = new TextDecoder()
-        let done = false
-        let buffer = ''
-        
-        while (!done) {
-          const { value, done: readerDone } = await reader.read()
-          done = readerDone
-          
-          if (value) {
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            
-            // Keep the last incomplete line in buffer
-            buffer = lines.pop() || ''
-            
-            for (const line of lines) {
-              const trimmedLine = line.trim()
-              
-              // Skip empty lines and comments
-              if (!trimmedLine || trimmedLine.startsWith(':')) {
-                continue
-              }
-              
-              if (trimmedLine.startsWith('data: ')) {
-                const data = trimmedLine.substring(6).trim()
-                
-                // Check for end of stream
-                if (data === '[DONE]') {
-                  done = true
-                  break
-                }
-                
-                // Skip empty data
-                if (!data) {
-                  continue
-                }
-                
-                try {
-                  const json = JSON.parse(data)
-                  
-                  // Handle different event types
-                  if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
-                    response.push(json.delta.text)
-                  } else if (json.delta && json.delta.text) {
-                    // Fallback for older format
-                    response.push(json.delta.text)
-                  }
-                } catch (e) {
-                  // Only log if it's not a known non-JSON line
-                  if (data !== '[DONE]' && !data.startsWith('event:')) {
-                    console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
-                  }
-                }
-              }
-            }
-          }
-        }
-      } else {
-        for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content
-          if (content) {
-            response.push(content)
-          }
-        }
-      }
+      const streamProcessor = new StreamProcessor(selectedProviderKey)
+      const response = await streamProcessor.processStream(stream)
 
       clearInterval(interval)
 
@@ -360,7 +257,7 @@ async function main() {
 
         for (let j = 0; j < finalOutput.length; j++) {
           process.stdout.write(finalOutput[j])
-          await new Promise((resolve) => setTimeout(resolve, 10)) // Adjust delay as needed
+          await new Promise((resolve) => setTimeout(resolve, TIMING_CONFIG.TYPING_DELAY))
         }
         // New line after typing
 

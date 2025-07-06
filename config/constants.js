@@ -22,8 +22,8 @@ export const APP_CONSTANTS = {
   REGEX: {
     EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     SAFE_STRING: /^[a-zA-Z0-9\s\-_.,!?]+$/,
-    API_KEY_OPENAI: /^sk-[a-zA-Z0-9]{20,}$/,
-    API_KEY_DEEPSEEK: /^sk-[a-zA-Z0-9]{20,}$/,
+    API_KEY_OPENAI: /^sk-[a-zA-Z0-9\-_]{20,}$/,
+    API_KEY_DEEPSEEK: /^sk-[a-zA-Z0-9\-_]{20,}$/,
     API_KEY_ANTHROPIC: /^sk-ant-api03-[a-zA-Z0-9\-_]{95}$/,
   },
 }
