@@ -1,9 +1,14 @@
 import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../../config/instructions.js'
 import { color } from '../../config/color.js'
+import { commandManager } from '../command-manager.js'
 
 export const execHelp = () => {
-  console.log(`
-${color.yellow}system:${color.reset}`)
+  // Show system commands from command manager
+  console.log(`${color.yellow}System Commands:${color.reset}`)
+  const systemHelp = commandManager.generateHelp()
+  console.log(systemHelp)
+  
+  console.log(`${color.yellow}AI Commands:${color.reset}`)
   help(SYS_INSTRUCTIONS)
   console.log(`
 ${color.yellow}openai prompts:${color.reset}`)

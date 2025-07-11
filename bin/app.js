@@ -15,7 +15,6 @@ import { API_PROVIDERS } from '../config/api_providers.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 import { INSTRUCTIONS } from '../config/instructions.js'
 import cache from '../utils/cache.js'
-import { sanitizeErrorMessage } from '../utils/security.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
 import readline from 'node:readline'
@@ -25,9 +24,6 @@ import { fetchMCPServer } from '../utils/fetch-mcp-server.js'
 import { searchMCPServer } from '../utils/search-mcp-server.js'
 import { readFile } from 'node:fs/promises'
 
-
-// Create application instance
-const app = new Application()
 
 /**
  * Enhanced Application class with AI functionality
@@ -471,7 +467,7 @@ class AIApplication extends Application {
           })
         ])
       } catch (error) {
-        if (error.message === 'AbortError' || error.name === 'AbortError' || error.message === 'Stream processing aborted' || error.message.includes('aborted')) {
+        if (error.message === 'AbortError' || error.name === 'AbortError' || error.message === 'Stream processing aborted' || error.message.includes('aborted') || error.message.includes('Aborted with Ctrl+C')) {
           // For AbortError, just continue with empty response
           response = []
         } else {
@@ -541,7 +537,7 @@ class AIApplication extends Application {
       process.stdout.write('')
       const finalTime = startTime ? ((Date.now() - startTime) / 1000).toFixed(1) : 'N/A'
 
-      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+      if (error.name === 'AbortError' || error.message.includes('aborted') || error.message.includes('Aborted with Ctrl+C')) {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
         console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
@@ -807,6 +803,10 @@ class AIApplication extends Application {
         }
         
       } catch (error) {
+        // Skip error handling for Ctrl+C abort
+        if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+          continue
+        }
         errorHandler.handleError(error, { context: 'user_input' })
         continue
       }

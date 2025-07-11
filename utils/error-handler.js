@@ -20,6 +20,11 @@ class ErrorHandler {
   }
 
   async handleError(error) {
+    // Skip logging for Ctrl+C abort
+    if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+      return
+    }
+    
     await this.logError(error)
     
     if (!this.isTrustedError(error)) {
@@ -52,13 +57,22 @@ export const errorHandler = new ErrorHandler()
 
 // Handling unhandled errors
 process.on('uncaughtException', (error) => {
+  // Skip Ctrl+C abort errors
+  if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+    return
+  }
   const sanitizedMessage = sanitizeErrorMessage(error.message)
   console.error(`${color.red}Uncaught Exception:${color.reset}`, sanitizedMessage)
   errorHandler.handleError(error)
 })
 
 process.on('unhandledRejection', (reason) => {
-  const sanitizedReason = sanitizeErrorMessage(String(reason))
+  // Skip Ctrl+C abort errors
+  const reasonStr = String(reason)
+  if (reasonStr.includes('Aborted with Ctrl+C')) {
+    return
+  }
+  const sanitizedReason = sanitizeErrorMessage(reasonStr)
   console.error(`${color.red}Unhandled Rejection:${color.reset}`, sanitizedReason)
-  errorHandler.handleError(reason instanceof Error ? reason : new Error(String(reason)))
+  errorHandler.handleError(reason instanceof Error ? reason : new Error(reasonStr))
 })

@@ -4,6 +4,7 @@ import { commandManager, BaseCommand } from './command-manager.js'
 import { AppError, errorHandler } from './error-handler.js'
 import { validateString, sanitizeString } from './validation.js'
 import { color } from '../config/color.js'
+import { execHelp } from './help/execHelp.js'
 
 /**
  * Main application class with improved architecture
@@ -48,7 +49,8 @@ export class Application {
         
         async execute(args) {
           if (args.length === 0) {
-            return commandManager.generateHelp()
+            execHelp()
+            return ''
           } else {
             const command = commandManager.getCommand(args[0])
             if (command) {

@@ -1,6 +1,6 @@
 {
   "name": "openai-cli",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Professional command-line AI assistant with modern OOP architecture, instant escape responsiveness, multi-provider support, and seamless UX",
   "type": "module",
   "main": "bin/app.js",

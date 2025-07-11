@@ -5,7 +5,6 @@ import util from 'node:util'
 import { platform } from 'node:os'
 
 import { execModel } from './model/execModel.js'
-import { execHelp } from './help/execHelp.js'
 import cache from './cache.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { color } from '../config/color.js'
@@ -76,4 +75,4 @@ const rl = readline.createInterface({
 })
 
 
-export { rl, getClipboardContent, execModel, execHelp, cache }
+export { rl, getClipboardContent, execModel, cache }

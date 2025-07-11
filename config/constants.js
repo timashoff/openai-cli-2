@@ -89,16 +89,6 @@ export const CLIPBOARD_COMMANDS = {
 }
 
 
-// Keys for translation commands
-export const TRANSLATION_COMMAND_KEYS = [
-  'RUSSIAN',
-  'ENGLISH',
-  'CHINESE',
-  'PINYIN',
-  'TRANSCRIPTION',
-  'HSK',
-  'HSK_SS',
-]
 
 
 // Symbols for interface
@@ -111,12 +101,3 @@ export const UI_SYMBOLS = {
   ELLIPSIS: '...',
 }
 
-// Commands
-export const APP_COMMANDS = {
-  EXIT: 'exit',
-  HELP: 'help',
-  PROVIDER: 'provider',
-  MODEL: 'model',
-  CLEAR: 'clear',
-  HISTORY: 'history'
-}
