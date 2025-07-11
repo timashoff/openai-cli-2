@@ -1,0 +1,14 @@
+{
+  "fetch": {
+    "type": "builtin",
+    "description": "Fetch web content from URLs",
+    "capabilities": ["web-fetch", "content-extraction"],
+    "tools": ["fetch_url", "extract_content"]
+  },
+  "web-search": {
+    "type": "builtin", 
+    "description": "Search the web for information",
+    "capabilities": ["web-search"],
+    "tools": ["search_web"]
+  }
+}

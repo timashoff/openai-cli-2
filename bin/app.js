@@ -19,6 +19,11 @@ import { sanitizeErrorMessage } from '../utils/security.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
 import readline from 'node:readline'
+import { mcpManager } from '../utils/mcp-manager.js'
+import { intentDetector } from '../utils/intent-detector.js'
+import { fetchMCPServer } from '../utils/fetch-mcp-server.js'
+import { searchMCPServer } from '../utils/search-mcp-server.js'
+import { readFile } from 'node:fs/promises'
 
 
 // Create application instance
@@ -161,10 +166,37 @@ class AIApplication extends Application {
   async initializeAI() {
     await this.registerAICommands()
     await cache.initialize()
+    await this.initializeMCP()
     await this.switchProvider()
     
     // Small delay to let UI settle after provider selection
     await new Promise(resolve => setTimeout(resolve, 100))
+  }
+
+  /**
+   * Initialize MCP components
+   */
+  async initializeMCP() {
+    try {
+      logger.debug('Initializing MCP servers')
+      
+      // Load MCP server configuration
+      const mcpConfigPath = new URL('../config/mcp-servers.json', import.meta.url).pathname
+      const mcpConfigContent = await readFile(mcpConfigPath, 'utf-8')
+      const mcpConfig = JSON.parse(mcpConfigContent)
+      
+      // Setup built-in servers
+      mcpConfig.fetch.server = fetchMCPServer
+      mcpConfig['web-search'].server = searchMCPServer
+      
+      // Initialize MCP manager
+      await mcpManager.initialize(mcpConfig)
+      
+      logger.debug('MCP servers initialized successfully')
+    } catch (error) {
+      logger.error('Failed to initialize MCP servers:', error)
+      // Don't throw - continue without MCP
+    }
   }
 
   /**
@@ -262,7 +294,7 @@ class AIApplication extends Application {
     let interval
     let startTime
     
-    // Check for clipboard content
+    // Check for clipboard content FIRST (before MCP processing)
     if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
       try {
         const buffer = await getClipboardContent()
@@ -279,6 +311,24 @@ class AIApplication extends Application {
       } catch (error) {
         errorHandler.handleError(error, { context: 'clipboard_read' })
         return
+      }
+    }
+    
+    // Now check for MCP processing (after clipboard substitution)
+    const mcpResult = await this.processMCPInput(input)
+    if (mcpResult) {
+      input = mcpResult.enhancedInput
+      if (mcpResult.directResponse) {
+        console.log(`\n${color.cyan}[MCP Data]${color.reset}`)
+        console.log(mcpResult.directResponse)
+        console.log()
+        return
+      }
+      if (mcpResult.showMCPData) {
+        console.log(`\n${color.cyan}[MCP]${color.reset}`)
+        console.log(`${color.grey}Source: ${mcpResult.mcpData.url}${color.reset}`)
+        console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
+        console.log()
       }
     }
 
@@ -553,6 +603,133 @@ class AIApplication extends Application {
       }
     }
     return models[0]
+  }
+
+  /**
+   * Process MCP input and enhance with external data
+   */
+  async processMCPInput(input) {
+    try {
+      // Detect if input requires MCP processing
+      if (!intentDetector.requiresMCP(input)) {
+        return null
+      }
+      
+      const intents = intentDetector.detectIntent(input)
+      if (intents.length === 0) {
+        return null
+      }
+      
+      const routing = intentDetector.getMCPRouting(intents)
+      if (!routing) {
+        return null
+      }
+      
+      logger.debug(`MCP routing: ${routing.server}/${routing.tool}`)
+      
+      // Call MCP server
+      const mcpData = await this.callMCPServer(routing.server, routing.tool, routing.args)
+      
+      if (!mcpData) {
+        return null
+      }
+      
+      // Format the MCP data for AI consumption
+      const formattedData = this.formatMCPData(mcpData, intents[0])
+      
+      // Detect language from original input for response
+      const isRussian = /[а-яё]/i.test(input)
+      const language = isRussian ? 'русском' : 'English'
+      
+      // Create language instruction based on detected language
+      const languageInstruction = isRussian 
+        ? 'Отвечай на русском языке простым текстом без markdown разметки (без **, ###, -, •). Используй только простой текст с переносами строк для структуры.'
+        : 'Please respond in English using plain text without markdown formatting (no **, ###, -, •). Use only plain text with line breaks for structure.'
+      
+      // For some intents, we might want to show data directly
+      if (intents[0].type === 'webpage' && formattedData.content) {
+        // For webpage extractions, show enhanced content and pass to AI
+        const enhancedInput = `${input}\n\nContent from webpage:\n${formattedData.text}\n\n${languageInstruction}`
+        return {
+          enhancedInput,
+          showMCPData: true,
+          mcpData: formattedData
+        }
+      }
+      
+      // Enhance input with MCP data
+      const enhancedInput = `${input}\n\n[Additional context from web search/fetch:]\n${formattedData.text}\n\n${languageInstruction}`
+      
+      return {
+        enhancedInput,
+        mcpData: formattedData
+      }
+      
+    } catch (error) {
+      logger.error('MCP processing failed:', error)
+      return null
+    }
+  }
+
+  /**
+   * Call MCP server with error handling
+   */
+  async callMCPServer(serverName, toolName, args) {
+    try {
+      logger.debug(`Calling MCP: ${serverName}/${toolName}`)
+      
+      // For built-in servers, call directly
+      if (serverName === 'fetch') {
+        return await fetchMCPServer.callTool(toolName, args)
+      } else if (serverName === 'web-search') {
+        return await searchMCPServer.callTool(toolName, args)
+      }
+      
+      // For external servers, use MCP manager
+      return await mcpManager.callTool(serverName, toolName, args)
+      
+    } catch (error) {
+      logger.error(`MCP call failed: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Format MCP data for AI consumption
+   */
+  formatMCPData(mcpData, intent) {
+    switch (intent.type) {
+      case 'webpage':
+        return {
+          type: 'webpage',
+          url: mcpData.url,
+          title: mcpData.title,
+          content: mcpData.content,
+          summary: `${mcpData.title}\n\n${mcpData.content.substring(0, 500)}${mcpData.content.length > 500 ? '...' : ''}`,
+          text: `Website: ${mcpData.url}\nTitle: ${mcpData.title}\nContent: ${mcpData.content}`
+        }
+      
+      
+      case 'search':
+        const searchResults = mcpData.results || []
+        const searchSummary = searchResults.map(result => 
+          `• ${result.title}\n  ${result.content}\n  ${result.url}`
+        ).join('\n\n')
+        
+        return {
+          type: 'search',
+          query: mcpData.query,
+          results: searchResults,
+          summary: `Search Results: ${mcpData.query}\n\n${searchSummary}`,
+          text: `Search results for "${mcpData.query}":\n\n${searchSummary}`
+        }
+      
+      default:
+        return {
+          type: 'unknown',
+          text: JSON.stringify(mcpData, null, 2)
+        }
+    }
   }
 
 

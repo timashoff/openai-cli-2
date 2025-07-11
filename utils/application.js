@@ -1,7 +1,6 @@
 import { configManager } from '../config/config-manager.js'
 import { logger } from './logger.js'
 import { commandManager, BaseCommand } from './command-manager.js'
-import { providerFactory } from './provider-factory.js'
 import { AppError, errorHandler } from './error-handler.js'
 import { validateString, sanitizeString } from './validation.js'
 import { color } from '../config/color.js'
@@ -14,7 +13,6 @@ export class Application {
     this.config = configManager
     this.logger = logger
     this.commands = commandManager
-    this.providers = providerFactory
     
     this.state = {
       initialized: false,
@@ -81,7 +79,7 @@ export class Application {
 - Errors: ${app.state.userSession.errorCount}
 - Current provider: ${app.state.currentProvider || 'none'}
 - Context history: ${app.state.contextHistory.length} messages
-- Plugins: ${app.plugins.getStats().active}/${app.plugins.getStats().total}
+- Plugins: 0/0
 - Configuration: ${Object.keys(app.config.getAll()).length} keys`
         }
       })

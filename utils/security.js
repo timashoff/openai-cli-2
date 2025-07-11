@@ -62,35 +62,6 @@ export function sanitizeErrorMessage(errorMessage) {
 }
 
 
-/**
- * Creates a secure headers object for API requests
- * @param {string} apiKey - API key
- * @param {string} provider - provider name
- * @returns {object} headers object
- */
-export function createSecureHeaders(apiKey, provider) {
-  validateApiKey(apiKey, provider)
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'OpenAI-CLI/2.5.1'
-  }
-
-  switch (provider.toLowerCase()) {
-    case 'openai':
-    case 'deepseek':
-      headers['Authorization'] = `Bearer ${apiKey}`
-      break
-    case 'anthropic':
-      headers['x-api-key'] = apiKey
-      headers['anthropic-version'] = '2023-06-01'
-      break
-    default:
-      headers['Authorization'] = `Bearer ${apiKey}`
-  }
-
-  return headers
-}
 
 /**
  * Rate limiting utility with exponential backoff
@@ -177,10 +148,5 @@ export class CSPChecker {
     }
   }
 
-  addAllowedDomain(domain) {
-    if (!this.allowedDomains.includes(domain)) {
-      this.allowedDomains.push(domain)
-    }
-  }
 }
 

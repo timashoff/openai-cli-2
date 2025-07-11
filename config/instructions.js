@@ -26,6 +26,11 @@ export const INSTRUCTIONS = {
     description: 'translate into Chinese',
     instruction: 'Translate the following sentence into Chinese',
   },
+  WEBPAGE: {
+    key: ['summarize', 'суммируй'],
+    description: 'summarize webpage content',
+    instruction: 'Summarize the content from the provided webpage',
+  },
   PINYIN: {
     key: ['пп', 'pp'],
     description: 'show the Pinyin transcription',
@@ -71,6 +76,12 @@ export const INSTRUCTIONS = {
     instruction:
       'Can you explain what this means?',
   },
+  URL: {
+    key: ['url'],
+    description: 'extract content from URL',
+    instruction:
+      'Extract and summarize content from the provided URL',
+  },
 }
 
 export const SYS_INSTRUCTIONS = {
@@ -90,11 +101,4 @@ export const SYS_INSTRUCTIONS = {
     key: ['provider'],
     description: 'change the API provider',
   },
-  /*
-  TODO: Turn context on and off
-  CONTEXT:{
-  key:['context'],
-  description: 'turn context on and off'
-  },
-  */
 }

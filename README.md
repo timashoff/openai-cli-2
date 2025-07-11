@@ -6,7 +6,7 @@
 
 # Console AI Assistant
 
-A command-line tool for interacting with AI providers (OpenAI, DeepSeek), designed to use large language models directly in your terminal. It includes command templates, response caching (stored in your home directory), switching between AI providers and their models.
+A command-line tool for interacting with AI providers (OpenAI, DeepSeek), designed to use large language models directly in your terminal. It includes command templates, response caching (stored in your home directory), switching between AI providers and their models, and **MCP (Model Context Protocol) integration** for web content extraction.
 
 ## Features
 
@@ -155,8 +155,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 # Консольный ИИ-Ассистент
 
-Инструмент командной Строки для взаимодействия с ИИ-провайдерами (OpenAI, DeepSeek) предназначен для использования больших языковых моделей в терминале.
-Здесь есть шаблоны-команды, кеширование ответов, связанных с перводом в корневой папке пользователя, переключение между провайдерами ИИ и их моделями.
+Инструмент командной строки для взаимодействия с ИИ-провайдерами (OpenAI, DeepSeek), предназначен для использования больших языковых моделей в терминале. Включает шаблоны-команды, кеширование ответов в корневой папке пользователя, переключение между провайдерами ИИ и их моделями, а также **интеграцию MCP (Model Context Protocol)** для извлечения веб-контента.
 
 ## Возможности
 
@@ -332,7 +331,7 @@ node bin/app.js
 
 # 控制台 AI 助手
 
-一个命令行工具，用于与 AI 提供商（OpenAI、DeepSeek）交互，旨在直接在终端使用大型语言模型。它包含命令模板、响应缓存（存储在用户主目录）、以及在不同 AI 提供商及其模型之间切换的功能。
+一个命令行工具，用于与 AI 提供商（OpenAI、DeepSeek）交互，旨在直接在终端使用大型语言模型。它包含命令模板、响应缓存（存储在用户主目录）、在不同 AI 提供商及其模型之间切换的功能，以及 **MCP（模型上下文协议）集成**，用于网页内容提取。
 
 ## 功能
 

@@ -100,16 +100,6 @@ export const TRANSLATION_COMMAND_KEYS = [
   'HSK_SS',
 ]
 
-// Colors for output (duplicated for convenience)
-export const COLORS = {
-  RESET: '\x1b[0m',
-  CYAN: '\x1b[36m',
-  GREEN: '\x1b[32m',
-  RED: '\x1b[31m',
-  YELLOW: '\x1b[33m',
-  BOLD: '\x1b[1m',
-  GREY: '\x1b[90m',
-}
 
 // Symbols for interface
 export const UI_SYMBOLS = {
@@ -121,7 +111,7 @@ export const UI_SYMBOLS = {
   ELLIPSIS: '...',
 }
 
-// Commands and stream markers
+// Commands
 export const APP_COMMANDS = {
   EXIT: 'exit',
   HELP: 'help',
@@ -129,18 +119,4 @@ export const APP_COMMANDS = {
   MODEL: 'model',
   CLEAR: 'clear',
   HISTORY: 'history'
-}
-
-export const STREAM_MARKERS = {
-  CLAUDE_DATA_PREFIX: 'data: ',
-  CLAUDE_DONE_MARKER: '[DONE]',
-  CLAUDE_EVENT_PREFIX: 'event:',
-  CLAUDE_COMMENT_PREFIX: ':'
-}
-
-// Environments
-export const ENVIRONMENTS = {
-  DEVELOPMENT: 'development',
-  PRODUCTION: 'production',
-  TEST: 'test',
 }

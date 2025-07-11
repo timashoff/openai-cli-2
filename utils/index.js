@@ -1,4 +1,3 @@
-import OpenAI from 'openai'
 import readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { exec } from 'node:child_process'
@@ -76,27 +75,5 @@ const rl = readline.createInterface({
   completer
 })
 
-const initializeApi = (providerKey) => {
-  const provider = API_PROVIDERS[providerKey]
-  if (!provider) {
-    console.log(`${color.red}Error: Invalid provider selected.${color.reset}`)
-    process.exit(1)
-  }
 
-  const apiKey = process.env[provider.apiKeyEnv]
-  if (!apiKey) {
-    console.log(
-      `${color.red}Error: API key for ${provider.name} not found.${color.reset}`,
-    )
-    console.log(`Please set the ${color.yellow}${provider.apiKeyEnv}${color.reset} environment variable.`)
-    process.exit(1)
-  }
-
-  return new OpenAI({
-    baseURL: provider.baseURL,
-    apiKey: apiKey,
-    timeout: 100 * 1000,
-  })
-}
-
-export { rl, initializeApi, getClipboardContent, execModel, execHelp, cache }
+export { rl, getClipboardContent, execModel, execHelp, cache }
