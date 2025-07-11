@@ -5,6 +5,8 @@ export const APP_CONSTANTS = {
   MAX_CONTEXT_HISTORY: 10, // Maximum number of messages in context
   MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
   MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
+  MAX_LINKS_TO_DISPLAY: 20, // Maximum number of links to display from web pages
+  MAX_CONTENT_LENGTH: 25000, // Maximum length of content to extract from web pages
 
   // Timeouts
   API_TIMEOUT: 100000, // 100 seconds for API requests

@@ -60,6 +60,52 @@ const getClipboardContent = async () => {
   }
 }
 
+/**
+ * Open URL in default browser using platform-specific commands
+ */
+const openInBrowser = async (url) => {
+  const os = platform()
+  let command
+  
+  // Validate URL format
+  if (!url || typeof url !== 'string') {
+    throw new AppError('Invalid URL provided', true, 400)
+  }
+  
+  // Add https:// if no protocol specified
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`
+  }
+  
+  // Platform-specific commands
+  switch (os) {
+    case 'darwin':
+      command = `open "${url}"`
+      break
+    case 'linux':
+      command = `xdg-open "${url}"`
+      break
+    case 'win32':
+      command = `start "${url}"`
+      break
+    default:
+      throw new Error(`Unsupported platform: ${os}`)
+  }
+  
+  try {
+    await execution(command, { 
+      timeout: 5000, // 5 second timeout for browser operations
+      maxBuffer: 1024 * 1024 // 1MB buffer limit
+    })
+    return true
+  } catch (error) {
+    if (error.code === 'ETIMEDOUT') {
+      throw new AppError('Browser operation timed out', true, 408)
+    }
+    throw new AppError(`Failed to open browser: ${error.message}`, true, 500)
+  }
+}
+
 // Create completer function for system commands autocomplete
 function completer(line) {
   const commands = getAllSystemCommands()
@@ -75,4 +121,4 @@ const rl = readline.createInterface({
 })
 
 
-export { rl, getClipboardContent, execModel, cache }
+export { rl, getClipboardContent, execModel, cache, openInBrowser }

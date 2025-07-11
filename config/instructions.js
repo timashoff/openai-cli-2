@@ -12,19 +12,19 @@ export const INSTRUCTIONS = {
       'check the grammar of the following and replace all mistakes and typos',
   },
   RUSSIAN: {
-    key: ['rr', 'ru', 'ру'],
+    key: ['rr', 'ru', 'ру', 'переведи'],
     description: 'translate into Russian',
-    instruction: 'translate the following sentence into Russian',
+    instruction: 'translate the following text into Russian',
   },
   ENGLISH: {
-    key: ['ee', 'аа', 'aa'],
+    key: ['ee', 'аа', 'aa', 'translate'],
     description: 'translate into English',
-    instruction: 'translate the following sentence into English',
+    instruction: 'translate the following text into English',
   },
   CHINESE: {
     key: ['cc', 'сс'],
     description: 'translate into Chinese',
-    instruction: 'Translate the following sentence into Chinese',
+    instruction: 'Translate the following text into Chinese',
   },
   WEBPAGE: {
     key: ['summarize', 'суммируй'],
@@ -34,13 +34,13 @@ export const INSTRUCTIONS = {
   PINYIN: {
     key: ['пп', 'pp'],
     description: 'show the Pinyin transcription',
-    instruction: 'Provide the Pinyin transcription of the following sentence',
+    instruction: 'Provide the Pinyin transcription of the following text',
   },
   TRANSCRIPTION: {
     key: ['tr'],
     description: 'show the English transcription',
     instruction:
-      'show the English transcription of the following sentence. The response should only contain the transcription',
+      'show the English transcription of the following text. The response should only contain the transcription',
   },
   CEFR: {
     key: ['-cefr', ':cefr'],

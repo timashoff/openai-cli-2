@@ -29,6 +29,26 @@ npm run check-env      # Validate environment setup
 npm i -g              # Global installation
 ```
 
+## Development Principles
+
+**⚠️ CRITICAL RULE: NO HARDCODING!**
+- **Never hardcode** specific names, URLs, organizations, or domain-specific content
+- Use **universal patterns, algorithms, and configuration** instead
+- Examples of violations:
+  - ❌ `if (text.includes('Putin'))` - specific person name
+  - ❌ `if (url === 'https://rbc.ru')` - specific website
+  - ❌ `const companies = ['Apple', 'Google']` - specific company names
+- Examples of correct approaches:
+  - ✅ `if (newsPatterns.some(pattern => pattern.test(text)))` - universal patterns
+  - ✅ `if (isGovernmentTerm(text))` - generic categorization
+  - ✅ `if (hasMultipleCapitalizedWords(text))` - structural analysis
+
+**Why this matters:**
+- Ensures code works universally across different languages, regions, and domains
+- Prevents maintenance nightmares when specific entities change
+- Keeps algorithms flexible and extensible
+- Maintains the principle of separation of concerns
+
 ## Project Architecture
 
 This is a multi-provider AI CLI tool with a modern OOP architecture designed for terminal-based AI interactions.

@@ -5,7 +5,7 @@ import { CommandManager } from '../utils/command-manager.js'
 import { rl } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
-import { getClipboardContent } from '../utils/index.js'
+import { getClipboardContent, openInBrowser } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
 import { createProvider } from '../utils/provider-factory.js'
@@ -91,8 +91,10 @@ class AIApplication extends Application {
           process.stdout.write('\x1B[?25h')
           
         } else if (this.isTypingResponse) {
-          // Don't clear the line - keep the text that was already typed
-          console.log() // Just add a new line
+          // Clear the current line and ensure clean state
+          process.stdout.clearLine()
+          process.stdout.cursorTo(0)
+          console.log() // Add a clean newline
           this.isTypingResponse = false
           this.shouldReturnToPrompt = true
           
@@ -152,6 +154,39 @@ class AIApplication extends Application {
       
       async execute(args, context) {
         return await context.app.switchModel()
+      }
+    })
+    
+    // Web command
+    this.aiCommands.registerCommand(new class extends BaseCommand {
+      constructor() {
+        super('web', 'Open link in browser', {
+          aliases: ['w'],
+          usage: 'web <number>',
+          category: 'ai'
+        })
+      }
+      
+      async execute(args, context) {
+        if (args.length === 0) {
+          return `${color.yellow}Usage: web <number> or web-<number>${color.reset}\nExample: web 1 or web-5 - opens link from recent extraction`
+        }
+        
+        // Support both "web 5" and "web-5" formats
+        let linkNumber
+        if (args[0].startsWith('-')) {
+          // Handle "web-5" format
+          linkNumber = parseInt(args[0].substring(1))
+        } else {
+          // Handle "web 5" format
+          linkNumber = parseInt(args[0])
+        }
+        
+        if (isNaN(linkNumber) || linkNumber < 1) {
+          return `${color.red}Error: Please provide a valid link number (1, 2, 3, etc.) or use web-N format${color.reset}`
+        }
+        
+        return await context.app.openLinkInBrowser(linkNumber)
       }
     })
   }
@@ -310,21 +345,44 @@ class AIApplication extends Application {
       }
     }
     
-    // Now check for MCP processing (after clipboard substitution)
-    const mcpResult = await this.processMCPInput(input)
-    if (mcpResult) {
-      input = mcpResult.enhancedInput
-      if (mcpResult.directResponse) {
-        console.log(`\n${color.cyan}[MCP Data]${color.reset}`)
-        console.log(mcpResult.directResponse)
-        console.log()
-        return
-      }
-      if (mcpResult.showMCPData) {
+    // Check for command first
+    const command = this.findCommand(input)
+    
+    // Special handling for translation commands with URLs
+    if (command && command.isTranslation && command.hasUrl) {
+      // For translation commands with URLs, process MCP first to get content
+      const mcpResult = await this.processMCPInput(command.targetContent, command)
+      if (mcpResult && mcpResult.mcpData) {
         console.log(`\n${color.cyan}[MCP]${color.reset}`)
         console.log(`${color.grey}Source: ${mcpResult.mcpData.url}${color.reset}`)
         console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
         console.log()
+        
+        // Create translation command with the extracted content
+        // Use more specific instruction for web content translation
+        const webTranslationInstruction = command.instruction.replace('text', 'entire article/webpage content completely')
+        input = `${webTranslationInstruction}: ${mcpResult.mcpData.content}`
+      } else {
+        // Fallback to original behavior if MCP fails
+        input = command.fullInstruction
+      }
+    } else {
+      // Regular MCP processing for non-translation commands
+      const mcpResult = await this.processMCPInput(input, command)
+      if (mcpResult) {
+        input = mcpResult.enhancedInput
+        if (mcpResult.directResponse) {
+          console.log(`\n${color.cyan}[MCP Data]${color.reset}`)
+          console.log(mcpResult.directResponse)
+          console.log()
+          return
+        }
+        if (mcpResult.showMCPData) {
+          console.log(`\n${color.cyan}[MCP]${color.reset}`)
+          console.log(`${color.grey}Source: ${mcpResult.mcpData.url}${color.reset}`)
+          console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
+          console.log()
+        }
       }
     }
 
@@ -338,13 +396,16 @@ class AIApplication extends Application {
       }
     }
 
-    const command = this.findCommand(input)
-    const finalInput = command ? command.fullInstruction : input
+    // For translation commands with URLs, finalInput is already modified input
+    // For other commands, use the original logic
+    const finalInput = (command && command.isTranslation && command.hasUrl) ? input : 
+                      (command ? command.fullInstruction : input)
 
-    // Check cache for translation commands
-    if (command && command.isTranslation && !forceRequest && cache.has(finalInput)) {
+    // Check cache for translation commands - use original input for URL commands
+    const cacheKey = (command && command.isTranslation && command.hasUrl) ? command.originalInput : finalInput
+    if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
       console.log(`\n${color.yellow}[from cache]${color.reset}`)
-      process.stdout.write(cache.get(finalInput))
+      process.stdout.write(cache.get(cacheKey))
       console.log('\n')
       return
     }
@@ -518,7 +579,7 @@ class AIApplication extends Application {
         // Handle caching and context
         const fullResponse = response.join('')
         if (command && command.isTranslation) {
-          await cache.set(finalInput, fullResponse)
+          await cache.set(cacheKey, fullResponse)
         } else {
           this.addToContext('user', finalInput)
           this.addToContext('assistant', fullResponse)
@@ -579,9 +640,19 @@ class AIApplication extends Application {
     for (const prop in INSTRUCTIONS) {
       if (INSTRUCTIONS[prop].key.includes(commandKey)) {
         const restString = arr.join(' ')
+        const isTranslation = TRANSLATION_KEYS.includes(prop)
+        
+        // Check if this is a translation command with URL - handle specially
+        const hasUrl = restString && (restString.startsWith('http') || restString.includes('://'))
+        
         return {
           fullInstruction: `${INSTRUCTIONS[prop].instruction}: ${restString}`,
-          isTranslation: TRANSLATION_KEYS.includes(prop),
+          isTranslation,
+          hasUrl,
+          originalInput: str,
+          commandKey,
+          targetContent: restString,
+          instruction: INSTRUCTIONS[prop].instruction
         }
       }
     }
@@ -604,7 +675,7 @@ class AIApplication extends Application {
   /**
    * Process MCP input and enhance with external data
    */
-  async processMCPInput(input) {
+  async processMCPInput(input, command = null) {
     try {
       // Detect if input requires MCP processing
       if (!intentDetector.requiresMCP(input)) {
@@ -631,21 +702,55 @@ class AIApplication extends Application {
       }
       
       // Format the MCP data for AI consumption
-      const formattedData = this.formatMCPData(mcpData, intents[0])
+      const formattedData = this.formatMCPData(mcpData, intents[0], command)
       
-      // Detect language from original input for response
-      const isRussian = /[а-яё]/i.test(input)
-      const language = isRussian ? 'русском' : 'English'
+      // Detect language from original input AND content for response
+      const isRussianInput = /[а-яё]/i.test(input)
+      const isForeignContent = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u0600-\u06ff]/i.test(formattedData.content || '')
+      
+      // Determine response language based on input language (user preference)
+      const language = isRussianInput ? 'русском' : 'English'
       
       // Create language instruction based on detected language
-      const languageInstruction = isRussian 
-        ? 'Отвечай на русском языке простым текстом без markdown разметки (без **, ###, -, •). Используй только простой текст с переносами строк для структуры.'
-        : 'Please respond in English using plain text without markdown formatting (no **, ###, -, •). Use only plain text with line breaks for structure.'
+      const languageInstruction = isRussianInput 
+        ? 'ОБЯЗАТЕЛЬНО отвечай на русском языке! Отвечай на русском языке простым текстом без markdown разметки (без **, ###, -, •). Используй только простой текст с переносами строк для структуры.'
+        : 'MUST respond in English! Please respond in English using plain text without markdown formatting (no **, ###, -, •). Use only plain text with line breaks for structure.'
+      
+      // Add content language information to instruction
+      const contentLanguageInfo = isForeignContent
+        ? (isRussianInput
+          ? '\n\nВАЖНО: Контент на иностранном языке - переведи основную информацию на русский язык.'
+          : '\n\nIMPORTANT: Content is in a foreign language - translate the main information to English.')
+        : ''
+      
+      // Add link instructions if links are present (but not for translation commands)
+      let linkInstructions = ''
+      if (formattedData.links && formattedData.links.length > 0 && !(command && command.isTranslation)) {
+        linkInstructions = isRussianInput 
+          ? '\n\nОБЯЗАТЕЛЬНО отвечай на русском языке!\n\nВАЖНО: Умный вывод контента:\n' +
+            '• Если это ГЛАВНАЯ СТРАНИЦА новостного сайта (Meduza, RBC, Lenta, Коммерсант, Forbes, Ведомости, Газета.ру, RT, ТАСС, Интерфакс, Фонтанка, и т.д.) и контент состоит только из списка заголовков без статей, покажи заголовки как список ссылок в формате "• Название новости [web-N]".\n' +
+            '• Если это ОТДЕЛЬНАЯ СТАТЬЯ (даже на новостном сайте), покажи полное содержимое статьи, а затем релевантные ссылки отдельно.\n' +
+            '• Для ВСЕХ остальных сайтов показывай содержимое + ссылки отдельно. Исключай навигационные ссылки (главная, контакты, обратная связь, установить как главную, названия сайтов и т.д.)\n' +
+            '• ОБЯЗАТЕЛЬНО добавь в конце понятные инструкции для пользователя на русском языке\n\n' +
+            'Пользователь может:\n' +
+            '- Написать "web-N" для получения содержимого ссылки (например, "web-5")\n' +
+            '- Описать нужную ссылку ("открой новость про туризм")\n' +
+            '- Использовать команду "web-N" чтобы открыть ссылку в браузере'
+          : '\n\nMUST respond in English language!\n\nIMPORTANT: Smart content output:\n' +
+            '• If this is a MAIN PAGE of a news website (Meduza, RBC, BBC, CNN, Reuters, TechCrunch, Hacker News, etc.) and content consists only of headlines list without articles, show headlines as links list in format "• Headline title [web-N]".\n' +
+            '• If this is an INDIVIDUAL ARTICLE (even on news sites), show full article content, then relevant links separately.\n' +
+            '• For ALL other websites show content + links separately. Exclude navigation links (home, contacts, feedback, set as homepage, site names, etc.)\n' +
+            '• ALWAYS add clear instructions for the user in English at the end\n\n' +
+            'Users can:\n' +
+            '- Type "web-N" to get link content (e.g., "web-5")\n' +
+            '- Describe the desired link ("open news about tourism")\n' +
+            '- Use "web-N" command to open the link in browser'
+      }
       
       // For some intents, we might want to show data directly
-      if (intents[0].type === 'webpage' && formattedData.content) {
+      if ((intents[0].type === 'webpage' || intents[0].type === 'follow_link') && formattedData.content) {
         // For webpage extractions, show enhanced content and pass to AI
-        const enhancedInput = `${input}\n\nContent from webpage:\n${formattedData.text}\n\n${languageInstruction}`
+        const enhancedInput = `${input}\n\nContent from webpage:\n${formattedData.text}\n\n${languageInstruction}${contentLanguageInfo}${linkInstructions}`
         return {
           enhancedInput,
           showMCPData: true,
@@ -654,7 +759,7 @@ class AIApplication extends Application {
       }
       
       // Enhance input with MCP data
-      const enhancedInput = `${input}\n\n[Additional context from web search/fetch:]\n${formattedData.text}\n\n${languageInstruction}`
+      const enhancedInput = `${input}\n\n[Additional context from web search/fetch:]\n${formattedData.text}\n\n${languageInstruction}${contentLanguageInfo}${linkInstructions}`
       
       return {
         enhancedInput,
@@ -693,16 +798,32 @@ class AIApplication extends Application {
   /**
    * Format MCP data for AI consumption
    */
-  formatMCPData(mcpData, intent) {
+  formatMCPData(mcpData, intent, command = null) {
     switch (intent.type) {
       case 'webpage':
+      case 'follow_link':
+        // Format links for LLM (but not for translation commands)
+        let linksText = ''
+        if (mcpData.links && mcpData.links.length > 0 && !(command && command.isTranslation)) {
+          linksText = '\n\nRelated links found in this article:\n' + 
+            mcpData.links.map((link, index) => `${index + 1}. ${link.text} [web]`).join('\n')
+        }
+        
+        // Check if this was a followed link
+        let followedFromText = ''
+        if (mcpData.followedFrom) {
+          followedFromText = `\n\n[Followed from: ${mcpData.followedFrom.linkText}]`
+        }
+        
         return {
           type: 'webpage',
           url: mcpData.url,
           title: mcpData.title,
           content: mcpData.content,
+          links: mcpData.links || [],
+          followedFrom: mcpData.followedFrom,
           summary: `${mcpData.title}\n\n${mcpData.content.substring(0, 500)}${mcpData.content.length > 500 ? '...' : ''}`,
-          text: `Website: ${mcpData.url}\nTitle: ${mcpData.title}\nContent: ${mcpData.content}`
+          text: `Website: ${mcpData.url}\nTitle: ${mcpData.title}${followedFromText}\nContent: ${mcpData.content}${linksText}`
         }
       
       
@@ -730,6 +851,44 @@ class AIApplication extends Application {
 
 
 
+
+  /**
+   * Open link in browser by number
+   */
+  async openLinkInBrowser(linkNumber) {
+    try {
+      // Check if we have recent extractions
+      if (!fetchMCPServer.recentExtractions || fetchMCPServer.recentExtractions.size === 0) {
+        return `${color.red}Error: No recent extractions found. Please extract content from a webpage first.${color.reset}`
+      }
+      
+      // Get the most recent extraction
+      const entries = Array.from(fetchMCPServer.recentExtractions.entries())
+      const mostRecentExtraction = entries[entries.length - 1][1]
+      
+      // Check if extraction has links
+      if (!mostRecentExtraction.links || mostRecentExtraction.links.length === 0) {
+        return `${color.red}Error: No links found in recent extraction.${color.reset}`
+      }
+      
+      // Validate link number
+      if (linkNumber > mostRecentExtraction.links.length) {
+        return `${color.red}Error: Link ${linkNumber} does not exist. Available links: 1-${mostRecentExtraction.links.length}${color.reset}`
+      }
+      
+      // Get the link
+      const link = mostRecentExtraction.links[linkNumber - 1]
+      
+      // Open in browser
+      await openInBrowser(link.url)
+      
+      return `${color.green}✓${color.reset} Opened link ${linkNumber} in browser: ${color.cyan}${link.text}${color.reset}\n${color.grey}URL: ${link.url}${color.reset}`
+      
+    } catch (error) {
+      logger.error(`Failed to open link in browser: ${error.message}`)
+      return `${color.red}Error: Failed to open link in browser. ${error.message}${color.reset}`
+    }
+  }
 
   /**
    * Main application loop

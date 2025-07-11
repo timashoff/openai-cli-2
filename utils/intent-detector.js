@@ -44,6 +44,83 @@ export class IntentDetector {
     }
     
     
+    // Check for simple numeric inputs (link selection)
+    const trimmedInput = input.trim()
+    const linkIndex = parseInt(trimmedInput)
+    if (!isNaN(linkIndex) && linkIndex >= 1 && linkIndex <= 20 && trimmedInput === linkIndex.toString()) {
+      // This is a pure numeric input for link selection
+      detectedIntents.push({
+        type: 'follow_link',
+        confidence: 1.0,
+        data: {
+          description: trimmedInput,
+          action: 'follow_related_content'
+        }
+      })
+    }
+    
+    // Check for web-N format (link selection)
+    const webLinkMatch = trimmedInput.match(/^web-(\d+)$/i)
+    if (webLinkMatch) {
+      const linkNumber = parseInt(webLinkMatch[1])
+      if (linkNumber >= 1 && linkNumber <= 20) {
+        detectedIntents.push({
+          type: 'follow_link',
+          confidence: 1.0,
+          data: {
+            description: linkNumber.toString(),
+            action: 'follow_related_content'
+          }
+        })
+      }
+    }
+    
+    // Check for contextual requests (полный материал, подробнее, etc.)
+    const contextualPatterns = [
+      /^(?:полный материал|полная статья|подробнее|детали|больше информации|развернуто|открой полный|покажи полный|дай полный|загрузи полный)$/i,
+      /^(?:full article|full material|more details|details|more information|expand|open full|show full|give full|load full)$/i
+    ]
+    
+    for (const pattern of contextualPatterns) {
+      if (pattern.test(trimmedInput)) {
+        detectedIntents.push({
+          type: 'follow_link',
+          confidence: 0.9,
+          data: {
+            description: trimmedInput,
+            action: 'follow_related_content'
+          }
+        })
+        break // Only match first pattern
+      }
+    }
+    
+    // Check for link following requests (follow_link intent)
+    const linkFollowPatterns = [
+      /(?:открой|открыть|посмотри|посмотреть|изучи|изучить|покажи|показать|расскажи|рассказать|подробнее|детали|details|about|про|о|можешь открыть|можешь показать|можешь изучить)\s+(.+)/i,
+      /(?:перейди|переходи|перейти|follow|go to|check out|переходи на|иди на|зайди на)\s+(.+)/i,
+      /(?:что там|а что|расскажи|давай|хочу|хочется|интересно|интересует)\s+(.+)/i,
+      /(?:ссылк[уа]|link|линк).+(?:с|about|про|о|на)\s+(.+)/i
+    ]
+    
+    for (const pattern of linkFollowPatterns) {
+      const match = input.match(pattern)
+      if (match) {
+        const description = match[1].trim()
+        // Only trigger if it's not a URL itself and we haven't already matched a numeric/contextual intent
+        if (!this.extractUrls(description).length && detectedIntents.length === 0) {
+          detectedIntents.push({
+            type: 'follow_link',
+            confidence: 0.8,
+            data: {
+              description: description,
+              action: 'follow_related_content'
+            }
+          })
+        }
+      }
+    }
+    
     // Check for URLs (webpage intent)
     const urls = this.extractUrls(input)
     if (urls.length > 0) {
@@ -53,6 +130,21 @@ export class IntentDetector {
         data: {
           urls: urls,
           action: this.extractWebAction(input)
+        }
+      })
+    }
+    
+    // Check for "open domain" commands (открой rbc.ru, open google.com)
+    const openDomainPattern = /(?:открой|открыть|покажи|показать|зайди|перейди|посети|open|go to|visit)\s+([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i
+    const openDomainMatch = input.match(openDomainPattern)
+    if (openDomainMatch && !urls.length) {
+      const domain = openDomainMatch[0].replace(/^(?:открой|открыть|покажи|показать|зайди|перейди|посети|open|go to|visit)\s+/i, '')
+      detectedIntents.push({
+        type: 'webpage',
+        confidence: 0.9,
+        data: {
+          urls: [`https://${domain}`],
+          action: 'summarize'
         }
       })
     }
@@ -82,8 +174,25 @@ export class IntentDetector {
    * Extract URLs from input
    */
   extractUrls(input) {
-    const urls = input.match(this.patterns.webpage.urlRegex) || []
-    return urls.map(url => url.trim())
+    const urls = []
+    
+    // First, try to match full URLs with protocol
+    const fullUrls = input.match(this.patterns.webpage.urlRegex) || []
+    urls.push(...fullUrls.map(url => url.trim()))
+    
+    // Then, try to match domain names without protocol
+    const domainRegex = /\b([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b/g
+    const domains = input.match(domainRegex) || []
+    
+    for (const domain of domains) {
+      // Skip if it's already a full URL
+      if (!fullUrls.some(url => url.includes(domain))) {
+        // Add https:// prefix
+        urls.push(`https://${domain}`)
+      }
+    }
+    
+    return urls
   }
 
   /**
@@ -150,6 +259,15 @@ export class IntentDetector {
           args: {
             url: primaryIntent.data.urls[0],
             action: primaryIntent.data.action
+          }
+        }
+      
+      case 'follow_link':
+        return {
+          server: 'fetch',
+          tool: 'follow_related_content',
+          args: {
+            description: primaryIntent.data.description
           }
         }
       
