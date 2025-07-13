@@ -345,7 +345,17 @@ class AIApplication extends Application {
       }
     }
     
-    // Check for command first
+    // Check for force flags first (before command processing)
+    let forceRequest = false
+    for (const flag of APP_CONSTANTS.FORCE_FLAGS) {
+      if (input.endsWith(flag)) {
+        forceRequest = true
+        input = input.replace(new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '').trim()
+        break
+      }
+    }
+    
+    // Check for command after flag processing
     const command = this.findCommand(input)
     
     // Special handling for translation commands with URLs
@@ -383,16 +393,6 @@ class AIApplication extends Application {
           console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
           console.log()
         }
-      }
-    }
-
-    // Check for force flags
-    let forceRequest = false
-    for (const flag of APP_CONSTANTS.FORCE_FLAGS) {
-      if (input.endsWith(flag)) {
-        forceRequest = true
-        input = input.replace(new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '').trim()
-        break
       }
     }
 
@@ -713,8 +713,8 @@ class AIApplication extends Application {
       
       // Create language instruction based on detected language
       const languageInstruction = isRussianInput 
-        ? 'ОБЯЗАТЕЛЬНО отвечай на русском языке! Отвечай на русском языке простым текстом без markdown разметки (без **, ###, -, •). Используй только простой текст с переносами строк для структуры.'
-        : 'MUST respond in English! Please respond in English using plain text without markdown formatting (no **, ###, -, •). Use only plain text with line breaks for structure.'
+        ? 'ОБЯЗАТЕЛЬНО отвечай на русском языке!'
+        : 'MUST respond in English!'
       
       // Add content language information to instruction
       const contentLanguageInfo = isForeignContent

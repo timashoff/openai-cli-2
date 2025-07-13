@@ -1,8 +1,57 @@
 import { logger } from './logger.js'
 
+// Command word dictionaries for better maintainability
+const COMMAND_WORDS = {
+  // Verbs for opening/viewing content
+  OPEN_VERBS: ['открой', 'открыть', 'посмотри', 'посмотреть', 'изучи', 'изучить', 'покажи', 'показать'],
+  
+  // Navigation verbs  
+  NAVIGATION_VERBS: ['перейди', 'переходи', 'перейти', 'follow', 'go to', 'check out'],
+  
+  // Content types that can be opened
+  CONTENT_TYPES: ['ссылку', 'ссылка', 'link', 'новость', 'статью', 'материал', 'контент', 'линк'],
+  
+  // Prepositions
+  PREPOSITIONS: ['по', 'на', 'к', 'в', 'про', 'о', 'с', 'about', 'номер'],
+  
+  // Question words that might indicate content requests  
+  QUESTION_WORDS: ['что там', 'а что там'],
+  
+  // Contextual request phrases
+  CONTEXTUAL_PHRASES: ['полный материал', 'полная статья', 'подробнее', 'детали', 'больше информации', 'развернуто', 
+                      'открой полный', 'покажи полный', 'дай полный', 'загрузи полный',
+                      'full article', 'full material', 'more details', 'details', 'more information', 'expand',
+                      'open full', 'show full', 'give full', 'load full']
+}
+
 /**
  * Intent detection system for MCP routing
  */
+/**
+ * Helper functions for word-based pattern matching
+ */
+function startsWithAnyWord(text, wordArray) {
+  const lowerText = text.toLowerCase()
+  return wordArray.find(word => lowerText.startsWith(word.toLowerCase()))
+}
+
+function containsAnyWord(text, wordArray) {
+  const lowerText = text.toLowerCase()
+  return wordArray.find(word => lowerText.includes(word.toLowerCase()))
+}
+
+function matchesCommandSequence(text, verbArray, objectArray) {
+  const foundVerb = startsWithAnyWord(text, verbArray)
+  if (!foundVerb) return null
+  
+  const remaining = text.substring(foundVerb.length).trim()
+  const foundObject = startsWithAnyWord(remaining, objectArray)
+  if (!foundObject) return null
+  
+  const description = remaining.substring(foundObject.length).trim()
+  return { verb: foundVerb, object: foundObject, description }
+}
+
 export class IntentDetector {
   constructor() {
     this.patterns = {
@@ -75,45 +124,43 @@ export class IntentDetector {
       }
     }
     
-    // Check for contextual requests (полный материал, подробнее, etc.)
-    const contextualPatterns = [
-      /^(?:полный материал|полная статья|подробнее|детали|больше информации|развернуто|открой полный|покажи полный|дай полный|загрузи полный)$/i,
-      /^(?:full article|full material|more details|details|more information|expand|open full|show full|give full|load full)$/i
-    ]
-    
-    for (const pattern of contextualPatterns) {
-      if (pattern.test(trimmedInput)) {
-        detectedIntents.push({
-          type: 'follow_link',
-          confidence: 0.9,
-          data: {
-            description: trimmedInput,
-            action: 'follow_related_content'
-          }
-        })
-        break // Only match first pattern
-      }
+    // Check for contextual requests using word arrays
+    const foundContextualPhrase = containsAnyWord(trimmedInput, COMMAND_WORDS.CONTEXTUAL_PHRASES)
+    if (foundContextualPhrase) {
+      detectedIntents.push({
+        type: 'follow_link',
+        confidence: 0.9,
+        data: {
+          description: trimmedInput,
+          action: 'follow_related_content'
+        }
+      })
     }
     
-    // Check for link following requests (follow_link intent)
-    const linkFollowPatterns = [
-      /(?:открой|открыть|посмотри|посмотреть|изучи|изучить|покажи|показать|расскажи|рассказать|подробнее|детали|details|about|про|о|можешь открыть|можешь показать|можешь изучить)\s+(.+)/i,
-      /(?:перейди|переходи|перейти|follow|go to|check out|переходи на|иди на|зайди на)\s+(.+)/i,
-      /(?:что там|а что|расскажи|давай|хочу|хочется|интересно|интересует)\s+(.+)/i,
-      /(?:ссылк[уа]|link|линк).+(?:с|about|про|о|на)\s+(.+)/i
-    ]
-    
-    for (const pattern of linkFollowPatterns) {
-      const match = input.match(pattern)
-      if (match) {
-        const description = match[1].trim()
-        // Only trigger if it's not a URL itself and we haven't already matched a numeric/contextual intent
-        if (!this.extractUrls(description).length && detectedIntents.length === 0) {
+    // Check for link following requests using word arrays
+    // Only trigger for inputs that reference existing links/content
+    if (detectedIntents.length === 0) {
+      let matchResult = null
+      
+      // Try verb + content type pattern (e.g., "открой ссылку номер 5")
+      matchResult = matchesCommandSequence(trimmedInput, COMMAND_WORDS.OPEN_VERBS, COMMAND_WORDS.CONTENT_TYPES)
+      if (!matchResult) {
+        // Try navigation pattern (e.g., "перейди по ссылке")
+        matchResult = matchesCommandSequence(trimmedInput, COMMAND_WORDS.NAVIGATION_VERBS, COMMAND_WORDS.PREPOSITIONS)
+      }
+      if (!matchResult) {
+        // Try question pattern (e.g., "что там в статье")
+        matchResult = matchesCommandSequence(trimmedInput, COMMAND_WORDS.QUESTION_WORDS, COMMAND_WORDS.PREPOSITIONS)
+      }
+      
+      if (matchResult && matchResult.description) {
+        // Only trigger if it's not a URL itself
+        if (!this.extractUrls(matchResult.description).length) {
           detectedIntents.push({
             type: 'follow_link',
             confidence: 0.8,
             data: {
-              description: description,
+              description: matchResult.description,
               action: 'follow_related_content'
             }
           })
@@ -135,18 +182,27 @@ export class IntentDetector {
     }
     
     // Check for "open domain" commands (открой rbc.ru, open google.com)
-    const openDomainPattern = /(?:открой|открыть|покажи|показать|зайди|перейди|посети|open|go to|visit)\s+([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i
-    const openDomainMatch = input.match(openDomainPattern)
-    if (openDomainMatch && !urls.length) {
-      const domain = openDomainMatch[0].replace(/^(?:открой|открыть|покажи|показать|зайди|перейди|посети|open|go to|visit)\s+/i, '')
-      detectedIntents.push({
-        type: 'webpage',
-        confidence: 0.9,
-        data: {
-          urls: [`https://${domain}`],
-          action: 'summarize'
+    if (!urls.length) {
+      const domainCommands = ['открой', 'открыть', 'покажи', 'показать', 'зайди', 'перейди', 'посети', 'open', 'go to', 'visit']
+      const foundCommand = startsWithAnyWord(trimmedInput, domainCommands)
+      
+      if (foundCommand) {
+        const remaining = input.substring(foundCommand.length).trim()
+        const domainRegex = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/
+        const domainMatch = remaining.match(domainRegex)
+        
+        if (domainMatch) {
+          const domain = domainMatch[0]
+          detectedIntents.push({
+            type: 'webpage',
+            confidence: 0.9,
+            data: {
+              urls: [`https://${domain}`],
+              action: 'summarize'
+            }
+          })
         }
-      })
+      }
     }
     
     
