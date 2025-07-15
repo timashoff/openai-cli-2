@@ -198,7 +198,7 @@ class AIApplication extends Application {
     await this.registerAICommands()
     await cache.initialize()
     await this.initializeMCP()
-    await this.switchProvider()
+    await this.switchProvider(true) // Auto-select default provider at startup
     
     // Small delay to let UI settle after provider selection
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -233,18 +233,33 @@ class AIApplication extends Application {
   /**
    * Switch AI provider
    */
-  async switchProvider() {
-    const providerKeys = Object.keys(API_PROVIDERS)
-    const providerOptions = providerKeys.map((key) => API_PROVIDERS[key].name)
+  async switchProvider(autoSelect = false) {
+    // Sort providers alphabetically by name
+    const providerEntries = Object.entries(API_PROVIDERS)
+      .sort(([,a], [,b]) => a.name.localeCompare(b.name))
+    const providerKeys = providerEntries.map(([key]) => key)  
+    const providerOptions = providerEntries.map(([,provider]) => provider.name)
 
-    const selectedIndex = await createInteractiveMenu(
-      'Select an AI provider:',
-      providerOptions,
-    )
+    let selectedIndex
+    
+    if (autoSelect) {
+      // Auto-select default provider
+      selectedIndex = providerKeys.indexOf(APP_CONSTANTS.DEFAULT_PROVIDER)
+      if (selectedIndex === -1) {
+        // Fallback to first provider if default not found
+        selectedIndex = 0
+      }
+    } else {
+      // Show interactive menu
+      selectedIndex = await createInteractiveMenu(
+        'Select an AI provider:',
+        providerOptions,
+      )
 
-    if (selectedIndex === -1) {
-      console.log(`${color.red}Selection cancelled. No changes made.${color.reset}`)
-      return
+      if (selectedIndex === -1) {
+        console.log(`${color.red}Selection cancelled. No changes made.${color.reset}`)
+        return
+      }
     }
 
     this.aiState.selectedProviderKey = providerKeys[selectedIndex]
@@ -270,8 +285,8 @@ class AIApplication extends Application {
       
       process.title = this.aiState.model
       
-      console.log(`\nProvider changed to ${color.cyan}${providerName}${color.reset}.`)
-      console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.\n`)
+      console.log(`Provider changed to ${color.cyan}${providerName}${color.reset}.`)
+      console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.`)
       
       logger.debug(`Provider switched successfully. Model: ${this.aiState.model}, Available models: ${this.aiState.models.length}`)
       // Note: Don't emit provider:changed event here as it causes duplicate logging
@@ -358,40 +373,44 @@ class AIApplication extends Application {
     // Check for command after flag processing
     const command = this.findCommand(input)
     
-    // Special handling for translation commands with URLs
-    if (command && command.isTranslation && command.hasUrl) {
-      // For translation commands with URLs, process MCP first to get content
+    // Handle commands with URLs through MCP
+    if (command && command.hasUrl) {
+      // Any command with URL (translation or not) goes through MCP
       const mcpResult = await this.processMCPInput(command.targetContent, command)
       if (mcpResult && mcpResult.mcpData) {
         console.log(`\n${color.cyan}[MCP]${color.reset}`)
         console.log(`${color.grey}Source: ${mcpResult.mcpData.url}${color.reset}`)
         console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
-        console.log()
         
-        // Create translation command with the extracted content
-        // Use more specific instruction for web content translation
-        const webTranslationInstruction = command.instruction.replace('text', 'entire article/webpage content completely')
-        input = `${webTranslationInstruction}: ${mcpResult.mcpData.content}`
+        if (command.isTranslation) {
+          // Create translation command with the extracted content
+          const webTranslationInstruction = command.instruction.replace('text', 'entire article/webpage content completely')
+          input = `${webTranslationInstruction}: ${mcpResult.mcpData.content}`
+        } else {
+          // For non-translation commands, use enhanced input
+          input = mcpResult.enhancedInput
+        }
       } else {
         // Fallback to original behavior if MCP fails
         input = command.fullInstruction
       }
+    } else if (command && command.isTranslation) {
+      // Regular translation commands without URL - go directly to LLM
+      input = command.fullInstruction
     } else {
-      // Regular MCP processing for non-translation commands
+      // Regular commands without URL - check through intentDetector for MCP
       const mcpResult = await this.processMCPInput(input, command)
       if (mcpResult) {
         input = mcpResult.enhancedInput
         if (mcpResult.directResponse) {
           console.log(`\n${color.cyan}[MCP Data]${color.reset}`)
           console.log(mcpResult.directResponse)
-          console.log()
           return
         }
         if (mcpResult.showMCPData) {
           console.log(`\n${color.cyan}[MCP]${color.reset}`)
           console.log(`${color.grey}Source: ${mcpResult.mcpData.url}${color.reset}`)
           console.log(`${color.grey}Content: ${mcpResult.mcpData.content.length} chars${color.reset}`)
-          console.log()
         }
       }
     }
@@ -404,9 +423,8 @@ class AIApplication extends Application {
     // Check cache for translation commands - use original input for URL commands
     const cacheKey = (command && command.isTranslation && command.hasUrl) ? command.originalInput : finalInput
     if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
-      console.log(`\n${color.yellow}[from cache]${color.reset}`)
-      process.stdout.write(cache.get(cacheKey))
-      console.log('\n')
+      console.log(`${color.yellow}[from cache]${color.reset}`)
+      process.stdout.write(cache.get(cacheKey) + '\n')
       return
     }
 
@@ -451,8 +469,8 @@ class AIApplication extends Application {
       
       // Setup streaming output callback  
       const onChunk = async (content) => {
-        // Check if typing was cancelled
-        if (!this.isTypingResponse && !firstChunk) {
+        // Check if user explicitly cancelled
+        if (this.currentRequestController.signal.aborted || this.shouldReturnToPrompt) {
           return // Stop processing chunks if user cancelled
         }
         
@@ -544,10 +562,9 @@ class AIApplication extends Application {
           const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
           process.stdout.clearLine()
           process.stdout.cursorTo(0)
-          console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
+          process.stdout.write(`${color.red}☓${color.reset} ${finalTime}s\n`)
         } else {
-          // Content was already streaming, just add newline
-          console.log()
+          // Content was already streaming, no extra newline needed
         }
         
         // Reset flags when cancelled during streaming
@@ -566,8 +583,10 @@ class AIApplication extends Application {
           console.log(`${color.green}✓${color.reset} ${finalTime}s`)
           console.log('No content received.')
         } else {
-          // Content was streaming, just add newline
-          console.log()
+          // Content was streaming, add newline for translations
+          if (command && command.isTranslation) {
+            process.stdout.write('\n')
+          }
         }
         
         // Check if we should return to prompt immediately
@@ -590,7 +609,7 @@ class AIApplication extends Application {
           }
           
           const historyDots = '.'.repeat(this.state.contextHistory.length)
-          console.log(color.yellow + historyDots + color.reset)
+          process.stdout.write('\n' + color.yellow + historyDots + color.reset + '\n')
         }
       }
     } catch (error) {
@@ -601,7 +620,7 @@ class AIApplication extends Application {
       if (error.name === 'AbortError' || error.message.includes('aborted') || error.message.includes('Aborted with Ctrl+C')) {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
-        console.log(`${color.red}☓${color.reset} ${finalTime}s\n`)
+        process.stdout.write(`${color.red}☓${color.reset} ${finalTime}s\n`)
       } else {
         errorHandler.handleError(error, { context: 'ai_processing' })
       }
@@ -899,7 +918,7 @@ class AIApplication extends Application {
     
     while (true) {
       const colorInput = this.aiState.model.includes('chat') ? color.green : color.yellow
-      let userInput = await rl.question(`${colorInput}> `)
+      let userInput = await rl.question(`\n${colorInput}> `)
       userInput = userInput.trim()
 
       if (!userInput) {

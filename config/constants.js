@@ -24,6 +24,9 @@ export const APP_CONSTANTS = {
   // Special markers
   CLIPBOARD_MARKER: '$$',
   FORCE_FLAGS: [' --force', ' -f'],
+  
+  // Default provider
+  DEFAULT_PROVIDER: 'deepseek',
 
   // Regular expressions for validation
   REGEX: {
