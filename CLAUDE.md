@@ -49,6 +49,11 @@ npm i -g              # Global installation
 - Keeps algorithms flexible and extensible
 - Maintains the principle of separation of concerns
 
+**ES-модули только:**
+- Используй только `import/export`, никогда не используй `require()`
+- Проект использует `"type": "module"` в package.json
+- Все импорты должны быть статическими в начале файла
+
 ## Project Architecture
 
 This is a multi-provider AI CLI tool with a modern OOP architecture designed for terminal-based AI interactions.

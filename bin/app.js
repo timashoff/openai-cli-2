@@ -5,7 +5,7 @@ import { CommandManager } from '../utils/command-manager.js'
 import { rl } from '../utils/index.js'
 import { color } from '../config/color.js'
 import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
-import { getClipboardContent, openInBrowser } from '../utils/index.js'
+import { getClipboardContent, openInBrowser, getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
 import { createProvider } from '../utils/provider-factory.js'
@@ -75,8 +75,7 @@ class AIApplication extends Application {
             this.currentSpinnerInterval = null
           }
           
-          process.stdout.clearLine()
-          process.stdout.cursorTo(0)
+          clearTerminalLine()
           
           // Force abort and cleanup
           this.currentRequestController.abort()
@@ -91,9 +90,7 @@ class AIApplication extends Application {
           process.stdout.write('\x1B[?25h')
           
         } else if (this.isTypingResponse) {
-          // Clear the current line and ensure clean state
-          process.stdout.clearLine()
-          process.stdout.cursorTo(0)
+          // Don't clear the line - just add a newline to preserve streamed text
           console.log() // Add a clean newline
           this.isTypingResponse = false
           this.shouldReturnToPrompt = true
@@ -267,8 +264,17 @@ class AIApplication extends Application {
     const providerConfig = API_PROVIDERS[this.aiState.selectedProviderKey]
     const providerName = providerConfig.name
 
-    console.log(`Loading models from ${providerName}...`)
     logger.debug(`Switching to provider: ${providerName}`)
+    
+    // Start spinner for provider loading
+    let spinnerIndex = 0
+    const startTime = Date.now()
+    process.stdout.write('\x1B[?25l') // Hide cursor
+    const spinnerInterval = setInterval(() => {
+      clearTerminalLine()
+      const elapsedTime = getElapsedTime(startTime)
+      process.stdout.write(`${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading models...`)
+    }, APP_CONSTANTS.SPINNER_INTERVAL)
     
     try {
       // Create provider using factory
@@ -285,14 +291,21 @@ class AIApplication extends Application {
       
       process.title = this.aiState.model
       
+      // Clear spinner and show success
+      clearInterval(spinnerInterval)
+      clearTerminalLine()
+      process.stdout.write('\x1B[?25h') // Show cursor
+      
       console.log(`Provider changed to ${color.cyan}${providerName}${color.reset}.`)
       console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.`)
       
       logger.debug(`Provider switched successfully. Model: ${this.aiState.model}, Available models: ${this.aiState.models.length}`)
       // Note: Don't emit provider:changed event here as it causes duplicate logging
     } catch (e) {
-      process.stdout.clearLine()
-      process.stdout.cursorTo(0)
+      // Clear spinner on error
+      clearInterval(spinnerInterval)
+      clearTerminalLine()
+      process.stdout.write('\x1B[?25h') // Show cursor
       errorHandler.handleError(e, { context: 'provider_switch' })
       
       if (!this.aiState.model) {
@@ -447,9 +460,8 @@ class AIApplication extends Application {
       let i = 0
       process.stdout.write('\x1B[?25l') // Hide cursor
       this.currentSpinnerInterval = setInterval(() => {
-        process.stdout.clearLine()
-        process.stdout.cursorTo(0)
-        const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
+        clearTerminalLine()
+        const elapsedTime = getElapsedTime(startTime)
         process.stdout.write(
           `${color.reset}${UI_SYMBOLS.SPINNER[i++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s${color.reset}`,
         )
@@ -470,7 +482,7 @@ class AIApplication extends Application {
       // Setup streaming output callback  
       const onChunk = async (content) => {
         // Check if user explicitly cancelled
-        if (this.currentRequestController.signal.aborted || this.shouldReturnToPrompt) {
+        if (this.currentRequestController?.signal?.aborted || this.shouldReturnToPrompt) {
           return // Stop processing chunks if user cancelled
         }
         
@@ -479,10 +491,9 @@ class AIApplication extends Application {
           clearInterval(this.currentSpinnerInterval)
           this.currentSpinnerInterval = null
           
-          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-          process.stdout.clearLine()
-          process.stdout.cursorTo(0)
-          console.log(`${color.green}✓${color.reset} ${finalTime}s`)
+          const finalTime = getElapsedTime(startTime)
+          clearTerminalLine()
+          showStatus('success', finalTime)
           
           // Switch to typing mode immediately
           this.isProcessingRequest = false
@@ -559,10 +570,9 @@ class AIApplication extends Application {
       if (this.currentRequestController.signal.aborted || this.shouldReturnToPrompt) {
         // Only show cancellation if no content was output yet
         if (firstChunk) {
-          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-          process.stdout.clearLine()
-          process.stdout.cursorTo(0)
-          process.stdout.write(`${color.red}☓${color.reset} ${finalTime}s\n`)
+          const finalTime = getElapsedTime(startTime)
+          clearTerminalLine()
+          showStatus('error', finalTime)
         } else {
           // Content was already streaming, no extra newline needed
         }
@@ -577,11 +587,9 @@ class AIApplication extends Application {
         
         // If no content was output (empty response), show completion
         if (firstChunk) {
-          const finalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-          process.stdout.clearLine()
-          process.stdout.cursorTo(0)
-          console.log(`${color.green}✓${color.reset} ${finalTime}s`)
-          console.log('No content received.')
+          const finalTime = getElapsedTime(startTime)
+          clearTerminalLine()
+          showStatus('success', finalTime, 'No content received.')
         } else {
           // Content was streaming, add newline for translations
           if (command && command.isTranslation) {
@@ -615,12 +623,11 @@ class AIApplication extends Application {
     } catch (error) {
       if (interval) clearInterval(interval)
       process.stdout.write('')
-      const finalTime = startTime ? ((Date.now() - startTime) / 1000).toFixed(1) : 'N/A'
+      const finalTime = getElapsedTime(startTime)
 
       if (error.name === 'AbortError' || error.message.includes('aborted') || error.message.includes('Aborted with Ctrl+C')) {
-        process.stdout.clearLine()
-        process.stdout.cursorTo(0)
-        process.stdout.write(`${color.red}☓${color.reset} ${finalTime}s\n`)
+        clearTerminalLine()
+        showStatus('error', finalTime)
       } else {
         errorHandler.handleError(error, { context: 'ai_processing' })
       }
