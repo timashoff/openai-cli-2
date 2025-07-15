@@ -36,7 +36,7 @@ export const execModel = async (currentModel, models, rl) => {
       'Your model is now: ' +
       color.cyan +
       newModel +
-      color.reset + '\n'
+      color.reset
   )
   return newModel
 }

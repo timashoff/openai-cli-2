@@ -128,8 +128,7 @@ const getElapsedTime = (startTime) => {
  * Clear current terminal line and move cursor to beginning
  */
 const clearTerminalLine = () => {
-  process.stdout.clearLine()
-  process.stdout.cursorTo(0)
+  process.stdout.write('\r\x1b[K')
 }
 
 /**
@@ -145,10 +144,10 @@ const showStatus = (type, time, message = '') => {
   const statusText = `${statusColor}${icon}${color.reset} ${time}s`
   
   if (message) {
-    console.log(statusText)
-    console.log(message)
+    process.stdout.write(statusText + '\n')
+    process.stdout.write(message + '\n')
   } else {
-    console.log(statusText)
+    process.stdout.write(statusText + '\n')
   }
 }
 

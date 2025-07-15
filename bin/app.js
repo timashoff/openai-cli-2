@@ -48,6 +48,7 @@ class AIApplication extends Application {
     this.currentSpinnerInterval = null
     this.currentStreamProcessor = null
     this.shouldReturnToPrompt = false
+    this.isRetryingProvider = false
     
     // Setup global cleanup handlers
     this.setupCleanupHandlers()
@@ -266,25 +267,93 @@ class AIApplication extends Application {
 
     logger.debug(`Switching to provider: ${providerName}`)
     
-    // Start spinner for provider loading
+    // Start spinner for provider loading with failing attempts
     let spinnerIndex = 0
-    const startTime = Date.now()
+    let attemptStartTime = Date.now()
+    let currentAttempt = 0
+    const maxAttempts = 6
+    const attemptDuration = 5000 // 5 seconds per attempt
+    let isSpinnerActive = true
     process.stdout.write('\x1B[?25l') // Hide cursor
+    
     const spinnerInterval = setInterval(() => {
+      if (!isSpinnerActive) return
       clearTerminalLine()
-      const elapsedTime = getElapsedTime(startTime)
-      process.stdout.write(`${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading models...`)
+      
+      const elapsedTime = getElapsedTime(attemptStartTime)
+      const totalElapsed = (Date.now() - attemptStartTime) / 1000
+      
+      // Check if we need to increment attempt
+      if (totalElapsed >= 5.0 && currentAttempt < maxAttempts) {
+        currentAttempt++
+        attemptStartTime = Date.now() // Reset timer for new attempt
+      }
+      
+      let statusText = `${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading models...`
+      
+      // Show failing attempt after first 5 seconds
+      if (currentAttempt > 0) {
+        statusText += ` (failing attempt ${currentAttempt} of ${maxAttempts})`
+      }
+      
+      process.stdout.write(statusText)
     }, APP_CONSTANTS.SPINNER_INTERVAL)
     
+    // Use global keypress handler instead of local one to avoid conflicts
+    
     try {
-      // Create provider using factory
+      // Create provider using factory with timeout
       const provider = createProvider(this.aiState.selectedProviderKey, providerConfig)
-      await provider.initializeClient()
       
+      // Create interruptible timeout promise that can be cancelled by keypress
+      const createInterruptiblePromise = (promise, timeoutMs, description) => {
+        return new Promise((resolve, reject) => {
+          // Set up timeout
+          const timeoutId = setTimeout(() => {
+            reject(new Error(`${description} timeout`))
+          }, timeoutMs)
+          
+          // Set up abort controller for this specific operation
+          const abortController = new AbortController()
+          this.currentRequestController = abortController
+          
+          // Handle promise resolution
+          promise.then(result => {
+            clearTimeout(timeoutId)
+            this.currentRequestController = null
+            resolve(result)
+          }).catch(error => {
+            clearTimeout(timeoutId)
+            this.currentRequestController = null
+            reject(error)
+          })
+          
+          // Handle abort signal
+          abortController.signal.addEventListener('abort', () => {
+            clearTimeout(timeoutId)
+            this.currentRequestController = null
+            reject(new Error(`${description} cancelled by user`))
+          })
+        })
+      }
+      
+      // Use interruptible promise for provider initialization
+      const totalTimeout = maxAttempts * attemptDuration
+      this.isProcessingRequest = true
+      
+      await createInterruptiblePromise(
+        provider.initializeClient(),
+        totalTimeout,
+        'Provider initialization'
+      )
       this.aiState.provider = provider
       
-      // Fetch models through provider
-      const list = await provider.listModels()
+      // Fetch models through provider with interruptible timeout
+      const list = await createInterruptiblePromise(
+        provider.listModels(),
+        totalTimeout,
+        'Model list'
+      )
       this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
       
       this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
@@ -292,9 +361,12 @@ class AIApplication extends Application {
       process.title = this.aiState.model
       
       // Clear spinner and show success
+      isSpinnerActive = false
       clearInterval(spinnerInterval)
       clearTerminalLine()
       process.stdout.write('\x1B[?25h') // Show cursor
+      this.isProcessingRequest = false
+      this.currentRequestController = null
       
       console.log(`Provider changed to ${color.cyan}${providerName}${color.reset}.`)
       console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.`)
@@ -303,13 +375,46 @@ class AIApplication extends Application {
       // Note: Don't emit provider:changed event here as it causes duplicate logging
     } catch (e) {
       // Clear spinner on error
+      isSpinnerActive = false
       clearInterval(spinnerInterval)
       clearTerminalLine()
       process.stdout.write('\x1B[?25h') // Show cursor
-      errorHandler.handleError(e, { context: 'provider_switch' })
+      this.isProcessingRequest = false
+      this.currentRequestController = null
       
-      if (!this.aiState.model) {
+      // Check if it's a user cancellation FIRST
+      if (e.message && e.message.includes('cancelled by user')) {
+        console.log(`${color.yellow}Provider initialization cancelled by user.${color.reset}`)
         process.exit(0)
+      }
+      
+      // Check if it's a timeout error SECOND - don't try alternative providers
+      if (e.message && (e.message.includes('timeout') || e.message.includes('Timeout'))) {
+        console.log(`${color.red}Unable to connect to API providers.${color.reset}`)
+        console.log(`${color.yellow}Please check your internet connection and try again.${color.reset}`)
+        process.exit(1)
+      }
+      
+      // Check if it's a 403 error and try alternative providers immediately
+      if (e.message && e.message.includes('403') && e.message.includes('Country, region, or territory not supported')) {
+        errorHandler.handleError(e, { context: 'provider_switch' })
+        console.log(`${color.yellow}Region blocked for ${providerName}. Trying alternative provider...${color.reset}`)
+        
+        // Try to switch to another available provider
+        if (await this.tryAlternativeProvider()) {
+          return // Successfully switched
+        } else {
+          // All providers failed - graceful shutdown
+          console.log(`${color.red}All API providers are unavailable.${color.reset}`)
+          console.log(`${color.yellow}Please check your internet connection and API keys.${color.reset}`)
+          process.exit(1)
+        }
+      } else {
+        errorHandler.handleError(e, { context: 'provider_switch' })
+        
+        if (!this.aiState.model) {
+          process.exit(0)
+        }
       }
     }
   }
@@ -347,11 +452,67 @@ class AIApplication extends Application {
   }
 
   /**
+   * Try to switch to an alternative provider when current one fails
+   */
+  async tryAlternativeProvider() {
+    const availableProviders = Object.keys(API_PROVIDERS)
+    const currentProvider = this.aiState.selectedProviderKey
+    
+    // Try other providers in order: openai, anthropic, deepseek
+    const preferredOrder = ['openai', 'anthropic', 'deepseek']
+    
+    for (const providerKey of preferredOrder) {
+      if (providerKey === currentProvider) continue
+      
+      // Check if provider has API key
+      const providerConfig = API_PROVIDERS[providerKey]
+      if (!process.env[providerConfig.apiKeyEnv]) {
+        continue
+      }
+      
+      try {
+        console.log(`${color.cyan}Switching to ${providerConfig.name}...${color.reset}`)
+        
+        // Find the index of this provider for switchProvider
+        const providerKeys = Object.keys(API_PROVIDERS)
+        const providerIndex = providerKeys.indexOf(providerKey)
+        
+        if (providerIndex !== -1) {
+          this.aiState.selectedProviderKey = providerKey
+          
+          // Create and test the provider
+          const provider = createProvider(providerKey, providerConfig)
+          await provider.initializeClient()
+          
+          this.aiState.provider = provider
+          
+          // Fetch models through provider
+          const list = await provider.listModels()
+          this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
+          
+          this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
+          process.title = this.aiState.model
+          
+          console.log(`${color.green}Successfully switched to ${providerConfig.name}${color.reset}`)
+          return true
+        }
+      } catch (error) {
+        console.log(`${color.yellow}${providerConfig.name} also unavailable: ${error.message}${color.reset}`)
+        continue
+      }
+    }
+    
+    console.log(`${color.red}No alternative providers available${color.reset}`)
+    return false
+  }
+
+  /**
    * Process AI input (override parent method)
    */
   async processAIInput(input) {
     let interval
     let startTime
+    const originalInput = input // Save original input for retry
     
     // Check for clipboard content FIRST (before MCP processing)
     if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
@@ -629,6 +790,31 @@ class AIApplication extends Application {
         clearTerminalLine()
         showStatus('error', finalTime)
       } else {
+        // Check if it's a 403 error and try to switch to another provider (only once)
+        if (error.message && error.message.includes('403') && error.message.includes('Country, region, or territory not supported') && !this.isRetryingProvider) {
+          // Clear spinner immediately without showing time
+          clearTerminalLine()
+          console.log(`${color.yellow}Region blocked for ${this.aiState.selectedProviderKey}. Trying alternative provider...${color.reset}`)
+          
+          this.isRetryingProvider = true
+          
+          // Try to switch to another available provider
+          if (await this.tryAlternativeProvider()) {
+            // Retry the request with the new provider
+            const result = await this.processAIInput(originalInput, command)
+            this.isRetryingProvider = false
+            return result
+          } else {
+            // All providers failed - graceful shutdown
+            console.log(`${color.red}All API providers are unavailable.${color.reset}`)
+            console.log(`${color.yellow}Please check your internet connection and API keys.${color.reset}`)
+            process.exit(1)
+          }
+        }
+        
+        // For all other errors, show status first then error message
+        clearTerminalLine()
+        showStatus('error', finalTime)
         errorHandler.handleError(error, { context: 'ai_processing' })
       }
     } finally {

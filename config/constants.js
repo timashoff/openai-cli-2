@@ -10,6 +10,7 @@ export const APP_CONSTANTS = {
 
   // Timeouts
   API_TIMEOUT: 100000, // 100 seconds for API requests
+  PROVIDER_INIT_TIMEOUT: 30000, // 30 seconds for provider initialization
   CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
 
   // Spinner and animation sizes

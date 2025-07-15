@@ -35,6 +35,26 @@ class ErrorHandler {
 
   async logError(error) {
     const sanitizedMessage = sanitizeErrorMessage(error.message)
+    
+    // For operational errors, show only the message to the user
+    if (error.isOperational) {
+      console.log(`${color.red}${sanitizedMessage}${color.reset}`)
+      return
+    }
+    
+    // For most user-facing errors, just show the message
+    if (error.message && (
+      error.message.includes('Failed to create chat completion') ||
+      error.message.includes('Request timed out') ||
+      error.message.includes('timeout') ||
+      error.message.includes('Authentication') ||
+      error.message.includes('Rate limit')
+    )) {
+      console.log(`${color.red}${sanitizedMessage}${color.reset}`)
+      return
+    }
+    
+    // For system errors, show full technical details
     const sanitizedStack = error.stack ? sanitizeErrorMessage(error.stack) : 'No stack trace'
     
     this.logger.error(`${color.red}Error:${color.reset}`, {
