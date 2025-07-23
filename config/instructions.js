@@ -26,11 +26,6 @@ export const INSTRUCTIONS = {
     description: 'translate into Chinese',
     instruction: 'Translate the following text into Chinese',
   },
-  WEBPAGE: {
-    key: ['summarize', 'суммируй'],
-    description: 'summarize webpage content',
-    instruction: 'Summarize the content from the provided webpage',
-  },
   PINYIN: {
     key: ['пп', 'pp'],
     description: 'show the Pinyin transcription',
