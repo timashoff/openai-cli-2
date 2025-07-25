@@ -1,10 +1,4 @@
 export const INSTRUCTIONS = {
-  LITERARY: {
-    key: ['-l', ':l'],
-    description: 'make a sentence more literary',
-    instruction:
-      'Rewrite the following sentence in a modern literary style and simplify it',
-  },
   GRAMMAR: {
     key: ['gg'],
     description: 'check the grammar',
@@ -14,22 +8,26 @@ export const INSTRUCTIONS = {
   RUSSIAN: {
     key: ['rr', 'ru', 'ру', 'переведи'],
     description: 'translate into Russian',
-    instruction: 'translate the following text into Russian',
+    instruction:
+      'translate the following text into Russian',
   },
   ENGLISH: {
-    key: ['ee', 'аа', 'aa', 'translate'],
+    key: ['аа', 'aa'],
     description: 'translate into English',
-    instruction: 'translate the following text into English',
+    instruction:
+      'please provide multiple English translations of the following, categorized as: 1. Standard (usual case) 2. Natural-sounding (idiomatic, how a native speaker might say it) 3. Formal 4. Informal (as used in messaging apps)',
   },
   CHINESE: {
     key: ['cc', 'сс'],
     description: 'translate into Chinese',
-    instruction: 'Translate the following text into Chinese',
+    instruction:
+      'Translate the following text into Chinese',
   },
   PINYIN: {
     key: ['пп', 'pp'],
     description: 'show the Pinyin transcription',
-    instruction: 'Provide the Pinyin transcription of the following text',
+    instruction:
+      'Provide the Pinyin transcription of the following text',
   },
   TRANSCRIPTION: {
     key: ['tr'],
@@ -37,15 +35,11 @@ export const INSTRUCTIONS = {
     instruction:
       'show the English transcription of the following text. The response should only contain the transcription',
   },
-  CEFR: {
-    key: ['-cefr', ':cefr'],
-    description: 'show CEFR levels',
-    instruction: 'correlate the following words with CEFR levels of difficulty',
-  },
   SENTENCE: {
     key: ['ss'],
     description: 'create a simple sentence',
-    instruction: 'create a simple sentence using the following words',
+    instruction:
+      'create a simple sentence using the following words',
   },
   HSK: {
     key: ['hsk'],
@@ -95,5 +89,9 @@ export const SYS_INSTRUCTIONS = {
   PROVIDER: {
     key: ['provider'],
     description: 'change the API provider',
+  },
+  CMD: {
+    key: ['cmd', 'кмд'],
+    description: 'manage custom commands',
   },
 }

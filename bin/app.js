@@ -13,7 +13,8 @@ import { StreamProcessor } from '../utils/stream-processor.js'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
-import { INSTRUCTIONS } from '../config/instructions.js'
+import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { CommandEditor } from '../utils/command-editor.js'
 import cache from '../utils/cache.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
@@ -49,6 +50,9 @@ class AIApplication extends Application {
     this.currentStreamProcessor = null
     this.shouldReturnToPrompt = false
     this.isRetryingProvider = false
+    
+    // Initialize command editor
+    this.commandEditor = new CommandEditor(this)
     
     // Setup global cleanup handlers
     this.setupCleanupHandlers()
@@ -185,6 +189,22 @@ class AIApplication extends Application {
         }
         
         return await context.app.openLinkInBrowser(linkNumber)
+      }
+    })
+    
+    // CMD command
+    this.aiCommands.registerCommand(new class extends BaseCommand {
+      constructor() {
+        super('cmd', 'Manage custom commands', {
+          aliases: ['кмд'],
+          usage: 'cmd',
+          category: 'ai'
+        })
+      }
+      
+      async execute(args, context) {
+        await context.app.commandEditor.showCommandMenu()
+        return '' // Empty return to avoid extra output
       }
     })
   }
@@ -839,6 +859,18 @@ class AIApplication extends Application {
   }
 
   /**
+   * Check if command is a system command from SYS_INSTRUCTIONS
+   */
+  isSystemCommand(commandName) {
+    for (const prop in SYS_INSTRUCTIONS) {
+      if (SYS_INSTRUCTIONS[prop].key && SYS_INSTRUCTIONS[prop].key.includes(commandName)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
    * Find command in instructions
    */
   findCommand(str) {
@@ -1139,6 +1171,14 @@ class AIApplication extends Application {
         const words = userInput.trim().split(' ')
         const commandName = words[0]
         const args = words.slice(1)
+        
+        // Check system commands first (includes cmd)
+        if (this.isSystemCommand(commandName)) {
+          if (commandName === 'cmd' || commandName === 'кмд') {
+            await this.commandEditor.showCommandMenu()
+            continue
+          }
+        }
         
         if (this.commands.hasCommand(commandName) || this.aiCommands.hasCommand(commandName)) {
           const startTime = Date.now()
