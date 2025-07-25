@@ -1,11 +1,7 @@
 import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const instructionsPath = path.join(__dirname, '../config/instructions.js')
+import { getDatabase } from './database-manager.js'
+import readline from 'node:readline'
 
 export class CommandEditor {
   constructor(aiApplication) {
@@ -52,29 +48,27 @@ export class CommandEditor {
 
     try {
       const key = await this.promptInput('Enter command key (e.g. "aa" or "aa,bb"): ')
-      if (!key) {
-        console.log(color.yellow + 'Cancelled' + color.reset)
+      if (!key.trim()) {
+        console.log(color.red + 'Command key is required' + color.reset)
         return
       }
 
       const description = await this.promptInput('Command description (Enter - auto-generate): ')
-      const instruction = await this.promptInput('LLM instruction: ')
       
-      if (!instruction) {
+      const instruction = await this.promptInput('LLM instruction: ')
+      if (!instruction.trim()) {
         console.log(color.red + 'Instruction is required' + color.reset)
         return
       }
 
       const keyArray = key.split(',').map(k => k.trim()).filter(k => k)
-      const finalDescription = description || await this.generateDescription(instruction)
+      const finalDescription = description.trim() || await this.generateDescription(instruction)
 
       const commandName = key.toUpperCase().replace(/[^A-Z0-9]/g, '_')
       await this.saveCommand(commandName, keyArray, finalDescription, instruction)
       
       console.log(color.green + `Command "${commandName}" added` + color.reset)
       
-      // Перезагрузить инструкции
-      await this.reloadInstructions()
       
     } catch (error) {
       console.log(color.red + 'Error adding command: ' + error.message + color.reset)
@@ -109,16 +103,14 @@ export class CommandEditor {
       const newDescription = await this.promptInput(`Description [${command.description}]: `)
       const newInstruction = await this.promptInput(`Instruction [${command.instruction}]: `)
 
-      const finalKey = newKey ? newKey.split(',').map(k => k.trim()).filter(k => k) : command.key
-      const finalDescription = newDescription || command.description
-      const finalInstruction = newInstruction || command.instruction
+      const finalKey = newKey.trim() ? newKey.split(',').map(k => k.trim()).filter(k => k) : command.key
+      const finalDescription = newDescription.trim() || command.description
+      const finalInstruction = newInstruction.trim() || command.instruction
 
-      await this.updateCommand(commandName, finalKey, finalDescription, finalInstruction)
+      await this.saveCommand(commandName, finalKey, finalDescription, finalInstruction)
       
       console.log(color.green + `Command "${commandName}" updated` + color.reset)
       
-      // Перезагрузить инструкции
-      await this.reloadInstructions()
       
     } catch (error) {
       console.log(color.red + 'Error editing command: ' + error.message + color.reset)
@@ -170,7 +162,7 @@ export class CommandEditor {
       const confirm = await this.promptInput('Type "yes" to confirm: ')
       
       if (confirm.toLowerCase() !== 'yes') {
-        console.log(color.yellow + 'Отменено' + color.reset)
+        console.log(color.yellow + 'Cancelled' + color.reset)
         return
       }
 
@@ -178,8 +170,6 @@ export class CommandEditor {
       
       console.log(color.green + `Command "${commandName}" deleted` + color.reset)
       
-      // Перезагрузить инструкции
-      await this.reloadInstructions()
       
     } catch (error) {
       console.log(color.red + 'Error deleting command: ' + error.message + color.reset)
@@ -188,78 +178,31 @@ export class CommandEditor {
 
   async loadCommands() {
     try {
-      const { INSTRUCTIONS } = await import('../config/instructions.js')
-      return INSTRUCTIONS
+      const db = getDatabase()
+      return db.getAllCommands()
     } catch (error) {
       throw new Error(`Failed to load commands: ${error.message}`)
     }
   }
 
   async saveCommand(name, key, description, instruction) {
-    const commands = await this.loadCommands()
-    commands[name] = { key, description, instruction }
-    await this.writeCommands(commands)
-  }
-
-  async updateCommand(name, key, description, instruction) {
-    const commands = await this.loadCommands()
-    if (commands[name]) {
-      commands[name] = { key, description, instruction }
-      await this.writeCommands(commands)
+    try {
+      const db = getDatabase()
+      db.saveCommand(name, key, description, instruction)
+    } catch (error) {
+      throw new Error(`Failed to save command: ${error.message}`)
     }
   }
 
   async removeCommand(name) {
-    const commands = await this.loadCommands()
-    delete commands[name]
-    await this.writeCommands(commands)
-  }
-
-  async writeCommands(commands) {
     try {
-      // Получаем актуальные SYS_INSTRUCTIONS
-      const { SYS_INSTRUCTIONS } = await import('../config/instructions.js')
-      
-      // Формируем весь файл заново
-      let content = 'export const INSTRUCTIONS = {\n'
-      
-      Object.entries(commands).forEach(([name, cmd]) => {
-        const keyString = cmd.key.map(k => `'${k}'`).join(', ')
-        const escapedDescription = cmd.description.replace(/'/g, "\\'")
-        const escapedInstruction = cmd.instruction.replace(/'/g, "\\'")
-        
-        content += `  ${name}: {\n`
-        content += `    key: [${keyString}],\n`
-        content += `    description: '${escapedDescription}',\n`
-        content += `    instruction:\n`
-        content += `      '${escapedInstruction}',\n`
-        content += `  },\n`
-      })
-      
-      content += '}\n\n'
-      
-      // Добавляем SYS_INSTRUCTIONS
-      content += 'export const SYS_INSTRUCTIONS = {\n'
-      
-      Object.entries(SYS_INSTRUCTIONS).forEach(([name, cmd]) => {
-        const keyString = cmd.key.map(k => `'${k}'`).join(', ')
-        const escapedDescription = cmd.description.replace(/'/g, "\\'")
-        
-        content += `  ${name}: {\n`
-        content += `    key: [${keyString}],\n`
-        content += `    description: '${escapedDescription}',\n`
-        content += `  },\n`
-      })
-      
-      content += '}\n'
-      
-      // Полная перезапись файла
-      await fs.writeFile(instructionsPath, content, 'utf8')
-      
+      const db = getDatabase()
+      db.deleteCommand(name)
     } catch (error) {
-      throw new Error(`Error writing commands: ${error.message}`)
+      throw new Error(`Failed to remove command: ${error.message}`)
     }
   }
+
 
   async generateDescription(instruction) {
     try {
@@ -277,9 +220,6 @@ export class CommandEditor {
     }
   }
 
-  async reloadInstructions() {
-    console.log(color.green + 'Instructions updated' + color.reset)
-  }
 
   async promptInput(question) {
     const { rl } = await import('./index.js')

@@ -6,7 +6,7 @@ export const INSTRUCTIONS = {
       'check the grammar of the following and replace all mistakes and typos',
   },
   RUSSIAN: {
-    key: ['rr', 'ru', 'ру', 'переведи'],
+    key: ['rr'],
     description: 'translate into Russian',
     instruction:
       'translate the following text into Russian',
@@ -18,7 +18,7 @@ export const INSTRUCTIONS = {
       'please provide multiple English translations of the following, categorized as: 1. Standard (usual case) 2. Natural-sounding (idiomatic, how a native speaker might say it) 3. Formal 4. Informal (as used in messaging apps)',
   },
   CHINESE: {
-    key: ['cc', 'сс'],
+    key: ['сс', 'cc'],
     description: 'translate into Chinese',
     instruction:
       'Translate the following text into Chinese',
@@ -60,10 +60,10 @@ export const INSTRUCTIONS = {
       'check the following code for errors and, in general, give your assessment of its quality',
   },
   WTF: {
-    key: ['wtf', 'втф'],
+    key: ['втф', 'wtf'],
     description: 'explain what this means?',
     instruction:
-      'Can you explain what this means?',
+      'Объясни что это означает?',
   },
   URL: {
     key: ['url'],
@@ -71,11 +71,23 @@ export const INSTRUCTIONS = {
     instruction:
       'Extract and summarize content from the provided URL',
   },
+  KG: {
+    key: ['kg'],
+    description: 'custom command',
+    instruction:
+      'переведи на киргизский язык',
+  },
+  BB: {
+    key: ['bb'],
+    description: 'custom command',
+    instruction:
+      'переведи на беларуский',
+  },
 }
 
 export const SYS_INSTRUCTIONS = {
   EXIT: {
-    key: ['exit', 'q'],
+    key: ['q', 'exit'],
     description: 'close the programm',
   },
   HELP: {
@@ -91,7 +103,7 @@ export const SYS_INSTRUCTIONS = {
     description: 'change the API provider',
   },
   CMD: {
-    key: ['cmd', 'кмд'],
+    key: ['кмд', 'cmd'],
     description: 'manage custom commands',
   },
 }

@@ -13,7 +13,8 @@ import { StreamProcessor } from '../utils/stream-processor.js'
 import { createInteractiveMenu } from '../utils/interactive_menu.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
-import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { migrateInstructionsToDatabase, getInstructionsFromDatabase } from '../utils/migration.js'
 import { CommandEditor } from '../utils/command-editor.js'
 import cache from '../utils/cache.js'
 import { errorHandler } from '../utils/error-handler.js'
@@ -881,6 +882,7 @@ class AIApplication extends Application {
     const arr = str.trim().split(' ')
     const commandKey = arr.shift()
     
+    const INSTRUCTIONS = getInstructionsFromDatabase()
     for (const prop in INSTRUCTIONS) {
       if (INSTRUCTIONS[prop].key.includes(commandKey)) {
         const restString = arr.join(' ')
@@ -1138,6 +1140,9 @@ class AIApplication extends Application {
    * Main application loop
    */
   async run() {
+    // Migrate existing instructions to database on first run
+    await migrateInstructionsToDatabase()
+    
     process.title = this.aiState.model
     // Don't log here as it interferes with the prompt
     

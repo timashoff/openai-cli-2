@@ -1,4 +1,5 @@
-import { INSTRUCTIONS, SYS_INSTRUCTIONS } from '../../config/instructions.js'
+import { SYS_INSTRUCTIONS } from '../../config/instructions.js'
+import { getInstructionsFromDatabase } from '../migration.js'
 import { color } from '../../config/color.js'
 import { commandManager } from '../command-manager.js'
 
@@ -12,6 +13,7 @@ export const execHelp = () => {
   help(SYS_INSTRUCTIONS)
   console.log(`
 ${color.yellow}openai prompts:${color.reset}`)
+  const INSTRUCTIONS = getInstructionsFromDatabase()
   help(INSTRUCTIONS)
 
   console.log(
