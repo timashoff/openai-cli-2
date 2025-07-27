@@ -1,6 +1,7 @@
 import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
 import { getDatabase } from './database-manager.js'
+import { createSelectionTitle } from './menu-helpers.js'
 import readline from 'node:readline'
 
 export class CommandEditor {
@@ -85,7 +86,10 @@ export class CommandEditor {
         return
       }
 
-      const selectedIndex = await createInteractiveMenu('Select command to edit:', commandNames)
+      const selectedIndex = await createInteractiveMenu(
+        createSelectionTitle('command', commandNames.length, 'to edit'),
+        commandNames
+      )
       
       if (selectedIndex === -1) {
         console.log(color.yellow + 'Cancelled' + color.reset)
@@ -149,7 +153,10 @@ export class CommandEditor {
         return
       }
 
-      const selectedIndex = await createInteractiveMenu('Select command to delete:', commandNames)
+      const selectedIndex = await createInteractiveMenu(
+        createSelectionTitle('command', commandNames.length, 'to delete'),
+        commandNames
+      )
       
       if (selectedIndex === -1) {
         console.log(color.yellow + 'Cancelled' + color.reset)

@@ -1,5 +1,6 @@
 import { color } from '../../config/color.js'
 import { createInteractiveMenu } from '../interactive_menu.js'
+import { createSelectionTitle } from '../menu-helpers.js'
 
 export const execModel = async (currentModel, models, rl) => {
   console.log(
@@ -14,7 +15,7 @@ export const execModel = async (currentModel, models, rl) => {
   const currentModelIndex = models.findIndex(model => model.id === currentModel)
   
   const selectedIndex = await createInteractiveMenu(
-    `Select model (${models.length} available):`,
+    createSelectionTitle('model', models.length),
     modelOptions,
     currentModelIndex >= 0 ? currentModelIndex : 0
   )
