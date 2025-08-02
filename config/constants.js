@@ -11,12 +11,15 @@ export const APP_CONSTANTS = {
   // Timeouts
   API_TIMEOUT: 100000, // 100 seconds for API requests
   PROVIDER_INIT_TIMEOUT: 30000, // 30 seconds for provider initialization
+  CLIPBOARD_TIMEOUT: 5000, // 5 seconds for clipboard operations
   CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
 
   // Spinner and animation sizes
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
   TYPING_DELAY: 10, // Delay between characters when typing response
   CLEAR_TIMEOUT: 100, // Timeout for screen clear
+  RAPID_CHECK_INTERVAL: 5, // Interval for rapid abort checking in ms
+  ATTEMPT_DURATION: 5000, // Duration of one attempt in ms (5 seconds)
 
   // Paths
   CACHE_DIR_NAME: 'AI_responses',
@@ -26,13 +29,15 @@ export const APP_CONSTANTS = {
   CLIPBOARD_MARKER: '$$',
   FORCE_FLAGS: [' --force', ' -f'],
   
+  // UI Configuration
+  MENU_PAGE_SIZE: 10, // Number of options to display on one page in interactive menu
+  MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
+  
   // Default provider
   DEFAULT_PROVIDER: 'deepseek',
 
   // Regular expressions for validation
   REGEX: {
-    EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    SAFE_STRING: /^[a-zA-Z0-9\s\-_.,!?]+$/,
     API_KEY_OPENAI: /^sk-[a-zA-Z0-9\-_]{20,}$/,
     API_KEY_DEEPSEEK: /^sk-[a-zA-Z0-9\-_]{20,}$/,
     API_KEY_ANTHROPIC: /^sk-ant-api03-[a-zA-Z0-9\-_]{95}$/,

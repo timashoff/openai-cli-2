@@ -1,4 +1,5 @@
 import { color } from '../config/color.js'
+import { APP_CONSTANTS } from '../config/constants.js'
 import readline from 'node:readline'
 
 /**
@@ -9,7 +10,7 @@ import readline from 'node:readline'
  * @returns {Promise<number>} - Index of selected option
  */
 export async function createInteractiveMenu(title, options, initialIndex = 0) {
-  const pageSize = 10 // Number of options to display on one page
+  const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
   return new Promise((resolve) => {
     let selectedIndex = initialIndex
     let currentPage = Math.floor(initialIndex / pageSize)
@@ -88,7 +89,7 @@ export async function createInteractiveMenu(title, options, initialIndex = 0) {
 
         // Clear screen
         process.stdout.write('\x1b[2J\x1b[H')
-        resolve(-1) // -1 means cancelled
+        resolve(APP_CONSTANTS.MENU_CANCELLED_INDEX)
       } else if (key.name === 'left' && currentPage > 0) {
         currentPage--
         // Move selected element to new page
