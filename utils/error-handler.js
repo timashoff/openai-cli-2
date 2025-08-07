@@ -48,9 +48,14 @@ class ErrorHandler {
       error.message.includes('Request timed out') ||
       error.message.includes('timeout') ||
       error.message.includes('Authentication') ||
-      error.message.includes('Rate limit')
+      error.message.includes('Rate limit') ||
+      error.message.includes('terminated') ||
+      error.message.includes('ECONNRESET') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('network') ||
+      error.message.includes('fetch failed')
     )) {
-      console.log(`${color.red}${sanitizedMessage}${color.reset}`)
+      console.log(`${color.red}Network error. Please check your connection and try again.${color.reset}`)
       return
     }
     

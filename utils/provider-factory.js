@@ -104,7 +104,7 @@ export class OpenAIProvider extends BaseProvider {
       this.client = new OpenAI({
         baseURL: this.config.baseURL,
         apiKey: this.getApiKey(),
-        timeout: this.config.timeout || 100000
+        timeout: this.config.timeout || 180000
       })
     } catch (error) {
       throw new AppError(`Failed to initialize OpenAI client: ${error.message}`, true, 500)
