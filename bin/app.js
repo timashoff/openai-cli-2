@@ -25,6 +25,8 @@ import { intentDetector } from '../utils/intent-detector.js'
 import { fetchMCPServer } from '../utils/fetch-mcp-server.js'
 import { searchMCPServer } from '../utils/search-mcp-server.js'
 import { readFile } from 'node:fs/promises'
+import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
+import { fileManager } from '../utils/file-manager.js'
 
 
 /**
@@ -217,6 +219,7 @@ class AIApplication extends Application {
     await this.registerAICommands()
     await cache.initialize()
     await this.initializeMCP()
+    await multiProviderTranslator.initialize() // Initialize multi-provider translator
     await this.switchProvider(true) // Auto-select default provider at startup
     
     // Small delay to let UI settle after provider selection
@@ -535,6 +538,10 @@ class AIApplication extends Application {
     let startTime
     const originalInput = input // Save original input for retry
     
+    // Setup request state for global handler (moved to beginning)
+    this.currentRequestController = new AbortController()
+    this.isProcessingRequest = true
+    
     // Check for clipboard content FIRST (before MCP processing)
     if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
       try {
@@ -615,17 +622,100 @@ class AIApplication extends Application {
     const finalInput = (command && command.isTranslation && command.hasUrl) ? input : 
                       (command ? command.fullInstruction : input)
 
-    // Check cache for translation commands - use original input for URL commands
+    // Check cache for translation commands
     const cacheKey = (command && command.isTranslation && command.hasUrl) ? command.originalInput : finalInput
+    
+    // Handle multi-provider commands
+    if (command && command.isMultiProvider && !forceRequest) {
+      // Check multi-provider cache first
+      if (cache.hasMultipleResponses(cacheKey)) {
+        console.log(`${color.yellow}[from cache]${color.reset}`)
+        const cachedResponses = cache.getMultipleResponses(cacheKey)
+        const formattedResponse = multiProviderTranslator.formatMultiProviderResponse({ 
+          translations: cachedResponses.map(r => ({ ...r, emoji: undefined })), // Remove emoji from cached responses
+          elapsed: 0,
+          successful: cachedResponses.filter(r => r.response && !r.error).length,
+          total: cachedResponses.length
+        })
+        process.stdout.write(formattedResponse + '\n')
+        return
+      }
+      
+      // Execute multi-provider translation
+      try {
+        const result = await multiProviderTranslator.translateMultiple(
+          command.commandType,
+          command.instruction,
+          command.targetContent,
+          this.currentRequestController.signal
+        )
+        
+        const formattedResponse = multiProviderTranslator.formatMultiProviderResponse(result)
+        process.stdout.write(formattedResponse + '\n')
+        
+        // Cache the responses
+        await cache.setMultipleResponses(cacheKey, result.translations)
+        
+        return
+      } catch (error) {
+        errorHandler.handleError(error, { context: 'multi_provider_translation' })
+        return
+      }
+    }
+    
+    // Handle document commands
+    if (command && command.isDocCommand && !forceRequest) {
+      // Check document cache first
+      const docCache = cache.getDocumentFile(cacheKey)
+      if (docCache) {
+        console.log(`${color.yellow}[from cache]${color.reset}`)
+        process.stdout.write(docCache.content + '\n')
+        fileManager.showSaveSuccess(docCache.file)
+        return
+      }
+      
+      // Execute document translation with Claude Sonnet
+      try {
+        const result = await multiProviderTranslator.translateMultiple(
+          'DOC',
+          command.instruction,
+          command.targetContent,
+          this.currentRequestController.signal
+        )
+        
+        const claudeResponse = result.translations.find(t => t.provider === 'Claude Sonnet' && t.response)
+        if (claudeResponse && claudeResponse.response) {
+          process.stdout.write(claudeResponse.response + '\n')
+          
+          // Save to file
+          const fileInfo = await fileManager.saveDocumentTranslation(
+            claudeResponse.response,
+            command.targetContent,
+            { command: command.commandKey, timestamp: new Date().toISOString() }
+          )
+          
+          // Show success message
+          fileManager.showSaveSuccess(fileInfo)
+          
+          // Cache document
+          await cache.setDocumentFile(cacheKey, fileInfo, claudeResponse.response)
+        } else {
+          console.log(`${color.red}Claude Sonnet translation failed${color.reset}`)
+        }
+        
+        return
+      } catch (error) {
+        errorHandler.handleError(error, { context: 'document_translation' })
+        return
+      }
+    }
+    
+    // Standard single-provider translation cache check
     if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
       console.log(`${color.yellow}[from cache]${color.reset}`)
       process.stdout.write(cache.get(cacheKey) + '\n')
       return
     }
-
-    // Setup request state for global handler
-    this.currentRequestController = new AbortController()
-    this.isProcessingRequest = true
 
     try {
       let messages = []
@@ -879,6 +969,16 @@ class AIApplication extends Application {
       'RUSSIAN', 'ENGLISH', 'CHINESE', 'PINYIN', 'TRANSCRIPTION', 'HSK', 'HSK_SS'
     ]
     
+    // Multi-provider translation commands
+    const MULTI_PROVIDER_COMMANDS = {
+      'ENGLISH': ['aa', 'аа'],
+      'RUSSIAN': ['rr'], 
+      'CHINESE': ['cc', 'сс']
+    }
+    
+    // Document translation commands
+    const DOC_COMMANDS = ['doc']
+    
     const arr = str.trim().split(' ')
     const commandKey = arr.shift()
     
@@ -887,6 +987,12 @@ class AIApplication extends Application {
       if (INSTRUCTIONS[prop].key.includes(commandKey)) {
         const restString = arr.join(' ')
         const isTranslation = TRANSLATION_KEYS.includes(prop)
+        const isDocCommand = prop === 'DOC' || DOC_COMMANDS.includes(commandKey)
+        
+        // Check if this supports multi-provider
+        const isMultiProvider = Object.entries(MULTI_PROVIDER_COMMANDS).some(([key, commands]) => {
+          return key === prop && commands.includes(commandKey)
+        })
         
         // Check if this is a translation command with URL - handle specially
         const hasUrl = restString && (restString.startsWith('http') || restString.includes('://'))
@@ -894,9 +1000,12 @@ class AIApplication extends Application {
         return {
           fullInstruction: `${INSTRUCTIONS[prop].instruction}: ${restString}`,
           isTranslation,
+          isDocCommand,
+          isMultiProvider,
           hasUrl,
           originalInput: str,
           commandKey,
+          commandType: prop,
           targetContent: restString,
           instruction: INSTRUCTIONS[prop].instruction
         }

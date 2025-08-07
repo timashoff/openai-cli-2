@@ -198,5 +198,124 @@ export default {
   
   async saveCache() {
     await saveCache()
+  },
+
+  // Multi-provider cache methods
+  
+  /**
+   * Set multiple responses from different providers
+   */
+  async setMultipleResponses(key, responses) {
+    try {
+      validateCacheInput(key, responses)
+      
+      // Store in multi-provider format
+      const multiProviderEntry = {
+        type: 'multi_provider',
+        providers: responses,
+        timestamp: Date.now()
+      }
+      
+      cache[key] = multiProviderEntry
+      
+      await enforceCacheLimit()
+      await saveCache()
+    } catch (error) {
+      console.error('Error setting multi-provider cache:', error.message)
+      throw error
+    }
+  },
+
+  /**
+   * Get multiple responses from different providers
+   */
+  getMultipleResponses(key) {
+    if (typeof key !== 'string' || key.trim() === '') {
+      return undefined
+    }
+    
+    const entry = cache[key]
+    if (typeof entry === 'object' && entry.type === 'multi_provider') {
+      // Check if entry has expired
+      if (entry.timestamp && Date.now() - entry.timestamp > MAX_CACHE_AGE) {
+        delete cache[key]
+        this.saveCache().catch(console.error)
+        return undefined
+      }
+      return entry.providers
+    }
+    
+    return undefined
+  },
+
+  /**
+   * Check if key has multi-provider responses
+   */
+  hasMultipleResponses(key) {
+    if (typeof key !== 'string' || key.trim() === '') {
+      return false
+    }
+    
+    const entry = cache[key]
+    if (typeof entry === 'object' && entry.type === 'multi_provider') {
+      // Check if entry has expired
+      if (entry.timestamp && Date.now() - entry.timestamp > MAX_CACHE_AGE) {
+        delete cache[key]
+        this.saveCache().catch(console.error)
+        return false
+      }
+      return true
+    }
+    
+    return false
+  },
+
+  /**
+   * Set document file reference
+   */
+  async setDocumentFile(key, fileInfo, translationContent) {
+    try {
+      validateCacheInput(key, { fileInfo, translationContent })
+      
+      const docEntry = {
+        type: 'document',
+        file: fileInfo,
+        content: translationContent,
+        timestamp: Date.now()
+      }
+      
+      cache[key] = docEntry
+      
+      await enforceCacheLimit()
+      await saveCache()
+    } catch (error) {
+      console.error('Error setting document file cache:', error.message)
+      throw error
+    }
+  },
+
+  /**
+   * Get document file info
+   */
+  getDocumentFile(key) {
+    if (typeof key !== 'string' || key.trim() === '') {
+      return undefined
+    }
+    
+    const entry = cache[key]
+    if (typeof entry === 'object' && entry.type === 'document') {
+      // Check if entry has expired
+      if (entry.timestamp && Date.now() - entry.timestamp > MAX_CACHE_AGE) {
+        delete cache[key]
+        this.saveCache().catch(console.error)
+        return undefined
+      }
+      return {
+        file: entry.file,
+        content: entry.content
+      }
+    }
+    
+    return undefined
   }
 }
