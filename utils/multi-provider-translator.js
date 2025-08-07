@@ -124,8 +124,20 @@ export class MultiProviderTranslator {
   /**
    * Translate using multiple providers in parallel
    */
-  async translateMultiple(commandKey, instruction, text, signal) {
-    const providers = this.getProvidersForCommand(commandKey)
+  async translateMultiple(commandKey, instruction, text, signal, customModels = null) {
+    let providers
+
+    if (customModels && customModels.length > 0) {
+      // Use custom models from database
+      providers = customModels.map(modelConfig => ({
+        key: modelConfig.provider,
+        model: modelConfig.model,
+        name: API_PROVIDERS[modelConfig.provider]?.name || modelConfig.provider
+      })).filter(provider => this.providers.has(provider.key))
+    } else {
+      // Fallback to hardcoded providers for backward compatibility
+      providers = this.getProvidersForCommand(commandKey)
+    }
     
     if (providers.length === 0) {
       throw new Error('No providers available for multi-provider translation')
@@ -149,7 +161,6 @@ export class MultiProviderTranslator {
         } else {
           return {
             provider: providers[index].name,
-            emoji: providers[index].emoji,
             response: null,
             error: result.reason?.message || 'Unknown error'
           }
@@ -167,6 +178,50 @@ export class MultiProviderTranslator {
       }
     } catch (error) {
       logger.error('Multi-provider translation failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Translate using single model (for doc command and single-model commands)
+   */
+  async translateSingle(instruction, text, signal, customModel = null, defaultModel = null) {
+    let model
+
+    if (customModel && customModel.length > 0) {
+      // Use first custom model
+      model = {
+        key: customModel[0].provider,
+        model: customModel[0].model,
+        name: API_PROVIDERS[customModel[0].provider]?.name || customModel[0].provider
+      }
+    } else if (defaultModel) {
+      // Use provided default model
+      model = defaultModel
+    } else {
+      // Fallback to hardcoded Claude Sonnet for doc command
+      model = { key: 'anthropic', model: 'claude-3-5-sonnet-20241022', name: 'Claude Sonnet' }
+    }
+
+    if (!this.providers.has(model.key)) {
+      throw new Error(`Provider ${model.key} not available`)
+    }
+
+    const startTime = Date.now()
+    logger.debug(`Starting single-model translation with ${model.name}`)
+
+    try {
+      const result = await this.translateWithProvider(model, model.model, instruction, text, signal)
+      
+      const elapsed = getElapsedTime(startTime)
+      logger.debug(`Single-model translation completed in ${elapsed}s`)
+
+      return {
+        result,
+        elapsed
+      }
+    } catch (error) {
+      logger.error('Single-model translation failed:', error)
       throw error
     }
   }

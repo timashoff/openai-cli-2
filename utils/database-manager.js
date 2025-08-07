@@ -27,12 +27,23 @@ export class DatabaseManager {
         key TEXT NOT NULL,
         description TEXT NOT NULL,
         instruction TEXT NOT NULL,
+        models TEXT DEFAULT NULL,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         updated_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `
     
     this.db.exec(createTableSQL)
+    
+    // Add models column to existing table if it doesn't exist
+    try {
+      this.db.exec('ALTER TABLE commands ADD COLUMN models TEXT DEFAULT NULL')
+    } catch (error) {
+      // Column might already exist, ignore error
+      if (!error.message.includes('duplicate column name')) {
+        throw error
+      }
+    }
   }
 
   getAllCommands() {
@@ -45,7 +56,8 @@ export class DatabaseManager {
       commands[row.id] = {
         key: JSON.parse(row.key),
         description: row.description,
-        instruction: row.instruction
+        instruction: row.instruction,
+        models: row.models ? JSON.parse(row.models) : null
       }
     }
     
@@ -61,20 +73,22 @@ export class DatabaseManager {
     return {
       key: JSON.parse(row.key),
       description: row.description,
-      instruction: row.instruction
+      instruction: row.instruction,
+      models: row.models ? JSON.parse(row.models) : null
     }
   }
 
-  saveCommand(id, key, description, instruction) {
+  saveCommand(id, key, description, instruction, models = null) {
     const keyJson = JSON.stringify(key)
+    const modelsJson = models ? JSON.stringify(models) : null
     const now = Math.floor(Date.now() / 1000)
     
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO commands (id, key, description, instruction, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO commands (id, key, description, instruction, models, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
     
-    stmt.run(id, keyJson, description, instruction, now)
+    stmt.run(id, keyJson, description, instruction, modelsJson, now)
   }
 
   deleteCommand(id) {
@@ -92,7 +106,7 @@ export class DatabaseManager {
       
       // Insert all instructions
       for (const [id, command] of Object.entries(instructions)) {
-        this.saveCommand(id, command.key, command.description, command.instruction)
+        this.saveCommand(id, command.key, command.description, command.instruction, command.models || null)
       }
       
       this.db.exec('COMMIT')

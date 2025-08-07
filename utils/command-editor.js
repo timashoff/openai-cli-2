@@ -2,11 +2,13 @@ import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
 import { getDatabase } from './database-manager.js'
 import { createSelectionTitle } from './menu-helpers.js'
+import { ModelSelector } from './model-selector.js'
 import readline from 'node:readline'
 
 export class CommandEditor {
   constructor(aiApplication) {
     this.app = aiApplication
+    this.modelSelector = new ModelSelector(aiApplication)
   }
 
   async showCommandMenu() {
@@ -65,8 +67,20 @@ export class CommandEditor {
       const keyArray = key.split(',').map(k => k.trim()).filter(k => k)
       const finalDescription = description.trim() || await this.generateDescription(instruction)
 
+      // Ask about models
+      console.log('')
+      const addModels = await this.promptInput('Add specific models for this command? (y/n) [n]: ')
+      let models = []
+
+      if (addModels.toLowerCase() === 'y' || addModels.toLowerCase() === 'yes') {
+        const selectedModels = await this.modelSelector.selectModels([])
+        if (selectedModels !== null) {
+          models = selectedModels
+        }
+      }
+
       const commandName = key.toUpperCase().replace(/[^A-Z0-9]/g, '_')
-      await this.saveCommand(commandName, keyArray, finalDescription, instruction)
+      await this.saveCommand(commandName, keyArray, finalDescription, instruction, models)
       
       console.log(color.green + `Command "${commandName}" added` + color.reset)
       
@@ -107,11 +121,33 @@ export class CommandEditor {
       const newDescription = await this.promptInput(`Description [${command.description}]: `)
       const newInstruction = await this.promptInput(`Instruction [${command.instruction}]: `)
 
+      // Models editing
+      const currentModels = command.models || []
+      console.log('')
+      if (currentModels.length > 0) {
+        console.log(color.yellow + 'Current models:' + color.reset)
+        currentModels.forEach((model, index) => {
+          console.log(`  ${index + 1}. ${model.provider} - ${model.model}`)
+        })
+      } else {
+        console.log(color.gray + 'No models configured (will use default)' + color.reset)
+      }
+      
+      const editModels = await this.promptInput('Edit models? (y/n) [n]: ')
+      let finalModels = currentModels
+
+      if (editModels.toLowerCase() === 'y' || editModels.toLowerCase() === 'yes') {
+        const selectedModels = await this.modelSelector.selectModels(currentModels)
+        if (selectedModels !== null) {
+          finalModels = selectedModels
+        }
+      }
+
       const finalKey = newKey.trim() ? newKey.split(',').map(k => k.trim()).filter(k => k) : command.key
       const finalDescription = newDescription.trim() || command.description
       const finalInstruction = newInstruction.trim() || command.instruction
 
-      await this.saveCommand(commandName, finalKey, finalDescription, finalInstruction)
+      await this.saveCommand(commandName, finalKey, finalDescription, finalInstruction, finalModels)
       
       console.log(color.green + `Command "${commandName}" updated` + color.reset)
       
@@ -133,6 +169,13 @@ export class CommandEditor {
         console.log(`  Keys: ${cmd.key.join(', ')}`)
         console.log(`  Description: ${cmd.description}`)
         console.log(`  Instruction: ${cmd.instruction.substring(0, 80)}${cmd.instruction.length > 80 ? '...' : ''}`)
+        
+        if (cmd.models && cmd.models.length > 0) {
+          const modelList = cmd.models.map(m => `${m.provider}-${m.model}`).join(', ')
+          console.log(`  Models: ${modelList}`)
+        } else {
+          console.log(`  Models: ${color.gray}default${color.reset}`)
+        }
         console.log('')
       })
       
@@ -192,10 +235,10 @@ export class CommandEditor {
     }
   }
 
-  async saveCommand(name, key, description, instruction) {
+  async saveCommand(name, key, description, instruction, models = null) {
     try {
       const db = getDatabase()
-      db.saveCommand(name, key, description, instruction)
+      db.saveCommand(name, key, description, instruction, models)
     } catch (error) {
       throw new Error(`Failed to save command: ${error.message}`)
     }

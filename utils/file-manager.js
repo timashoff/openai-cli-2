@@ -53,9 +53,9 @@ export class FileManager {
         content.substring(0, 400) + '...'
 
       const signal = new AbortController().signal
-      const result = await multiProviderTranslator.translateMultiple('DOC', instruction, contextText, signal)
+      const result = await multiProviderTranslator.translateSingle(instruction, contextText, signal)
       
-      const claudeResponse = result.translations.find(t => t.provider === 'Claude Sonnet' && t.response)
+      const claudeResponse = result.result
       
       if (claudeResponse && claudeResponse.response) {
         // Clean and sanitize filename

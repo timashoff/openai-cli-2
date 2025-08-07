@@ -647,7 +647,8 @@ class AIApplication extends Application {
           command.commandType,
           command.instruction,
           command.targetContent,
-          this.currentRequestController.signal
+          this.currentRequestController.signal,
+          command.models
         )
         
         const formattedResponse = multiProviderTranslator.formatMultiProviderResponse(result)
@@ -674,22 +675,21 @@ class AIApplication extends Application {
         return
       }
       
-      // Execute document translation with Claude Sonnet
+      // Execute document translation
       try {
-        const result = await multiProviderTranslator.translateMultiple(
-          'DOC',
+        const result = await multiProviderTranslator.translateSingle(
           command.instruction,
           command.targetContent,
-          this.currentRequestController.signal
+          this.currentRequestController.signal,
+          command.models
         )
         
-        const claudeResponse = result.translations.find(t => t.provider === 'Claude Sonnet' && t.response)
-        if (claudeResponse && claudeResponse.response) {
-          process.stdout.write(claudeResponse.response + '\n')
+        if (result.result && result.result.response) {
+          process.stdout.write(result.result.response + '\n')
           
           // Save to file
           const fileInfo = await fileManager.saveDocumentTranslation(
-            claudeResponse.response,
+            result.result.response,
             command.targetContent,
             { command: command.commandKey, timestamp: new Date().toISOString() }
           )
@@ -698,9 +698,9 @@ class AIApplication extends Application {
           fileManager.showSaveSuccess(fileInfo)
           
           // Cache document
-          await cache.setDocumentFile(cacheKey, fileInfo, claudeResponse.response)
+          await cache.setDocumentFile(cacheKey, fileInfo, result.result.response)
         } else {
-          console.log(`${color.red}Claude Sonnet translation failed${color.reset}`)
+          console.log(`${color.red}Document translation failed${color.reset}`)
         }
         
         return
@@ -1007,7 +1007,8 @@ class AIApplication extends Application {
           commandKey,
           commandType: prop,
           targetContent: restString,
-          instruction: INSTRUCTIONS[prop].instruction
+          instruction: INSTRUCTIONS[prop].instruction,
+          models: INSTRUCTIONS[prop].models || null
         }
       }
     }
