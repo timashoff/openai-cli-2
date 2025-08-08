@@ -100,6 +100,7 @@ export class MultiProviderTranslator {
 
       return {
         provider: provider.name,
+        model: model,
         response: response,
         error: null
       }
@@ -108,6 +109,7 @@ export class MultiProviderTranslator {
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
         return {
           provider: provider.name,
+          model: model,
           response: null,
           error: 'Request cancelled'
         }
@@ -115,6 +117,7 @@ export class MultiProviderTranslator {
       
       return {
         provider: provider.name,
+        model: model,
         response: null,
         error: error.message
       }
@@ -161,6 +164,7 @@ export class MultiProviderTranslator {
         } else {
           return {
             provider: providers[index].name,
+            model: providers[index].model,
             response: null,
             error: result.reason?.message || 'Unknown error'
           }
@@ -233,7 +237,10 @@ export class MultiProviderTranslator {
     let output = ''
     
     for (const translation of result.translations) {
-      output += `\n${color.cyan}${translation.provider}${color.reset}:\n`
+      const providerLabel = translation.model 
+        ? `${translation.provider} (${translation.model})`
+        : translation.provider
+      output += `\n${color.cyan}${providerLabel}${color.reset}:\n`
       
       if (translation.error) {
         output += `${color.red}Error: ${translation.error}${color.reset}\n`

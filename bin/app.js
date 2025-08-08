@@ -27,6 +27,7 @@ import { searchMCPServer } from '../utils/search-mcp-server.js'
 import { readFile } from 'node:fs/promises'
 import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
 import { fileManager } from '../utils/file-manager.js'
+import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 
 
 /**
@@ -220,6 +221,7 @@ class AIApplication extends Application {
     await cache.initialize()
     await this.initializeMCP()
     await multiProviderTranslator.initialize() // Initialize multi-provider translator
+    await multiCommandProcessor.initialize() // Initialize universal multi-command processor
     await this.switchProvider(true) // Auto-select default provider at startup
     
     // Small delay to let UI settle after provider selection
@@ -710,6 +712,49 @@ class AIApplication extends Application {
       }
     }
     
+    // Handle any command with multiple models (universal multi-model support)
+    if (command && command.models && Array.isArray(command.models) && command.models.length > 1 && !forceRequest) {
+      // Check multi-command cache first
+      if (cache.hasMultipleResponses(cacheKey)) {
+        console.log(`${color.yellow}[from cache]${color.reset}`)
+        const cachedResponses = cache.getMultipleResponses(cacheKey)
+        const formattedResponse = multiCommandProcessor.formatMultiResponse({ 
+          results: cachedResponses.map(r => ({ ...r })),
+          elapsed: 0,
+          successful: cachedResponses.filter(r => r.response && !r.error).length,
+          total: cachedResponses.length,
+          isMultiple: cachedResponses.length > 1
+        })
+        process.stdout.write(formattedResponse + '\n')
+        return
+      }
+      
+      // Execute universal multi-command processing
+      try {
+        const result = await multiCommandProcessor.executeMultiple(
+          finalInput,
+          this.currentRequestController.signal,
+          command.models
+        )
+        
+        const formattedResponse = multiCommandProcessor.formatMultiResponse(result)
+        process.stdout.write(formattedResponse + '\n')
+        
+        // Cache the responses (using same structure as multi-provider translator for compatibility)
+        cache.setMultipleResponses(cacheKey, result.results.map(r => ({
+          provider: r.provider,
+          model: r.model,
+          response: r.response,
+          error: r.error
+        })))
+        
+        return
+      } catch (error) {
+        errorHandler.handleError(error, { context: 'multi_command_processing' })
+        return
+      }
+    }
+    
     // Standard single-provider translation cache check
     if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
       console.log(`${color.yellow}[from cache]${color.reset}`)
@@ -989,10 +1034,14 @@ class AIApplication extends Application {
         const isTranslation = TRANSLATION_KEYS.includes(prop)
         const isDocCommand = prop === 'DOC' || DOC_COMMANDS.includes(commandKey)
         
-        // Check if this supports multi-provider
-        const isMultiProvider = Object.entries(MULTI_PROVIDER_COMMANDS).some(([key, commands]) => {
+        // Check if this supports multi-provider (old hardcoded way for backwards compatibility)
+        const isOldMultiProvider = Object.entries(MULTI_PROVIDER_COMMANDS).some(([key, commands]) => {
           return key === prop && commands.includes(commandKey)
         })
+        
+        // New dynamic multi-model detection
+        const hasMultipleModels = INSTRUCTIONS[prop].models && Array.isArray(INSTRUCTIONS[prop].models) && INSTRUCTIONS[prop].models.length > 1
+        const isMultiProvider = isOldMultiProvider || hasMultipleModels
         
         // Check if this is a translation command with URL - handle specially
         const hasUrl = restString && (restString.startsWith('http') || restString.includes('://'))
