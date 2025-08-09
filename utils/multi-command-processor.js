@@ -203,8 +203,11 @@ export class MultiCommandProcessor {
     let streamingStarted = false
     const completedCount = { value: 0 }
     const callbackPromises = [] // Track all callback promises
+    const streamingCandidates = [] // Models that started streaming in selection window
+    const selectionStartTime = Date.now()
+    const SELECTION_WINDOW_MS = 300 // Wait 300ms to collect streaming candidates
     
-    logger.debug(`Starting ${providers.length} models in parallel for real streaming`)
+    logger.debug(`Starting ${providers.length} models in parallel for real streaming (${SELECTION_WINDOW_MS}ms selection window)`)
     
     // Start all models in parallel WITHOUT waiting
     const runningExecutions = providers.map(async (provider, index) => {
@@ -212,23 +215,58 @@ export class MultiCommandProcessor {
         let isStreamingModel = false
         
         const onChunk = (content) => {
-          // First model to send chunk becomes streaming model
-          if (firstModelIndex === -1 && !streamingStarted) {
-            firstModelIndex = index
-            isStreamingModel = true
+          const currentTime = Date.now()
+          const elapsedSinceStart = currentTime - selectionStartTime
+          
+          // During selection window - collect candidates
+          if (!streamingStarted && elapsedSinceStart <= SELECTION_WINDOW_MS) {
+            if (!streamingCandidates.some(c => c.index === index)) {
+              streamingCandidates.push({ 
+                index, 
+                provider, 
+                startTime: currentTime,
+                content 
+              })
+              logger.debug(`Model ${provider.name} (index: ${index}) started streaming at ${elapsedSinceStart}ms`)
+            }
+            return // Don't stream yet, just collect
+          }
+          
+          // After selection window - choose streaming model if not chosen yet
+          if (!streamingStarted) {
+            // Choose the earliest streaming candidate (most responsive)
+            if (streamingCandidates.length > 0) {
+              const chosen = streamingCandidates.reduce((earliest, current) => 
+                current.startTime < earliest.startTime ? current : earliest
+              )
+              firstModelIndex = chosen.index
+              logger.debug(`Selected model ${chosen.provider.name} (index: ${chosen.index}) as streaming model (started at ${chosen.startTime - selectionStartTime}ms)`)
+            } else {
+              // Fallback: use current model if no candidates
+              firstModelIndex = index
+              logger.debug(`Fallback: selected model ${provider.name} (index: ${index}) as streaming model`)
+            }
+            
+            isStreamingModel = (index === firstModelIndex)
             streamingStarted = true
             
-            // Immediately call callback to stop spinner and start streaming
-            if (onProviderComplete) {
+            // Call callback to stop spinner and start streaming
+            if (onProviderComplete && isStreamingModel) {
               const callbackPromise = Promise.resolve(onProviderComplete(null, index, provider, true))
               callbackPromises.push(callbackPromise)
             }
             
-            logger.debug(`First model started streaming: ${provider.name} (index: ${index})`)
+            // Output any buffered content from the chosen model
+            if (isStreamingModel && streamingCandidates.length > 0) {
+              const chosenCandidate = streamingCandidates.find(c => c.index === index)
+              if (chosenCandidate) {
+                process.stdout.write(chosenCandidate.content)
+              }
+            }
           }
           
-          // Stream content only from first model
-          if (isStreamingModel) {
+          // Stream content only from chosen model
+          if (isStreamingModel && streamingStarted) {
             process.stdout.write(content)
           }
         }
@@ -278,8 +316,21 @@ export class MultiCommandProcessor {
       }
     })
     
-    // Wait for first model to start streaming (polling approach)
+    // Wait for selection window to complete and streaming model to be chosen
     while (firstModelIndex === -1) {
+      const elapsedSinceSelection = Date.now() - selectionStartTime
+      
+      // If selection window has passed and we have candidates, force selection
+      if (elapsedSinceSelection > SELECTION_WINDOW_MS && streamingCandidates.length > 0 && !streamingStarted) {
+        const chosen = streamingCandidates.reduce((earliest, current) => 
+          current.startTime < earliest.startTime ? current : earliest
+        )
+        firstModelIndex = chosen.index
+        streamingStarted = true
+        logger.debug(`Selection window expired: chose model ${chosen.provider.name} (index: ${chosen.index}) as streaming model`)
+        break
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 10))
       
       // Check for abort signal
