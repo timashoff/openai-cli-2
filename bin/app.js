@@ -627,8 +627,9 @@ class AIApplication extends Application {
     // Check cache for translation commands
     const cacheKey = (command && command.isTranslation && command.hasUrl) ? command.originalInput : finalInput
     
-    // Handle multi-provider commands
-    if (command && command.isMultiProvider && !forceRequest) {
+    // Handle multi-provider commands (but exclude multi-model commands - they use new streaming logic)
+    if (command && command.isMultiProvider && !forceRequest && 
+        !(command.models && Array.isArray(command.models) && command.models.length > 1)) {
       // Check multi-provider cache first
       if (cache.hasMultipleResponses(cacheKey)) {
         console.log(`${color.yellow}[from cache]${color.reset}`)
@@ -713,9 +714,9 @@ class AIApplication extends Application {
     }
     
     // Handle any command with multiple models (universal multi-model support)
-    if (command && command.models && Array.isArray(command.models) && command.models.length > 1 && !forceRequest) {
-      // Check multi-command cache first
-      if (cache.hasMultipleResponses(cacheKey)) {
+    if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
+      // Check multi-command cache first (skip if force flag is used)
+      if (!forceRequest && cache.hasMultipleResponses(cacheKey)) {
         console.log(`${color.yellow}[from cache]${color.reset}`)
         const cachedResponses = cache.getMultipleResponses(cacheKey)
         const formattedResponse = multiCommandProcessor.formatMultiResponse({ 
@@ -729,16 +730,106 @@ class AIApplication extends Application {
         return
       }
       
-      // Execute universal multi-command processing
+      // Execute universal multi-command processing with sequential display
       try {
+        let displayedCount = 0
+        const totalModels = command.models.length
+        
+        // Typewriter effect for non-streaming models
+        const typewriterEffect = async (text, speed = 15) => {
+          const chunks = text.match(/.{1,2}/g) || [text]
+          for (const chunk of chunks) {
+            // Check if user cancelled during typing
+            if (this.currentRequestController?.signal?.aborted) {
+              break
+            }
+            process.stdout.write(chunk)
+            await new Promise(resolve => setTimeout(resolve, speed))
+          }
+        }
+
+        // Callback for handling each provider completion
+        const onProviderComplete = async (result, index, provider, isFirst) => {
+          if (isFirst) {
+            // Stop spinner for first response
+            if (this.currentSpinnerInterval) {
+              clearInterval(this.currentSpinnerInterval)
+              this.currentSpinnerInterval = null
+            }
+            const finalTime = getElapsedTime(startTime)
+            clearTerminalLine()
+            showStatus('success', finalTime)
+            this.isProcessingRequest = false
+            this.isTypingResponse = true
+            
+            // Display provider header for streaming model
+            const providerLabel = provider.model 
+              ? `${provider.name} (${provider.model})`
+              : provider.name
+            process.stdout.write(`\n${color.cyan}${providerLabel}${color.reset}:\n`)
+            
+            // The streaming content will be written directly by MultiCommandProcessor
+            return
+          }
+          
+          // Handle completed buffered results from slower models with typewriter effect
+          if (result) {
+            displayedCount++
+            
+            // Display provider header
+            const providerLabel = result.model 
+              ? `${result.provider} (${result.model})`
+              : result.provider
+            process.stdout.write(`\n${color.cyan}${providerLabel}${color.reset}:\n`)
+            
+            // Display result with typewriter effect
+            if (result.error) {
+              process.stdout.write(`${color.red}Error: ${result.error}${color.reset}\n`)
+            } else if (result.response) {
+              await typewriterEffect(result.response)
+              process.stdout.write('\n')
+            } else {
+              process.stdout.write(`${color.yellow}No response${color.reset}\n`)
+            }
+          }
+        }
+        
+        // Initialize timing before spinner
+        startTime = Date.now()
+        
+        // Start spinner
+        let spinnerIndex = 0
+        process.stdout.write('\x1B[?25l') // Hide cursor
+        this.currentSpinnerInterval = setInterval(() => {
+          clearTerminalLine()
+          const elapsedTime = getElapsedTime(startTime)
+          process.stdout.write(
+            `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s (${displayedCount}/${totalModels} models)${color.reset}`,
+          )
+        }, configManager.get('spinnerInterval'))
+        
         const result = await multiCommandProcessor.executeMultiple(
           finalInput,
           this.currentRequestController.signal,
-          command.models
+          command.models,
+          null,
+          onProviderComplete
         )
         
-        const formattedResponse = multiCommandProcessor.formatMultiResponse(result)
-        process.stdout.write(formattedResponse + '\n')
+        // Clear spinner if still active
+        if (this.currentSpinnerInterval) {
+          clearInterval(this.currentSpinnerInterval)
+          this.currentSpinnerInterval = null
+        }
+        clearTerminalLine()
+        process.stdout.write('\x1B[?25h') // Show cursor
+        this.isProcessingRequest = false
+        this.isTypingResponse = false
+        
+        // Add summary if multiple providers
+        if (result.results.length > 1) {
+          process.stdout.write(`\n${color.grey}[${result.successful}/${result.total} models responded in ${result.elapsed}s]${color.reset}\n`)
+        }
         
         // Cache the responses (using same structure as multi-provider translator for compatibility)
         cache.setMultipleResponses(cacheKey, result.results.map(r => ({
@@ -750,6 +841,16 @@ class AIApplication extends Application {
         
         return
       } catch (error) {
+        // Clear spinner on error
+        if (this.currentSpinnerInterval) {
+          clearInterval(this.currentSpinnerInterval)
+          this.currentSpinnerInterval = null
+        }
+        clearTerminalLine()
+        process.stdout.write('\x1B[?25h') // Show cursor
+        this.isProcessingRequest = false
+        this.isTypingResponse = false
+        
         errorHandler.handleError(error, { context: 'multi_command_processing' })
         return
       }
@@ -1014,12 +1115,6 @@ class AIApplication extends Application {
       'RUSSIAN', 'ENGLISH', 'CHINESE', 'PINYIN', 'TRANSCRIPTION', 'HSK', 'HSK_SS'
     ]
     
-    // Multi-provider translation commands
-    const MULTI_PROVIDER_COMMANDS = {
-      'ENGLISH': ['aa', 'аа'],
-      'RUSSIAN': ['rr'], 
-      'CHINESE': ['cc', 'сс']
-    }
     
     // Document translation commands
     const DOC_COMMANDS = ['doc']
@@ -1034,14 +1129,11 @@ class AIApplication extends Application {
         const isTranslation = TRANSLATION_KEYS.includes(prop)
         const isDocCommand = prop === 'DOC' || DOC_COMMANDS.includes(commandKey)
         
-        // Check if this supports multi-provider (old hardcoded way for backwards compatibility)
-        const isOldMultiProvider = Object.entries(MULTI_PROVIDER_COMMANDS).some(([key, commands]) => {
-          return key === prop && commands.includes(commandKey)
-        })
-        
-        // New dynamic multi-model detection
-        const hasMultipleModels = INSTRUCTIONS[prop].models && Array.isArray(INSTRUCTIONS[prop].models) && INSTRUCTIONS[prop].models.length > 1
-        const isMultiProvider = isOldMultiProvider || hasMultipleModels
+        // Dynamic multi-model detection - only based on actual models array
+        const hasMultipleModels = INSTRUCTIONS[prop].models && 
+                                  Array.isArray(INSTRUCTIONS[prop].models) && 
+                                  INSTRUCTIONS[prop].models.length > 1
+        const isMultiProvider = hasMultipleModels
         
         // Check if this is a translation command with URL - handle specially
         const hasUrl = restString && (restString.startsWith('http') || restString.includes('://'))

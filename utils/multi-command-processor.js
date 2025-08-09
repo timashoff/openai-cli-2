@@ -90,9 +90,65 @@ export class MultiCommandProcessor {
   }
 
   /**
-   * Execute command with multiple models in parallel
+   * Execute command with streaming support for real-time display
    */
-  async executeMultiple(instruction, signal, customModels, defaultModel = null) {
+  async executeWithStreamingDisplay(provider, model, instruction, signal, onChunkCallback = null) {
+    try {
+      const providerInstance = this.providers.get(provider.key)
+      if (!providerInstance) {
+        throw new Error(`Provider ${provider.key} not available`)
+      }
+
+      const messages = [{ role: 'user', content: instruction }]
+      
+      const stream = await providerInstance.createChatCompletion(model, messages, {
+        stream: true,
+        signal
+      })
+
+      // Use existing StreamProcessor but with chunk callback for real-time display
+      const streamProcessor = new StreamProcessor(provider.key)
+      const response = []
+      
+      const chunkHandler = (content) => {
+        response.push(content)
+        if (onChunkCallback) {
+          onChunkCallback(content)
+        }
+      }
+      
+      await streamProcessor.processStream(stream, signal, chunkHandler)
+      
+      return {
+        provider: provider.name,
+        model: model,
+        response: response.join('').trim(),
+        error: null
+      }
+    } catch (error) {
+      // Handle abort gracefully
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        return {
+          provider: provider.name,
+          model: model,
+          response: null,
+          error: 'Request cancelled'
+        }
+      }
+      
+      return {
+        provider: provider.name,
+        model: model,
+        response: null,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Execute command with multiple models in parallel (sequential display)
+   */
+  async executeMultiple(instruction, signal, customModels, defaultModel = null, onProviderComplete = null) {
     let providers = []
 
     if (customModels && customModels.length > 0) {
@@ -135,41 +191,142 @@ export class MultiCommandProcessor {
     const startTime = Date.now()
     logger.debug(`Starting multi-command execution with ${providers.length} providers`)
 
-    // Create promises for parallel execution
-    const promises = providers.map(provider => 
-      this.executeWithProvider(provider, provider.model, instruction, signal)
-    )
+    return await this.executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete)
+  }
 
-    try {
-      // Wait for all providers to complete
-      const results = await Promise.allSettled(promises)
-      
-      const executions = results.map((result, index) => {
-        if (result.status === 'fulfilled') {
-          return result.value
-        } else {
-          return {
-            provider: providers[index].name,
-            model: providers[index].model,
-            response: null,
-            error: result.reason?.message || 'Unknown error'
+  /**
+   * Execute multiple providers with real-time streaming - event-driven approach
+   */
+  async executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete) {
+    const results = new Array(providers.length)
+    let firstModelIndex = -1
+    let streamingStarted = false
+    const completedCount = { value: 0 }
+    const callbackPromises = [] // Track all callback promises
+    
+    logger.debug(`Starting ${providers.length} models in parallel for real streaming`)
+    
+    // Start all models in parallel WITHOUT waiting
+    const runningExecutions = providers.map(async (provider, index) => {
+      try {
+        let isStreamingModel = false
+        
+        const onChunk = (content) => {
+          // First model to send chunk becomes streaming model
+          if (firstModelIndex === -1 && !streamingStarted) {
+            firstModelIndex = index
+            isStreamingModel = true
+            streamingStarted = true
+            
+            // Immediately call callback to stop spinner and start streaming
+            if (onProviderComplete) {
+              const callbackPromise = Promise.resolve(onProviderComplete(null, index, provider, true))
+              callbackPromises.push(callbackPromise)
+            }
+            
+            logger.debug(`First model started streaming: ${provider.name} (index: ${index})`)
+          }
+          
+          // Stream content only from first model
+          if (isStreamingModel) {
+            process.stdout.write(content)
           }
         }
-      })
-
-      const elapsed = getElapsedTime(startTime)
-      logger.debug(`Multi-command execution completed in ${elapsed}s`)
-
-      return {
-        results: executions,
-        elapsed,
-        successful: executions.filter(r => r.response && !r.error).length,
-        total: providers.length,
-        isMultiple: true
+        
+        // Execute model with streaming callback
+        const result = await this.executeWithStreamingDisplay(
+          provider,
+          provider.model,
+          instruction,
+          signal,
+          onChunk
+        )
+        
+        results[index] = result
+        completedCount.value++
+        
+        // For non-streaming models, show result immediately when completed
+        if (!isStreamingModel && streamingStarted) {
+          if (onProviderComplete) {
+            const callbackPromise = onProviderComplete(result, index, provider, false)
+            callbackPromises.push(callbackPromise)
+          }
+        }
+        
+        return { index, result, isStreamingModel }
+        
+      } catch (error) {
+        const errorResult = {
+          provider: provider.name,
+          model: provider.model,
+          response: null,
+          error: error.message
+        }
+        
+        results[index] = errorResult
+        completedCount.value++
+        
+        // Show error for non-streaming models
+        if (firstModelIndex !== index && streamingStarted) {
+          if (onProviderComplete) {
+            const callbackPromise = onProviderComplete(errorResult, index, provider, false)
+            callbackPromises.push(callbackPromise)
+          }
+        }
+        
+        return { index, result: errorResult, isStreamingModel: false }
       }
-    } catch (error) {
-      logger.error('Multi-command execution failed:', error)
-      throw error
+    })
+    
+    // Wait for first model to start streaming (polling approach)
+    while (firstModelIndex === -1) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+      
+      // Check for abort signal
+      if (signal && signal.aborted) {
+        throw new Error('Streaming cancelled by user')
+      }
+    }
+    
+    // Find and wait for streaming model to complete
+    const streamingExecution = runningExecutions[firstModelIndex]
+    await streamingExecution
+    
+    // Add newline after streaming model completes
+    process.stdout.write('\n')
+    
+    // Wait for all other models to complete their executions
+    await Promise.allSettled(runningExecutions)
+    
+    // CRITICAL: Wait for ALL callback promises to complete (including typewriter effects)
+    if (callbackPromises.length > 0) {
+      logger.debug(`Waiting for ${callbackPromises.length} callback promises to complete`)
+      await Promise.allSettled(callbackPromises)
+      logger.debug('All callback promises completed')
+    }
+    
+    // Fill any missing results
+    for (let i = 0; i < providers.length; i++) {
+      if (!results[i]) {
+        results[i] = {
+          provider: providers[i].name,
+          model: providers[i].model,
+          response: null,
+          error: 'Execution failed or timed out'
+        }
+      }
+    }
+
+    const elapsed = getElapsedTime(startTime)
+    logger.debug(`Multi-command streaming completed in ${elapsed}s`)
+
+    return {
+      results,
+      elapsed,
+      successful: results.filter(r => r.response && !r.error).length,
+      total: providers.length,
+      isMultiple: true,
+      streamingModelIndex: firstModelIndex
     }
   }
 
