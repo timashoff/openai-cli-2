@@ -199,74 +199,119 @@ export class MultiCommandProcessor {
    */
   async executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete) {
     const results = new Array(providers.length)
-    let firstModelIndex = -1
-    let streamingStarted = false
     const completedCount = { value: 0 }
-    const callbackPromises = [] // Track all callback promises
-    const streamingCandidates = [] // Models that started streaming in selection window
-    const selectionStartTime = Date.now()
-    const SELECTION_WINDOW_MS = 300 // Wait 300ms to collect streaming candidates
     
-    logger.debug(`Starting ${providers.length} models in parallel for real streaming (${SELECTION_WINDOW_MS}ms selection window)`)
+    // Leaderboard system for tracking model performance
+    const leaderboard = [] // {index, provider, firstChunkTime, status: 'streaming'|'done', displayed: false}
+    let currentlyStreaming = null
+    let allExecutionsStarted = false
+    
+    const addToLeaderboard = (index, provider, firstChunkTime) => {
+      if (!leaderboard.find(m => m.index === index)) {
+        leaderboard.push({
+          index,
+          provider,
+          firstChunkTime,
+          status: 'streaming',
+          displayed: false
+        })
+        leaderboard.sort((a, b) => a.firstChunkTime - b.firstChunkTime)
+        logger.debug(`Added to leaderboard: ${provider.name} (index: ${index}) at ${firstChunkTime - startTime}ms`)
+      }
+    }
+    
+    const updateModelStatus = (index, status) => {
+      const model = leaderboard.find(m => m.index === index)
+      if (model) {
+        model.status = status
+        logger.debug(`Model ${model.provider.name} status: ${status}`)
+        if (status === 'done') {
+          tryStartNextStream()
+        }
+      }
+    }
+    
+    const getNextModelToStream = () => {
+      // Priority 1: Find DONE models that haven't been displayed
+      const doneModels = leaderboard.filter(m => m.status === 'done' && !m.displayed)
+      if (doneModels.length > 0) {
+        logger.debug(`Found done model for streaming: ${doneModels[0].provider.name}`)
+        return doneModels[0]
+      }
+      
+      // Priority 2: Next in leaderboard that's still streaming
+      const streamingModel = leaderboard.find(m => m.status === 'streaming' && !m.displayed)
+      if (streamingModel) {
+        logger.debug(`Found streaming model for display: ${streamingModel.provider.name}`)
+        return streamingModel
+      }
+      
+      return null
+    }
+    
+    const tryStartNextStream = () => {
+      if (currentlyStreaming) return // Already streaming something
+      
+      const nextModel = getNextModelToStream()
+      if (!nextModel) return // No models available
+      
+      startModelStream(nextModel)
+    }
+    
+    const startModelStream = async (model) => {
+      currentlyStreaming = model
+      model.displayed = true
+      
+      logger.debug(`Starting real-time streaming for ${model.provider.name} (index: ${model.index})`)
+      
+      // Show header and content for this model
+      if (onProviderComplete) {
+        // Check if this is the first model to stream (index 0 in original providers array)
+        const isFirst = model.index === 0
+        logger.debug(`Showing header for ${model.provider.name}, isFirst: ${isFirst}`)
+        
+        if (isFirst) {
+          // For first model, show header with null result to indicate streaming
+          // For first model, show header with null result to indicate streaming
+          await onProviderComplete(null, model.index, model.provider, true)
+        } else {
+          // For non-first models, show header regardless of completion status
+          // Create a placeholder result to trigger header display
+          const displayResult = results[model.index] || {
+            provider: model.provider.name,
+            model: model.provider.model || 'unknown',
+            response: '', // Empty but not null to trigger display
+            error: null
+          }
+          // For non-first models, show header regardless of completion status
+          await onProviderComplete(displayResult, model.index, model.provider, false)
+        }
+      }
+    }
+    
+    logger.debug(`Starting ${providers.length} models in parallel with leaderboard system`)
     
     // Start all models in parallel WITHOUT waiting
     const runningExecutions = providers.map(async (provider, index) => {
       try {
-        let isStreamingModel = false
+        let firstChunkSent = false
         
         const onChunk = (content) => {
           const currentTime = Date.now()
-          const elapsedSinceStart = currentTime - selectionStartTime
           
-          // During selection window - collect candidates
-          if (!streamingStarted && elapsedSinceStart <= SELECTION_WINDOW_MS) {
-            if (!streamingCandidates.some(c => c.index === index)) {
-              streamingCandidates.push({ 
-                index, 
-                provider, 
-                startTime: currentTime,
-                content 
-              })
-              logger.debug(`Model ${provider.name} (index: ${index}) started streaming at ${elapsedSinceStart}ms`)
-            }
-            return // Don't stream yet, just collect
-          }
-          
-          // After selection window - choose streaming model if not chosen yet
-          if (!streamingStarted) {
-            // Choose the earliest streaming candidate (most responsive)
-            if (streamingCandidates.length > 0) {
-              const chosen = streamingCandidates.reduce((earliest, current) => 
-                current.startTime < earliest.startTime ? current : earliest
-              )
-              firstModelIndex = chosen.index
-              logger.debug(`Selected model ${chosen.provider.name} (index: ${chosen.index}) as streaming model (started at ${chosen.startTime - selectionStartTime}ms)`)
-            } else {
-              // Fallback: use current model if no candidates
-              firstModelIndex = index
-              logger.debug(`Fallback: selected model ${provider.name} (index: ${index}) as streaming model`)
-            }
+          // Track first chunk for leaderboard
+          if (!firstChunkSent) {
+            firstChunkSent = true
+            addToLeaderboard(index, provider, currentTime)
             
-            isStreamingModel = (index === firstModelIndex)
-            streamingStarted = true
-            
-            // Call callback to stop spinner and start streaming
-            if (onProviderComplete && isStreamingModel) {
-              const callbackPromise = Promise.resolve(onProviderComplete(null, index, provider, true))
-              callbackPromises.push(callbackPromise)
-            }
-            
-            // Output any buffered content from the chosen model
-            if (isStreamingModel && streamingCandidates.length > 0) {
-              const chosenCandidate = streamingCandidates.find(c => c.index === index)
-              if (chosenCandidate) {
-                process.stdout.write(chosenCandidate.content)
-              }
+            // Try to start streaming if no model is currently streaming
+            if (!currentlyStreaming) {
+              tryStartNextStream()
             }
           }
           
-          // Stream content only from chosen model
-          if (isStreamingModel && streamingStarted) {
+          // Stream content ONLY if this is the currently streaming model
+          if (currentlyStreaming?.index === index) {
             process.stdout.write(content)
           }
         }
@@ -283,15 +328,18 @@ export class MultiCommandProcessor {
         results[index] = result
         completedCount.value++
         
-        // For non-streaming models, show result immediately when completed
-        if (!isStreamingModel && streamingStarted) {
-          if (onProviderComplete) {
-            const callbackPromise = onProviderComplete(result, index, provider, false)
-            callbackPromises.push(callbackPromise)
-          }
+        // Mark model as done in leaderboard and handle model completion
+        updateModelStatus(index, 'done')
+        
+        // If this was the streaming model, add newline and prepare for next
+        if (currentlyStreaming?.index === index) {
+          process.stdout.write('\n')
+          currentlyStreaming = null
+          logger.debug(`Cleared currentlyStreaming for model ${index}`)
+          setImmediate(() => tryStartNextStream())
         }
         
-        return { index, result, isStreamingModel }
+        return { index, result }
         
       } catch (error) {
         const errorResult = {
@@ -304,56 +352,36 @@ export class MultiCommandProcessor {
         results[index] = errorResult
         completedCount.value++
         
-        // Show error for non-streaming models
-        if (firstModelIndex !== index && streamingStarted) {
-          if (onProviderComplete) {
-            const callbackPromise = onProviderComplete(errorResult, index, provider, false)
-            callbackPromises.push(callbackPromise)
-          }
+        // Mark model as done (even with error) and handle completion
+        updateModelStatus(index, 'done')
+        
+        // If this was the streaming model, add newline and prepare for next
+        if (currentlyStreaming?.index === index) {
+          process.stdout.write('\n')
+          currentlyStreaming = null
+          logger.debug(`Cleared currentlyStreaming for model ${index}`)
+          setImmediate(() => tryStartNextStream())
         }
         
-        return { index, result: errorResult, isStreamingModel: false }
+        return { index, result: errorResult }
       }
     })
     
-    // Wait for selection window to complete and streaming model to be chosen
-    while (firstModelIndex === -1) {
-      const elapsedSinceSelection = Date.now() - selectionStartTime
-      
-      // If selection window has passed and we have candidates, force selection
-      if (elapsedSinceSelection > SELECTION_WINDOW_MS && streamingCandidates.length > 0 && !streamingStarted) {
-        const chosen = streamingCandidates.reduce((earliest, current) => 
-          current.startTime < earliest.startTime ? current : earliest
-        )
-        firstModelIndex = chosen.index
-        streamingStarted = true
-        logger.debug(`Selection window expired: chose model ${chosen.provider.name} (index: ${chosen.index}) as streaming model`)
+    // Wait for all executions to complete
+    await Promise.allSettled(runningExecutions)
+    allExecutionsStarted = true
+    
+    logger.debug(`All model executions completed with leaderboard system`)
+    
+    // Ensure all models have been processed through the leaderboard
+    while (leaderboard.some(m => !m.displayed)) {
+      const undisplayedModel = leaderboard.find(m => !m.displayed)
+      if (undisplayedModel) {
+        logger.debug(`Processing remaining model: ${undisplayedModel.provider.name}`)
+        await startModelStream(undisplayedModel)
+      } else {
         break
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 10))
-      
-      // Check for abort signal
-      if (signal && signal.aborted) {
-        throw new Error('Streaming cancelled by user')
-      }
-    }
-    
-    // Find and wait for streaming model to complete
-    const streamingExecution = runningExecutions[firstModelIndex]
-    await streamingExecution
-    
-    // Add newline after streaming model completes
-    process.stdout.write('\n')
-    
-    // Wait for all other models to complete their executions
-    await Promise.allSettled(runningExecutions)
-    
-    // CRITICAL: Wait for ALL callback promises to complete (including typewriter effects)
-    if (callbackPromises.length > 0) {
-      logger.debug(`Waiting for ${callbackPromises.length} callback promises to complete`)
-      await Promise.allSettled(callbackPromises)
-      logger.debug('All callback promises completed')
     }
     
     // Fill any missing results
@@ -369,15 +397,15 @@ export class MultiCommandProcessor {
     }
 
     const elapsed = getElapsedTime(startTime)
-    logger.debug(`Multi-command streaming completed in ${elapsed}s`)
+    logger.debug(`Multi-command leaderboard streaming completed in ${elapsed}s`)
 
     return {
       results,
       elapsed,
-      successful: results.filter(r => r.response && !r.error).length,
+      successful: results.filter(r => r && r.response && r.response.trim() && !r.error).length,
       total: providers.length,
       isMultiple: true,
-      streamingModelIndex: firstModelIndex
+      streamingModelIndex: leaderboard.length > 0 ? leaderboard[0].index : -1
     }
   }
 

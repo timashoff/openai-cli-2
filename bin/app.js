@@ -735,34 +735,26 @@ class AIApplication extends Application {
         let displayedCount = 0
         const totalModels = command.models.length
         
-        // Typewriter effect for non-streaming models
-        const typewriterEffect = async (text, speed = 15) => {
-          const chunks = text.match(/.{1,2}/g) || [text]
-          for (const chunk of chunks) {
-            // Check if user cancelled during typing
-            if (this.currentRequestController?.signal?.aborted) {
-              break
-            }
-            process.stdout.write(chunk)
-            await new Promise(resolve => setTimeout(resolve, speed))
-          }
-        }
 
         // Callback for handling each provider completion
         const onProviderComplete = async (result, index, provider, isFirst) => {
-          if (isFirst) {
-            // Stop spinner for first response
-            if (this.currentSpinnerInterval) {
-              clearInterval(this.currentSpinnerInterval)
-              this.currentSpinnerInterval = null
-            }
-            const finalTime = getElapsedTime(startTime)
+          // ALWAYS stop the main spinner on first callback (regardless of isFirst)
+          // This prevents spinner interference with streaming content
+          if (this.currentSpinnerInterval) {
+            clearInterval(this.currentSpinnerInterval)
+            this.currentSpinnerInterval = null
             clearTerminalLine()
+            process.stdout.write('\x1B[?25h') // Show cursor
+          }
+          
+          if (isFirst) {
+            // First model - show header and prepare for streaming
+            const finalTime = getElapsedTime(startTime)
             showStatus('success', finalTime)
             this.isProcessingRequest = false
             this.isTypingResponse = true
             
-            // Display provider header for streaming model
+            // Display provider header for first streaming model
             const providerLabel = provider.model 
               ? `${provider.name} (${provider.model})`
               : provider.name
@@ -772,39 +764,40 @@ class AIApplication extends Application {
             return
           }
           
-          // Handle completed buffered results from slower models with typewriter effect
+          // Handle non-first models: display headers when their turn comes
+          // This is called by leaderboard system when model should start displaying
           if (result) {
             displayedCount++
             
-            // Display provider header
+            // Display provider header for this model
             const providerLabel = result.model 
               ? `${result.provider} (${result.model})`
               : result.provider
             process.stdout.write(`\n${color.cyan}${providerLabel}${color.reset}:\n`)
             
-            // Display result with typewriter effect
+            // For non-first models, content streams in real-time via onChunk
+            // No need to output content here, just ensure proper spacing
             if (result.error) {
+              // Show error for models that failed
               process.stdout.write(`${color.red}Error: ${result.error}${color.reset}\n`)
-            } else if (result.response) {
-              await typewriterEffect(result.response)
-              process.stdout.write('\n')
-            } else {
-              process.stdout.write(`${color.yellow}No response${color.reset}\n`)
             }
+            
+            logger.debug(`Displayed header for model ${displayedCount}: ${result.provider}`)
           }
         }
         
         // Initialize timing before spinner
         startTime = Date.now()
         
-        // Start spinner
+        // Start initial spinner (will be stopped when first model starts streaming)
         let spinnerIndex = 0
         process.stdout.write('\x1B[?25l') // Hide cursor
         this.currentSpinnerInterval = setInterval(() => {
           clearTerminalLine()
           const elapsedTime = getElapsedTime(startTime)
+          // Show waiting message without model count during initial loading
           process.stdout.write(
-            `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s (${displayedCount}/${totalModels} models)${color.reset}`,
+            `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading models...${color.reset}`,
           )
         }, configManager.get('spinnerInterval'))
         
