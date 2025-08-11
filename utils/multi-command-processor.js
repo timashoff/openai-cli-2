@@ -410,8 +410,8 @@ export class MultiCommandProcessor {
           process.stdout.write('\n')
           currentlyStreaming = null
           logger.debug(`Cleared currentlyStreaming for model ${index}`)
-          // Use more immediate scheduling for next stream
-          process.nextTick(() => tryStartNextStream())
+          // Use server-friendly scheduling for next stream
+          setImmediate(() => tryStartNextStream())
         }
         
         return { index, result }
@@ -435,8 +435,8 @@ export class MultiCommandProcessor {
           process.stdout.write('\n')
           currentlyStreaming = null
           logger.debug(`Cleared currentlyStreaming for model ${index}`)
-          // Use more immediate scheduling for next stream
-          process.nextTick(() => tryStartNextStream())
+          // Use server-friendly scheduling for next stream
+          setImmediate(() => tryStartNextStream())
         }
         
         return { index, result: errorResult }
