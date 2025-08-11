@@ -119,10 +119,12 @@ export class MultiCommandProcessor {
       
       await streamProcessor.processStream(stream, signal, chunkHandler)
       
+      const finalResponse = response.join('').trim()
+      
       return {
         provider: provider.name,
         model: model,
-        response: response.join('').trim(),
+        response: finalResponse,
         error: null
       }
     } catch (error) {
@@ -213,48 +215,72 @@ export class MultiCommandProcessor {
           provider,
           firstChunkTime,
           status: 'streaming',
-          displayed: false
+          displayed: false,
+          fullResponse: '' // Store accumulated response here
         })
         leaderboard.sort((a, b) => a.firstChunkTime - b.firstChunkTime)
-        logger.debug(`Added to leaderboard: ${provider.name} (index: ${index}) at ${firstChunkTime - startTime}ms`)
+        logger.debug(`✅ Added to leaderboard: ${provider.name} (index: ${index}) at ${firstChunkTime - startTime}ms`)
+        logger.debug(`📊 Leaderboard state:`, leaderboard.map(m => `${m.provider.name}(${m.index})[${m.status}]`))
       }
     }
     
-    const updateModelStatus = (index, status) => {
+    const updateModelStatus = (index, status, fullResponse = null) => {
       const model = leaderboard.find(m => m.index === index)
       if (model) {
+        const oldStatus = model.status
         model.status = status
-        logger.debug(`Model ${model.provider.name} status: ${status}`)
+        if (fullResponse) {
+          model.fullResponse = fullResponse
+          logger.debug(`💾 Stored ${fullResponse.length} chars for ${model.provider.name} (index: ${index})`)
+        }
+        logger.debug(`🔄 Status change: ${model.provider.name} (${index}) ${oldStatus} → ${status}`)
         if (status === 'done') {
+          logger.debug(`✅ ${model.provider.name} completed, triggering tryStartNextStream`)
+          logger.debug(`📊 Current leaderboard:`, leaderboard.map(m => `${m.provider.name}(${m.index})[${m.status}][displayed:${m.displayed}]`))
           tryStartNextStream()
         }
+      } else {
+        logger.debug(`❌ Model ${index} not found in leaderboard for status update: ${status}`)
       }
     }
     
     const getNextModelToStream = () => {
+      logger.debug(`🔍 Looking for next model to stream...`)
+      
       // Priority 1: Find DONE models that haven't been displayed
       const doneModels = leaderboard.filter(m => m.status === 'done' && !m.displayed)
+      logger.debug(`📋 Found ${doneModels.length} done undisplayed models:`, doneModels.map(m => `${m.provider.name}(${m.index})`))
       if (doneModels.length > 0) {
-        logger.debug(`Found done model for streaming: ${doneModels[0].provider.name}`)
+        logger.debug(`⭐ Selected DONE model for streaming: ${doneModels[0].provider.name}`)
         return doneModels[0]
       }
       
       // Priority 2: Next in leaderboard that's still streaming
       const streamingModel = leaderboard.find(m => m.status === 'streaming' && !m.displayed)
       if (streamingModel) {
-        logger.debug(`Found streaming model for display: ${streamingModel.provider.name}`)
+        logger.debug(`⭐ Selected STREAMING model for display: ${streamingModel.provider.name}`)
         return streamingModel
       }
       
+      logger.debug(`❌ No models available for streaming`)
       return null
     }
     
     const tryStartNextStream = () => {
-      if (currentlyStreaming) return // Already streaming something
+      logger.debug(`🚀 tryStartNextStream called`)
+      
+      if (currentlyStreaming) {
+        logger.debug(`⏸️ Already streaming ${currentlyStreaming.provider.name}, skipping`)
+        return // Already streaming something
+      }
       
       const nextModel = getNextModelToStream()
-      if (!nextModel) return // No models available
+      if (!nextModel) {
+        logger.debug(`⏹️ No models available for streaming`)
+        return // No models available
+      }
       
+      logger.debug(`▶️ Starting stream for ${nextModel.provider.name} (index: ${nextModel.index})`)
       startModelStream(nextModel)
     }
     
@@ -262,29 +288,65 @@ export class MultiCommandProcessor {
       currentlyStreaming = model
       model.displayed = true
       
-      logger.debug(`Starting real-time streaming for ${model.provider.name} (index: ${model.index})`)
+      logger.debug(`🎬 startModelStream: ${model.provider.name} (index: ${model.index}, status: ${model.status})`)
       
       // Show header and content for this model
       if (onProviderComplete) {
         // Check if this is the first model to stream (index 0 in original providers array)
         const isFirst = model.index === 0
-        logger.debug(`Showing header for ${model.provider.name}, isFirst: ${isFirst}`)
+        logger.debug(`📋 Showing header for ${model.provider.name}, isFirst: ${isFirst}`)
         
+        // Get current result for fallback
+        const result = results[model.index]
+        
+        // STEP 1: ALWAYS show header FIRST
         if (isFirst) {
-          // For first model, show header with null result to indicate streaming
-          // For first model, show header with null result to indicate streaming
-          await onProviderComplete(null, model.index, model.provider, true)
+          // For first model, show header with null result to indicate streaming (unless already done)
+          if (model.status !== 'done') {
+            await onProviderComplete(null, model.index, model.provider, true)
+          } else {
+            // First model is already done, show header with result
+            const displayResult = result || {
+              provider: model.provider.name,
+              model: model.provider.model || 'unknown',
+              response: result?.response || '',
+              error: result?.error || null
+            }
+            await onProviderComplete(displayResult, model.index, model.provider, true)
+          }
         } else {
-          // For non-first models, show header regardless of completion status
-          // Create a placeholder result to trigger header display
-          const displayResult = results[model.index] || {
+          // For non-first models, always show header
+          const displayResult = result || {
             provider: model.provider.name,
             model: model.provider.model || 'unknown',
-            response: '', // Empty but not null to trigger display
-            error: null
+            response: result?.response || '',
+            error: result?.error || null
           }
-          // For non-first models, show header regardless of completion status
+          
           await onProviderComplete(displayResult, model.index, model.provider, false)
+        }
+        
+        // STEP 2: THEN output content for completed models (AFTER header)
+        if (model.status === 'done') {
+          let contentToOutput = null
+          
+          // Priority 1: Use accumulated fullResponse
+          if (model.fullResponse && model.fullResponse.trim()) {
+            contentToOutput = model.fullResponse.trim()
+            logger.debug(`✅ Using model.fullResponse for completed model ${model.provider.name} (${contentToOutput.length} chars)`)
+          }
+          // Priority 2: Fallback to results array
+          else if (result && result.response && result.response.trim()) {
+            contentToOutput = result.response.trim()
+            logger.debug(`🔄 Fallback to results[${model.index}].response for completed model ${model.provider.name} (${contentToOutput.length} chars)`)
+          }
+          
+          if (contentToOutput) {
+            logger.debug(`📤 Outputting buffered content for completed model ${model.provider.name}`)
+            process.stdout.write(contentToOutput + '\n')
+          } else {
+            logger.debug(`⚠️ WARNING: No content found for completed model ${model.provider.name}`)
+          }
         }
       }
     }
@@ -295,9 +357,13 @@ export class MultiCommandProcessor {
     const runningExecutions = providers.map(async (provider, index) => {
       try {
         let firstChunkSent = false
+        let accumulatedResponse = '' // Track full response for this model
         
         const onChunk = (content) => {
           const currentTime = Date.now()
+          
+          // Accumulate the response for completed models
+          accumulatedResponse += content
           
           // Track first chunk for leaderboard
           if (!firstChunkSent) {
@@ -308,6 +374,14 @@ export class MultiCommandProcessor {
             if (!currentlyStreaming) {
               tryStartNextStream()
             }
+          }
+          
+          // Update accumulated response in leaderboard (ensure model exists)
+          const model = leaderboard.find(m => m.index === index)
+          if (model) {
+            model.fullResponse = accumulatedResponse
+          } else {
+            logger.debug(`⚠️ Model ${index} (${provider.name}) not found in leaderboard during chunk processing`)
           }
           
           // Stream content ONLY if this is the currently streaming model
@@ -328,15 +402,16 @@ export class MultiCommandProcessor {
         results[index] = result
         completedCount.value++
         
-        // Mark model as done in leaderboard and handle model completion
-        updateModelStatus(index, 'done')
+        // Mark model as done in leaderboard and handle model completion with accumulated response
+        updateModelStatus(index, 'done', accumulatedResponse)
         
         // If this was the streaming model, add newline and prepare for next
         if (currentlyStreaming?.index === index) {
           process.stdout.write('\n')
           currentlyStreaming = null
           logger.debug(`Cleared currentlyStreaming for model ${index}`)
-          setImmediate(() => tryStartNextStream())
+          // Use more immediate scheduling for next stream
+          process.nextTick(() => tryStartNextStream())
         }
         
         return { index, result }
@@ -353,14 +428,15 @@ export class MultiCommandProcessor {
         completedCount.value++
         
         // Mark model as done (even with error) and handle completion
-        updateModelStatus(index, 'done')
+        updateModelStatus(index, 'done', null)
         
         // If this was the streaming model, add newline and prepare for next
         if (currentlyStreaming?.index === index) {
           process.stdout.write('\n')
           currentlyStreaming = null
           logger.debug(`Cleared currentlyStreaming for model ${index}`)
-          setImmediate(() => tryStartNextStream())
+          // Use more immediate scheduling for next stream
+          process.nextTick(() => tryStartNextStream())
         }
         
         return { index, result: errorResult }
@@ -373,16 +449,27 @@ export class MultiCommandProcessor {
     
     logger.debug(`All model executions completed with leaderboard system`)
     
-    // Ensure all models have been processed through the leaderboard
+    // Final check: Ensure all models have been processed through the leaderboard
+    const undisplayedModels = leaderboard.filter(m => !m.displayed)
+    logger.debug(`🔍 Final cleanup: ${undisplayedModels.length} models still undisplayed:`, undisplayedModels.map(m => `${m.provider.name}(${m.index})[${m.status}]`))
+    
     while (leaderboard.some(m => !m.displayed)) {
       const undisplayedModel = leaderboard.find(m => !m.displayed)
       if (undisplayedModel) {
-        logger.debug(`Processing remaining model: ${undisplayedModel.provider.name}`)
+        logger.debug(`🛠️ Processing remaining model: ${undisplayedModel.provider.name} (${undisplayedModel.index}) [${undisplayedModel.status}]`)
+        logger.debug(`📝 fullResponse length: ${undisplayedModel.fullResponse?.length || 0}`)
+        logger.debug(`📝 results[${undisplayedModel.index}] response length: ${results[undisplayedModel.index]?.response?.length || 0}`)
+        
+        // Reset currentlyStreaming to null for final cleanup
+        currentlyStreaming = null
         await startModelStream(undisplayedModel)
       } else {
+        logger.debug(`❌ No undisplayed model found, breaking loop`)
         break
       }
     }
+    
+    logger.debug(`✅ All models processed. Final leaderboard:`, leaderboard.map(m => `${m.provider.name}(${m.index})[${m.status}][displayed:${m.displayed}]`))
     
     // Fill any missing results
     for (let i = 0; i < providers.length; i++) {
