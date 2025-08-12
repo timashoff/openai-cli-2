@@ -34,7 +34,7 @@ export const APP_CONSTANTS = {
   MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
   
   // Default provider
-  DEFAULT_PROVIDER: 'deepseek',
+  DEFAULT_PROVIDER: 'openai',
 
   // Regular expressions for validation
   REGEX: {

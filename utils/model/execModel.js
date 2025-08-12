@@ -11,8 +11,9 @@ export const execModel = async (currentModel, models, rl) => {
       color.reset + '\n'
   )
 
-  const modelOptions = models.map(model => model.id)
-  const currentModelIndex = models.findIndex(model => model.id === currentModel)
+  // Handle both string arrays and object arrays for backward compatibility
+  const modelOptions = models.map(model => typeof model === 'string' ? model : model.id)
+  const currentModelIndex = modelOptions.findIndex(modelId => modelId === currentModel)
   
   const selectedIndex = await createInteractiveMenu(
     createSelectionTitle('model', models.length),
@@ -31,7 +32,7 @@ export const execModel = async (currentModel, models, rl) => {
     return currentModel
   }
   
-  const newModel = models[selectedIndex].id
+  const newModel = modelOptions[selectedIndex]
   console.log(
     color.reset +
       'Your model is now: ' +
