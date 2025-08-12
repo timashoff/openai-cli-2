@@ -29,14 +29,6 @@ import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
 import { fileManager } from '../utils/file-manager.js'
 import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 
-// Handler Chain imports
-import { HandlerChainFactory } from '../handlers/handler-chain-factory.js'
-import { DIContainer } from '../utils/di-container.js'
-import { EventBus } from '../utils/event-bus.js'
-import { ServicesAdapter } from '../utils/services-adapter.js'
-import { SimpleCommandHandler } from '../handlers/simple-command-handler.js'
-import { ServiceManager, getServiceManager } from '../services/service-manager.js'
-
 
 /**
  * Enhanced Application class with AI functionality
@@ -66,113 +58,8 @@ class AIApplication extends Application {
     // Initialize command editor
     this.commandEditor = new CommandEditor(this)
     
-    // Initialize simple command handler for testing
-    this.simpleCommandHandler = new SimpleCommandHandler(this)
-    
-    // Initialize service manager for modern architecture
-    this.serviceManager = getServiceManager(this)
-    
-    // Initialize handler chain system - DISABLED while studying architecture
-    // this.initializeHandlerChain()
-    
     // Setup global cleanup handlers
     this.setupCleanupHandlers()
-  }
-
-  /**
-   * Initialize the handler chain system
-   * @private
-   */
-  initializeHandlerChain() {
-    try {
-      // Create event bus for handler communication
-      this.eventBus = new EventBus()
-      
-      // Create dependencies container for handlers
-      const handlerDependencies = {
-        // Event system
-        eventBus: this.eventBus,
-        
-        // Logging
-        logger,
-        log: (level, message) => logger.log(level, message),
-        
-        // Error handling
-        errorBoundary: null, // Will be initialized later when ErrorBoundary is available
-        
-        // Services (using adapter pattern for compatibility)
-        streamingService: ServicesAdapter.createStreamingService(this),
-        providerService: ServicesAdapter.createProviderService(this),
-        commandService: ServicesAdapter.createCommandService(this),
-        mcpService: mcpManager, // Use existing MCP manager
-        
-        // Cache and storage
-        cache,
-        
-        // Existing utilities
-        multiProviderTranslator,
-        multiCommandProcessor,
-        fileManager,
-        
-        // Application context
-        app: this,
-        services: {
-          app: this,
-          contextHistory: this.state.contextHistory,
-          addToContext: this.addToContext.bind(this),
-          userSession: {} // Placeholder for user session data
-        }
-      }
-      
-      // Create handler chain
-      this.requestHandlers = HandlerChainFactory.createRequestChain(handlerDependencies)
-      
-      // Validate the chain
-      const validation = HandlerChainFactory.validateChain(this.requestHandlers)
-      if (!validation.valid) {
-        logger.warn(`Handler chain validation failed: ${validation.error}`)
-      } else {
-        logger.info(`Handler chain initialized with ${validation.handlerCount} handlers`)
-      }
-      
-      // Setup event listeners for handler communication
-      this.setupHandlerEvents()
-      
-    } catch (error) {
-      logger.error(`Failed to initialize handler chain: ${error.message}`)
-      // Fallback to legacy processing
-      this.requestHandlers = null
-    }
-  }
-
-  /**
-   * Setup event listeners for handler events
-   * @private
-   */
-  setupHandlerEvents() {
-    if (!this.eventBus) return
-    
-    // Listen to important handler events
-    this.eventBus.on('cache:hit', (data) => {
-      logger.debug(`Cache hit: ${data.type} (${data.size} bytes)`)
-    })
-    
-    this.eventBus.on('command:executed', (data) => {
-      logger.debug(`Command executed: ${data.type}:${data.name} (${data.executionTime}ms)`)
-    })
-    
-    this.eventBus.on('mcp:enhanced-input', (data) => {
-      logger.debug(`MCP enhanced input: ${data.type} (${data.originalLength} -> ${data.enhancedLength})`)
-    })
-    
-    this.eventBus.on('stream:processed', (data) => {
-      logger.debug(`Stream processed: ${data.strategy} (${data.inputLength} chars)`)
-    })
-    
-    // Handle system events
-    this.eventBus.on('system:exit-requested', () => {
-      logger.info('System exit requested via handler chain')
-    })
   }
   
   /**
@@ -495,10 +382,7 @@ class AIApplication extends Application {
       )
       this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
       
-      // Get preferred model for current provider
-      const providerDefaults = DEFAULT_MODELS[this.aiState.selectedProviderKey]
-      const preferredModels = providerDefaults ? [providerDefaults.model] : []
-      this.aiState.model = this.findModel(preferredModels, this.aiState.models)
+      this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
       
       process.title = this.aiState.model
       
@@ -574,8 +458,9 @@ class AIApplication extends Application {
         process.stdin.setRawMode(false)
       }
 
-      // Pass models as strings directly instead of creating unnecessary objects
-      const newModel = await execModel(this.aiState.model, this.aiState.models, rl)
+      // Convert models back to object format for compatibility
+      const modelsForMenu = this.aiState.models.map(id => ({ id }))
+      const newModel = await execModel(this.aiState.model, modelsForMenu, rl)
       this.aiState.model = newModel
       process.title = this.aiState.model
 
@@ -631,10 +516,7 @@ class AIApplication extends Application {
           const list = await provider.listModels()
           this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
           
-          // Get preferred model for current provider
-          const providerDefaults = DEFAULT_MODELS[this.aiState.selectedProviderKey]
-          const preferredModels = providerDefaults ? [providerDefaults.model] : []
-          this.aiState.model = this.findModel(preferredModels, this.aiState.models)
+          this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
           process.title = this.aiState.model
           
           console.log(`${color.green}Successfully switched to ${providerConfig.name}${color.reset}`)
@@ -661,35 +543,6 @@ class AIApplication extends Application {
     // Setup request state for global handler (moved to beginning)
     this.currentRequestController = new AbortController()
     this.isProcessingRequest = true
-    
-    // EXPERIMENTAL: Test simple command handler integration
-    try {
-      const context = { input }
-      if (await this.simpleCommandHandler.canHandle(context)) {
-        const result = await this.simpleCommandHandler.handle(context)
-        
-        if (result.handled && result.type === 'system') {
-          console.log(result.result)
-          this.isProcessingRequest = false
-          return
-        }
-        
-        if (result.handled && result.type === 'error') {
-          console.log(`${color.red}Error: ${result.error}${color.reset}`)
-          this.isProcessingRequest = false
-          return
-        }
-        
-        // For instruction commands, continue with existing processing
-        if (result.type === 'instruction' && context.instructionCommand) {
-          console.log(`${color.cyan}[Handler: ${result.commandKey}]${color.reset}`)
-          // Continue with existing logic but use command from handler
-        }
-      }
-    } catch (error) {
-      console.warn('SimpleCommandHandler error:', error.message)
-      // Continue with legacy processing on handler error
-    }
     
     // Check for clipboard content FIRST (before MCP processing)
     if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
@@ -1236,121 +1089,6 @@ class AIApplication extends Application {
   }
 
   /**
-   * Modern handler-based AI input processing using Chain of Responsibility
-   * This method replaces the massive processAIInput with a clean, modular approach
-   * @param {string} input - User input to process
-   * @returns {Promise<void>}
-   */
-  async processAIInputViaHandlers(input) {
-    try {
-      // Fallback to legacy method if handlers not available
-      if (!this.requestHandlers || this.requestHandlers.length === 0) {
-        logger.warn('Handler chain not available, falling back to legacy processing')
-        return await this.processAIInput(input)
-      }
-
-      // Setup request state for global handler (consistent with legacy method)
-      this.currentRequestController = new AbortController()
-      this.isProcessingRequest = true
-
-      // Create processing context
-      const context = {
-        // Input data
-        originalInput: input,
-        processedInput: input,
-        
-        // Request control
-        abortController: this.currentRequestController,
-        
-        // Flags and command info (will be populated by handlers)
-        flags: {},
-        command: null,
-        instructionInfo: null,
-        cacheInfo: null,
-        mcpData: null,
-        
-        // Processing metadata
-        metadata: {
-          startTime: Date.now(),
-          processingSteps: [],
-          handlerChain: []
-        },
-        
-        // Services and dependencies
-        services: {
-          app: this,
-          contextHistory: this.state.contextHistory,
-          addToContext: this.addToContext.bind(this),
-          userSession: {},
-          
-          // AI state for compatibility
-          provider: this.aiState.provider,
-          model: this.aiState.model,
-          selectedProviderKey: this.aiState.selectedProviderKey
-        },
-        
-        // Shared data between handlers
-        processingData: new Map()
-      }
-
-      logger.debug(`Starting handler chain processing for input: ${input.substring(0, 50)}...`)
-
-      // Start the handler chain with the first handler
-      const firstHandler = this.requestHandlers[0]
-      const result = await firstHandler.handle(context)
-
-      // Log final result - adapt BaseRequestHandler result format
-      const success = result.handled !== false && !result.metadata?.error
-      const error = result.metadata?.error || null
-      
-      if (success) {
-        const elapsed = Date.now() - context.metadata.startTime
-        logger.debug(`Handler chain completed successfully in ${elapsed}ms`)
-        
-        // Emit completion event
-        this.eventBus?.emit('processing:completed', {
-          success: true,
-          elapsed,
-          handlerChain: context.metadata.handlerChain,
-          inputLength: input.length,
-          resultType: typeof result.result
-        })
-      } else {
-        logger.warn(`Handler chain failed: ${error || 'Unknown error'}`)
-        
-        // Emit failure event
-        this.eventBus?.emit('processing:failed', {
-          success: false,
-          error: error,
-          handlerChain: context.metadata.handlerChain
-        })
-      }
-
-    } catch (error) {
-      logger.error(`Handler chain processing failed: ${error.message}`)
-      
-      // Emit critical error event
-      this.eventBus?.emit('processing:critical-error', {
-        error: error.message,
-        stack: error.stack
-      })
-
-      // Fallback to legacy processing on critical errors
-      logger.warn('Falling back to legacy processing due to critical error')
-      return await this.processAIInput(input)
-      
-    } finally {
-      // Critical: Always clean up properly (consistent with legacy method)
-      this.isProcessingRequest = false
-      this.currentRequestController = null
-      this.currentStreamProcessor = null
-      
-      // Show cursor
-      process.stdout.write('\x1B[?25h')
-    }
-  }
-
-  /**
    * Check if command is a system command from SYS_INSTRUCTIONS
    */
   isSystemCommand(commandName) {
@@ -1648,15 +1386,6 @@ class AIApplication extends Application {
   async run() {
     // Migrate existing instructions to database on first run
     await migrateInstructionsToDatabase()
-    
-    // Initialize service manager
-    try {
-      await this.serviceManager.initialize()
-      console.log(`${color.green}✓ Modern services initialized${color.reset}`)
-    } catch (error) {
-      console.warn(`${color.yellow}Warning: Service manager initialization failed: ${error.message}${color.reset}`)
-      console.log(`${color.grey}Continuing with legacy architecture...${color.reset}`)
-    }
     
     process.title = this.aiState.model
     // Don't log here as it interferes with the prompt
