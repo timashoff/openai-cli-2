@@ -73,6 +73,7 @@ export class StreamProcessor {
     const decoder = new TextDecoder()
     let done = false
     let buffer = ''
+    let currentEvent = null
     
     while (!done) {
       // Check for termination first
@@ -105,6 +106,12 @@ export class StreamProcessor {
             continue
           }
           
+          // Handle event lines - КРИТИЧЕСКИ ВАЖНО!
+          if (trimmedLine.startsWith('event: ')) {
+            currentEvent = trimmedLine.substring(7).trim()
+            continue
+          }
+          
           if (trimmedLine.startsWith('data: ')) {
             const data = trimmedLine.substring(6).trim()
             
@@ -122,7 +129,15 @@ export class StreamProcessor {
             try {
               const json = JSON.parse(data)
               
-              // Handle different event types
+              // HANDLE ERROR EVENTS - БЛЯДЬ НАКОНЕЦ-ТО!
+              if (currentEvent === 'error' || json.type === 'error') {
+                const errorMessage = json.error?.message || json.message || 'Unknown Anthropic API error'
+                const errorType = json.error?.type || json.type || 'unknown_error'
+                reader.cancel()
+                throw new Error(`Anthropic API Error (${errorType}): ${errorMessage}`)
+              }
+              
+              // Handle content events
               if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
                 response.push(json.delta.text)
                 if (onChunk) onChunk(json.delta.text)
@@ -131,9 +146,18 @@ export class StreamProcessor {
                 response.push(json.delta.text)
                 if (onChunk) onChunk(json.delta.text)
               }
+              
+              // Reset event after processing data
+              currentEvent = null
+              
             } catch (e) {
-              // Only log if it's not a known non-JSON line
-              if (data !== '[DONE]' && !data.startsWith('event:')) {
+              // If it's our intentional error throw, re-throw it
+              if (e.message.includes('Anthropic API Error')) {
+                throw e
+              }
+              
+              // Only log parsing errors for unexpected data
+              if (data !== '[DONE]') {
                 console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
               }
             }

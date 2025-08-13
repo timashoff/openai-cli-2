@@ -29,6 +29,14 @@ import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
 import { fileManager } from '../utils/file-manager.js'
 import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 
+// Handler Chain imports
+import { HandlerChainFactory } from '../handlers/handler-chain-factory.js'
+import { DIContainer } from '../utils/di-container.js'
+import { EventBus } from '../utils/event-bus.js'
+import { ServicesAdapter } from '../utils/services-adapter.js'
+import { SimpleCommandHandler } from '../handlers/simple-command-handler.js'
+import { ServiceManager, getServiceManager } from '../services/service-manager.js'
+
 
 /**
  * Enhanced Application class with AI functionality
@@ -58,8 +66,113 @@ class AIApplication extends Application {
     // Initialize command editor
     this.commandEditor = new CommandEditor(this)
     
+    // Initialize simple command handler for testing
+    this.simpleCommandHandler = new SimpleCommandHandler(this)
+    
+    // Initialize service manager for modern architecture
+    this.serviceManager = getServiceManager(this)
+    
+    // Initialize handler chain system - DISABLED while studying architecture
+    // this.initializeHandlerChain()
+    
     // Setup global cleanup handlers
     this.setupCleanupHandlers()
+  }
+
+  /**
+   * Initialize the handler chain system
+   * @private
+   */
+  initializeHandlerChain() {
+    try {
+      // Create event bus for handler communication
+      this.eventBus = new EventBus()
+      
+      // Create dependencies container for handlers
+      const handlerDependencies = {
+        // Event system
+        eventBus: this.eventBus,
+        
+        // Logging
+        logger,
+        log: (level, message) => logger.log(level, message),
+        
+        // Error handling
+        errorBoundary: null, // Will be initialized later when ErrorBoundary is available
+        
+        // Services (using adapter pattern for compatibility)
+        streamingService: ServicesAdapter.createStreamingService(this),
+        providerService: ServicesAdapter.createProviderService(this),
+        commandService: ServicesAdapter.createCommandService(this),
+        mcpService: mcpManager, // Use existing MCP manager
+        
+        // Cache and storage
+        cache,
+        
+        // Existing utilities
+        multiProviderTranslator,
+        multiCommandProcessor,
+        fileManager,
+        
+        // Application context
+        app: this,
+        services: {
+          app: this,
+          contextHistory: this.state.contextHistory,
+          addToContext: this.addToContext.bind(this),
+          userSession: {} // Placeholder for user session data
+        }
+      }
+      
+      // Create handler chain
+      this.requestHandlers = HandlerChainFactory.createRequestChain(handlerDependencies)
+      
+      // Validate the chain
+      const validation = HandlerChainFactory.validateChain(this.requestHandlers)
+      if (!validation.valid) {
+        logger.warn(`Handler chain validation failed: ${validation.error}`)
+      } else {
+        logger.info(`Handler chain initialized with ${validation.handlerCount} handlers`)
+      }
+      
+      // Setup event listeners for handler communication
+      this.setupHandlerEvents()
+      
+    } catch (error) {
+      logger.error(`Failed to initialize handler chain: ${error.message}`)
+      // Fallback to legacy processing
+      this.requestHandlers = null
+    }
+  }
+
+  /**
+   * Setup event listeners for handler events
+   * @private
+   */
+  setupHandlerEvents() {
+    if (!this.eventBus) return
+    
+    // Listen to important handler events
+    this.eventBus.on('cache:hit', (data) => {
+      logger.debug(`Cache hit: ${data.type} (${data.size} bytes)`)
+    })
+    
+    this.eventBus.on('command:executed', (data) => {
+      logger.debug(`Command executed: ${data.type}:${data.name} (${data.executionTime}ms)`)
+    })
+    
+    this.eventBus.on('mcp:enhanced-input', (data) => {
+      logger.debug(`MCP enhanced input: ${data.type} (${data.originalLength} -> ${data.enhancedLength})`)
+    })
+    
+    this.eventBus.on('stream:processed', (data) => {
+      logger.debug(`Stream processed: ${data.strategy} (${data.inputLength} chars)`)
+    })
+    
+    // Handle system events
+    this.eventBus.on('system:exit-requested', () => {
+      logger.info('System exit requested via handler chain')
+    })
   }
   
   /**
@@ -222,10 +335,9 @@ class AIApplication extends Application {
     await this.initializeMCP()
     await multiProviderTranslator.initialize() // Initialize multi-provider translator
     await multiCommandProcessor.initialize() // Initialize universal multi-command processor
-    await this.switchProvider(true) // Auto-select default provider at startup
     
-    // Small delay to let UI settle after provider selection
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Provider initialization moved to ServiceManager - no more legacy switchProvider!
+    // Modern architecture handles provider initialization properly
   }
 
   /**
@@ -254,196 +366,6 @@ class AIApplication extends Application {
     }
   }
 
-  /**
-   * Switch AI provider
-   */
-  async switchProvider(autoSelect = false) {
-    // Sort providers alphabetically by name
-    const providerEntries = Object.entries(API_PROVIDERS)
-      .sort(([,a], [,b]) => a.name.localeCompare(b.name))
-    const providerKeys = providerEntries.map(([key]) => key)  
-    const providerOptions = providerEntries.map(([,provider]) => provider.name)
-
-    let selectedIndex
-    
-    if (autoSelect) {
-      // Auto-select default provider
-      selectedIndex = providerKeys.indexOf(APP_CONSTANTS.DEFAULT_PROVIDER)
-      if (selectedIndex === -1) {
-        // Fallback to first provider if default not found
-        selectedIndex = 0
-      }
-    } else {
-      // Show interactive menu
-      selectedIndex = await createInteractiveMenu(
-        'Select an AI provider:',
-        providerOptions,
-      )
-
-      if (selectedIndex === -1) {
-        console.log(`${color.red}Selection cancelled. No changes made.${color.reset}`)
-        return
-      }
-    }
-
-    this.aiState.selectedProviderKey = providerKeys[selectedIndex]
-    
-    const providerConfig = API_PROVIDERS[this.aiState.selectedProviderKey]
-    const providerName = providerConfig.name
-
-    logger.debug(`Switching to provider: ${providerName}`)
-    
-    // Start spinner for provider loading with failing attempts
-    let spinnerIndex = 0
-    let attemptStartTime = Date.now()
-    let currentAttempt = 0
-    const maxAttempts = 6
-    const attemptDuration = 5000 // 5 seconds per attempt
-    let isSpinnerActive = true
-    process.stdout.write('\x1B[?25l') // Hide cursor
-    
-    const spinnerInterval = setInterval(() => {
-      if (!isSpinnerActive) return
-      clearTerminalLine()
-      
-      const elapsedTime = getElapsedTime(attemptStartTime)
-      const totalElapsed = (Date.now() - attemptStartTime) / 1000
-      
-      // Check if we need to increment attempt
-      if (totalElapsed >= 5.0 && currentAttempt < maxAttempts) {
-        currentAttempt++
-        attemptStartTime = Date.now() // Reset timer for new attempt
-      }
-      
-      let statusText = `${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading models...`
-      
-      // Show failing attempt after first 5 seconds
-      if (currentAttempt > 0) {
-        statusText += ` (failing attempt ${currentAttempt} of ${maxAttempts})`
-      }
-      
-      process.stdout.write(statusText)
-    }, APP_CONSTANTS.SPINNER_INTERVAL)
-    
-    // Use global keypress handler instead of local one to avoid conflicts
-    
-    try {
-      // Create provider using factory with timeout
-      const provider = createProvider(this.aiState.selectedProviderKey, providerConfig)
-      
-      // Create interruptible timeout promise that can be cancelled by keypress
-      const createInterruptiblePromise = (promise, timeoutMs, description) => {
-        return new Promise((resolve, reject) => {
-          // Set up timeout
-          const timeoutId = setTimeout(() => {
-            reject(new Error(`${description} timeout`))
-          }, timeoutMs)
-          
-          // Set up abort controller for this specific operation
-          const abortController = new AbortController()
-          this.currentRequestController = abortController
-          
-          // Handle promise resolution
-          promise.then(result => {
-            clearTimeout(timeoutId)
-            this.currentRequestController = null
-            resolve(result)
-          }).catch(error => {
-            clearTimeout(timeoutId)
-            this.currentRequestController = null
-            reject(error)
-          })
-          
-          // Handle abort signal
-          abortController.signal.addEventListener('abort', () => {
-            clearTimeout(timeoutId)
-            this.currentRequestController = null
-            reject(new Error(`${description} cancelled by user`))
-          })
-        })
-      }
-      
-      // Use interruptible promise for provider initialization
-      const totalTimeout = maxAttempts * attemptDuration
-      this.isProcessingRequest = true
-      
-      await createInterruptiblePromise(
-        provider.initializeClient(),
-        totalTimeout,
-        'Provider initialization'
-      )
-      this.aiState.provider = provider
-      
-      // Fetch models through provider with interruptible timeout
-      const list = await createInterruptiblePromise(
-        provider.listModels(),
-        totalTimeout,
-        'Model list'
-      )
-      this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
-      
-      this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
-      
-      process.title = this.aiState.model
-      
-      // Clear spinner and show success
-      isSpinnerActive = false
-      clearInterval(spinnerInterval)
-      clearTerminalLine()
-      process.stdout.write('\x1B[?25h') // Show cursor
-      this.isProcessingRequest = false
-      this.currentRequestController = null
-      
-      console.log(`Provider changed to ${color.cyan}${providerName}${color.reset}.`)
-      console.log(`Current model is now '${color.yellow}${this.aiState.model}${color.reset}'.`)
-      
-      logger.debug(`Provider switched successfully. Model: ${this.aiState.model}, Available models: ${this.aiState.models.length}`)
-      // Note: Don't emit provider:changed event here as it causes duplicate logging
-    } catch (e) {
-      // Clear spinner on error
-      isSpinnerActive = false
-      clearInterval(spinnerInterval)
-      clearTerminalLine()
-      process.stdout.write('\x1B[?25h') // Show cursor
-      this.isProcessingRequest = false
-      this.currentRequestController = null
-      
-      // Check if it's a user cancellation FIRST
-      if (e.message && e.message.includes('cancelled by user')) {
-        console.log(`${color.yellow}Provider initialization cancelled by user.${color.reset}`)
-        process.exit(0)
-      }
-      
-      // Check if it's a timeout error SECOND - don't try alternative providers
-      if (e.message && (e.message.includes('timeout') || e.message.includes('Timeout'))) {
-        console.log(`${color.red}Unable to connect to API providers.${color.reset}`)
-        console.log(`${color.yellow}Please check your internet connection and try again.${color.reset}`)
-        process.exit(1)
-      }
-      
-      // Check if it's a 403 error and try alternative providers immediately
-      if (e.message && e.message.includes('403') && e.message.includes('Country, region, or territory not supported')) {
-        errorHandler.handleError(e, { context: 'provider_switch' })
-        console.log(`${color.yellow}Region blocked for ${providerName}. Trying alternative provider...${color.reset}`)
-        
-        // Try to switch to another available provider
-        if (await this.tryAlternativeProvider()) {
-          return // Successfully switched
-        } else {
-          // All providers failed - graceful shutdown
-          console.log(`${color.red}All API providers are unavailable.${color.reset}`)
-          console.log(`${color.yellow}Please check your internet connection and API keys.${color.reset}`)
-          process.exit(1)
-        }
-      } else {
-        errorHandler.handleError(e, { context: 'provider_switch' })
-        
-        if (!this.aiState.model) {
-          process.exit(0)
-        }
-      }
-    }
-  }
 
   /**
    * Switch AI model
@@ -458,9 +380,8 @@ class AIApplication extends Application {
         process.stdin.setRawMode(false)
       }
 
-      // Convert models back to object format for compatibility
-      const modelsForMenu = this.aiState.models.map(id => ({ id }))
-      const newModel = await execModel(this.aiState.model, modelsForMenu, rl)
+      // Pass models as strings directly instead of creating unnecessary objects
+      const newModel = await execModel(this.aiState.model, this.aiState.models, rl)
       this.aiState.model = newModel
       process.title = this.aiState.model
 
@@ -471,6 +392,93 @@ class AIApplication extends Application {
       }
     } catch (error) {
       errorHandler.handleError(error, { context: 'model_switch' })
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true)
+      }
+    }
+  }
+
+  /**
+   * Switch AI provider using modern ServiceManager architecture
+   */
+  async switchProvider() {
+    const { execProvider } = await import('../utils/provider/execProvider.js')
+    
+    logger.debug('Starting provider selection')
+    try {
+      const wasRawMode = process.stdin.isRaw
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(false)
+      }
+
+      // Get available providers from modern ServiceManager
+      const aiService = this.serviceManager.getAIProviderService()
+      if (!aiService) {
+        throw new Error('AI provider service not available')
+      }
+      
+      const availableProviders = aiService.getAvailableProviders()
+      const currentProvider = aiService.getCurrentProvider()
+      
+      if (availableProviders.length === 0) {
+        console.log(`${color.yellow}No providers available${color.reset}`)
+        // RESTORE TERMINAL MODE BEFORE RETURN!
+        if (process.stdin.isTTY && wasRawMode) {
+          process.stdin.setRawMode(true)
+        }
+        return
+      }
+      
+      if (availableProviders.length === 1) {
+        console.log(`${color.yellow}Only one provider available: ${availableProviders[0].name}${color.reset}`)
+        // RESTORE TERMINAL MODE BEFORE RETURN!
+        if (process.stdin.isTTY && wasRawMode) {
+          process.stdin.setRawMode(true)
+        }
+        return
+      }
+
+      // Show interactive provider selection menu
+      const selectedProvider = await execProvider(currentProvider.key, availableProviders, rl)
+      
+      if (!selectedProvider) {
+        // User cancelled or selected unhealthy provider
+        // RESTORE TERMINAL MODE BEFORE RETURN!
+        if (process.stdin.isTTY && wasRawMode) {
+          process.stdin.setRawMode(true)
+        }
+        return
+      }
+      
+      if (selectedProvider.key === currentProvider.key) {
+        console.log(`${color.yellow}Already using ${selectedProvider.name}${color.reset}`)
+        // RESTORE TERMINAL MODE BEFORE RETURN!
+        if (process.stdin.isTTY && wasRawMode) {
+          process.stdin.setRawMode(true)
+        }
+        return
+      }
+
+      // Switch to selected provider using modern ServiceManager
+      await this.serviceManager.switchProvider(selectedProvider.key)
+      
+      // Update aiState for compatibility with existing code
+      const newCurrentProvider = aiService.getCurrentProvider()
+      this.aiState.provider = newCurrentProvider.instance
+      this.aiState.selectedProviderKey = newCurrentProvider.key
+      this.aiState.model = newCurrentProvider.model
+      this.aiState.models = selectedProvider.models
+      
+      // Update process title
+      process.title = this.aiState.model
+
+      logger.debug(`Provider switched to: ${newCurrentProvider.key} with model: ${newCurrentProvider.model}`)
+
+      if (process.stdin.isTTY && wasRawMode) {
+        process.stdin.setRawMode(true)
+      }
+    } catch (error) {
+      errorHandler.handleError(error, { context: 'provider_switch' })
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(true)
       }
@@ -516,7 +524,10 @@ class AIApplication extends Application {
           const list = await provider.listModels()
           this.aiState.models = list.map(m => m.id).sort((a, b) => a.localeCompare(b))
           
-          this.aiState.model = this.findModel(DEFAULT_MODELS, this.aiState.models)
+          // Get preferred model for current provider
+          const providerDefaults = DEFAULT_MODELS[this.aiState.selectedProviderKey]
+          const preferredModels = providerDefaults ? [providerDefaults.model] : []
+          this.aiState.model = this.findModel(preferredModels, this.aiState.models)
           process.title = this.aiState.model
           
           console.log(`${color.green}Successfully switched to ${providerConfig.name}${color.reset}`)
@@ -543,6 +554,35 @@ class AIApplication extends Application {
     // Setup request state for global handler (moved to beginning)
     this.currentRequestController = new AbortController()
     this.isProcessingRequest = true
+    
+    // EXPERIMENTAL: Test simple command handler integration
+    try {
+      const context = { input }
+      if (await this.simpleCommandHandler.canHandle(context)) {
+        const result = await this.simpleCommandHandler.handle(context)
+        
+        if (result.handled && result.type === 'system') {
+          console.log(result.result)
+          this.isProcessingRequest = false
+          return
+        }
+        
+        if (result.handled && result.type === 'error') {
+          console.log(`${color.red}Error: ${result.error}${color.reset}`)
+          this.isProcessingRequest = false
+          return
+        }
+        
+        // For instruction commands, continue with existing processing
+        if (result.type === 'instruction' && context.instructionCommand) {
+          console.log(`${color.cyan}[Handler: ${result.commandKey}]${color.reset}`)
+          // Continue with existing logic but use command from handler
+        }
+      }
+    } catch (error) {
+      console.warn('SimpleCommandHandler error:', error.message)
+      // Continue with legacy processing on handler error
+    }
     
     // Check for clipboard content FIRST (before MCP processing)
     if (input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
@@ -1089,6 +1129,121 @@ class AIApplication extends Application {
   }
 
   /**
+   * Modern handler-based AI input processing using Chain of Responsibility
+   * This method replaces the massive processAIInput with a clean, modular approach
+   * @param {string} input - User input to process
+   * @returns {Promise<void>}
+   */
+  async processAIInputViaHandlers(input) {
+    try {
+      // Fallback to legacy method if handlers not available
+      if (!this.requestHandlers || this.requestHandlers.length === 0) {
+        logger.warn('Handler chain not available, falling back to legacy processing')
+        return await this.processAIInput(input)
+      }
+
+      // Setup request state for global handler (consistent with legacy method)
+      this.currentRequestController = new AbortController()
+      this.isProcessingRequest = true
+
+      // Create processing context
+      const context = {
+        // Input data
+        originalInput: input,
+        processedInput: input,
+        
+        // Request control
+        abortController: this.currentRequestController,
+        
+        // Flags and command info (will be populated by handlers)
+        flags: {},
+        command: null,
+        instructionInfo: null,
+        cacheInfo: null,
+        mcpData: null,
+        
+        // Processing metadata
+        metadata: {
+          startTime: Date.now(),
+          processingSteps: [],
+          handlerChain: []
+        },
+        
+        // Services and dependencies
+        services: {
+          app: this,
+          contextHistory: this.state.contextHistory,
+          addToContext: this.addToContext.bind(this),
+          userSession: {},
+          
+          // AI state for compatibility
+          provider: this.aiState.provider,
+          model: this.aiState.model,
+          selectedProviderKey: this.aiState.selectedProviderKey
+        },
+        
+        // Shared data between handlers
+        processingData: new Map()
+      }
+
+      logger.debug(`Starting handler chain processing for input: ${input.substring(0, 50)}...`)
+
+      // Start the handler chain with the first handler
+      const firstHandler = this.requestHandlers[0]
+      const result = await firstHandler.handle(context)
+
+      // Log final result - adapt BaseRequestHandler result format
+      const success = result.handled !== false && !result.metadata?.error
+      const error = result.metadata?.error || null
+      
+      if (success) {
+        const elapsed = Date.now() - context.metadata.startTime
+        logger.debug(`Handler chain completed successfully in ${elapsed}ms`)
+        
+        // Emit completion event
+        this.eventBus?.emit('processing:completed', {
+          success: true,
+          elapsed,
+          handlerChain: context.metadata.handlerChain,
+          inputLength: input.length,
+          resultType: typeof result.result
+        })
+      } else {
+        logger.warn(`Handler chain failed: ${error || 'Unknown error'}`)
+        
+        // Emit failure event
+        this.eventBus?.emit('processing:failed', {
+          success: false,
+          error: error,
+          handlerChain: context.metadata.handlerChain
+        })
+      }
+
+    } catch (error) {
+      logger.error(`Handler chain processing failed: ${error.message}`)
+      
+      // Emit critical error event
+      this.eventBus?.emit('processing:critical-error', {
+        error: error.message,
+        stack: error.stack
+      })
+
+      // Fallback to legacy processing on critical errors
+      logger.warn('Falling back to legacy processing due to critical error')
+      return await this.processAIInput(input)
+      
+    } finally {
+      // Critical: Always clean up properly (consistent with legacy method)
+      this.isProcessingRequest = false
+      this.currentRequestController = null
+      this.currentStreamProcessor = null
+      
+      // Show cursor
+      process.stdout.write('\x1B[?25h')
+    }
+  }
+
+  /**
    * Check if command is a system command from SYS_INSTRUCTIONS
    */
   isSystemCommand(commandName) {
@@ -1387,6 +1542,15 @@ class AIApplication extends Application {
     // Migrate existing instructions to database on first run
     await migrateInstructionsToDatabase()
     
+    // Initialize service manager
+    try {
+      await this.serviceManager.initialize()
+      console.log(`${color.green}✓ Modern services initialized${color.reset}`)
+    } catch (error) {
+      console.warn(`${color.yellow}Warning: Service manager initialization failed: ${error.message}${color.reset}`)
+      console.log(`${color.grey}Continuing with legacy architecture...${color.reset}`)
+    }
+    
     process.title = this.aiState.model
     // Don't log here as it interferes with the prompt
     
@@ -1463,8 +1627,10 @@ class AIApplication extends Application {
         }
         
       } catch (error) {
-        // Skip error handling for Ctrl+C abort
-        if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+        // Skip error handling for user cancellation (Ctrl+C, ESC, etc.)
+        if (error.message && (error.message.includes('Aborted with Ctrl+C') || 
+            error.message === 'AbortError' || error.name === 'AbortError' ||
+            error.message.includes('aborted') || error.message.includes('cancelled'))) {
           continue
         }
         errorHandler.handleError(error, { context: 'user_input' })

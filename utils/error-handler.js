@@ -20,8 +20,10 @@ class ErrorHandler {
   }
 
   async handleError(error) {
-    // Skip logging for Ctrl+C abort
-    if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+    // Skip logging for user cancellation (Ctrl+C, ESC, etc.)
+    if (error.message && (error.message.includes('Aborted with Ctrl+C') ||
+        error.message === 'AbortError' || error.name === 'AbortError' ||
+        error.message.includes('aborted') || error.message.includes('cancelled'))) {
       return
     }
     
@@ -74,6 +76,14 @@ class ErrorHandler {
     if (error instanceof AppError) {
       return error.isOperational
     }
+    
+    // Trust AbortError - user cancellation is not a system failure
+    if (error.name === 'AbortError' || error.message === 'AbortError' ||
+        error.message.includes('aborted') || error.message.includes('cancelled') ||
+        error.message.includes('Aborted with Ctrl+C')) {
+      return true
+    }
+    
     return false
   }
 }
@@ -82,8 +92,10 @@ export const errorHandler = new ErrorHandler()
 
 // Handling unhandled errors
 process.on('uncaughtException', (error) => {
-  // Skip Ctrl+C abort errors
-  if (error.message && error.message.includes('Aborted with Ctrl+C')) {
+  // Skip user cancellation errors
+  if (error.message && (error.message.includes('Aborted with Ctrl+C') ||
+      error.message === 'AbortError' || error.name === 'AbortError' ||
+      error.message.includes('aborted') || error.message.includes('cancelled'))) {
     return
   }
   const sanitizedMessage = sanitizeErrorMessage(error.message)
@@ -92,9 +104,10 @@ process.on('uncaughtException', (error) => {
 })
 
 process.on('unhandledRejection', (reason) => {
-  // Skip Ctrl+C abort errors
+  // Skip user cancellation errors
   const reasonStr = String(reason)
-  if (reasonStr.includes('Aborted with Ctrl+C')) {
+  if (reasonStr.includes('Aborted with Ctrl+C') || reasonStr === 'AbortError' ||
+      reasonStr.includes('aborted') || reasonStr.includes('cancelled')) {
     return
   }
   const sanitizedReason = sanitizeErrorMessage(reasonStr)
