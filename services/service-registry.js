@@ -6,8 +6,8 @@ import { AppError } from '../utils/error-handler.js'
 // Import all service classes
 import { BaseService } from './base-service.js'
 import { StreamingService } from './streaming-service.js'
-import { ProviderService } from './provider-service.js'
-import { CommandService } from './command-service.js'
+import { AIProviderService } from './ai-provider-service.js'
+import { CommandProcessingService } from './command-processing-service.js'
 import { MCPService } from './mcp-service.js'
 
 /**
@@ -266,14 +266,14 @@ export class ServiceRegistry {
     })
 
     this.serviceConfigs.set('IProviderService', {
-      serviceClass: ProviderService,
+      serviceClass: AIProviderService,
       lifetime: ServiceLifetime.SINGLETON,
       dependencies: ['IEventBus'],
       options: {}
     })
 
     this.serviceConfigs.set('ICommandService', {
-      serviceClass: CommandService,
+      serviceClass: CommandProcessingService,
       lifetime: ServiceLifetime.SINGLETON,
       dependencies: ['IEventBus'],
       options: {}

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { enhancedProviderFactory } from './utils/enhanced-provider-factory.js'
-import { RetryPlugin } from './plugins/retry-plugin.js'
-import { CachingPlugin } from './plugins/caching-plugin.js'
+import { enhancedProviderFactory } from '../utils/enhanced-provider-factory.js'
+import { RetryPlugin } from '../plugins/retry-plugin.js'
+import { CachingPlugin } from '../plugins/caching-plugin.js'
 
 async function testEnhancedFactory() {
   console.log('Testing Enhanced Provider Factory...\n')

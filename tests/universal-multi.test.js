@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Test universal multi-model functionality
-import { getDatabase } from './utils/database-manager.js'
-import { multiCommandProcessor } from './utils/multi-command-processor.js'
+import { getDatabase } from '../utils/database-manager.js'
+import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 
 async function testUniversalMulti() {
   console.log('🌍 Testing Universal Multi-Model System...\n')

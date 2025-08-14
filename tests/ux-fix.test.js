@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Quick test for UX fix: showing provider + model in output
-import { multiProviderTranslator } from './utils/multi-provider-translator.js'
+import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
 
 async function testUXFix() {
   console.log('🎨 Testing UX fix: Provider + Model display...\n')

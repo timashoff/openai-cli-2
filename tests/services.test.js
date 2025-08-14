@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { ServiceManager } from './services/service-manager.js'
+import { ServiceManager } from '../services/service-manager.js'
 
 // Mock minimal app for testing
 const mockApp = {

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // Quick test script for new model configuration functionality
-import { getDatabase } from './utils/database-manager.js'
-import { multiProviderTranslator } from './utils/multi-provider-translator.js'
+import { getDatabase } from '../utils/database-manager.js'
+import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
 
 async function testImplementation() {
   console.log('🧪 Testing dynamic model configuration implementation...\n')

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { SimpleCommandHandler } from './handlers/simple-command-handler.js'
-import { getInstructionsFromDatabase } from './utils/migration.js'
+import { SimpleCommandHandler } from '../handlers/simple-command-handler.js'
+import { getInstructionsFromDatabase } from '../utils/migration.js'
 
 // Mock AIApplication for testing
 const mockApp = {

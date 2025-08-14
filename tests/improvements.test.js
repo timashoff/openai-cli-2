@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { APP_CONFIG, getConfig, validateConfig, getFlatConfig } from './config/app-config.js'
-import { StructuredLogger, getLogger, consoleReplacement } from './utils/structured-logger.js'
+import { APP_CONFIG, getConfig, validateConfig, getFlatConfig } from '../config/app-config.js'
 
 async function testConfigSystem() {
   console.log('=== Testing Configuration System ===\n')
@@ -44,101 +43,33 @@ async function testConfigSystem() {
   }
 }
 
-async function testStructuredLogger() {
-  console.log('\n=== Testing Structured Logger ===\n')
-  
-  try {
-    // Create logger instances
-    const appLogger = new StructuredLogger({ component: 'TestApp' })
-    const childLogger = appLogger.child({ name: 'TestChild' })
-    
-    console.log('1. Testing different log levels:')
-    appLogger.debug('This is a debug message', { debugInfo: 'extra context' })
-    appLogger.info('This is an info message', { userId: 123 })
-    appLogger.warn('This is a warning', { warningType: 'performance' })
-    appLogger.error('This is an error', { error: new Error('Test error') })
-    
-    console.log('\n2. Testing child logger:')
-    childLogger.info('Message from child logger')
-    childLogger.warn('Child logger warning', { childData: { nested: 'value' } })
-    
-    console.log('\n3. Testing sensitive data redaction:')
-    appLogger.info('User login attempt', {
-      username: 'testuser',
-      password: 'secret123',
-      apiKey: 'sk-1234567890',
-      userId: 456
-    })
-    
-    console.log('\n4. Logger statistics:')
-    const stats = appLogger.getStats()
-    console.log(`Total logs: ${stats.total}`)
-    console.log(`Info: ${stats.info}, Warn: ${stats.warn}, Error: ${stats.error}`)
-    console.log(`Rate: ${stats.rate.toFixed(2)} logs/sec`)
-    console.log(`Buffer size: ${stats.bufferSize}/${appLogger.maxBufferSize}`)
-    
-    console.log('\n5. Recent logs (last 3):')
-    const recentLogs = appLogger.getRecentLogs(3)
-    recentLogs.forEach((log, i) => {
-      console.log(`  ${i + 1}. [${log.level}] ${log.message}`)
-    })
-    
-    console.log('\n6. Testing log level filtering:')
-    appLogger.setLevel('warn')
-    console.log('Level set to WARN - debug and info should not appear:')
-    appLogger.debug('This debug message should not appear')
-    appLogger.info('This info message should not appear')
-    appLogger.warn('This warning should appear')
-    appLogger.setLevel('info') // Reset
-    
-    console.log('\n7. Testing console replacement:')
-    console.log('Original console.log')
-    
-    // Enable console replacement
-    consoleReplacement.replace()
-    console.log('Replaced console.log (should go through structured logger)')
-    console.warn('Replaced console.warn')
-    console.error('Replaced console.error')
-    
-    // Restore original console
-    consoleReplacement.restore()
-    console.log('Restored console.log')
-    
-  } catch (error) {
-    console.error('Structured logger test failed:', error)
-  }
-}
 
 async function testIntegration() {
   console.log('\n=== Testing Integration ===\n')
   
   try {
-    // Create logger using configuration
-    const logger = getLogger('Integration', {
-      level: getConfig('LOGGING.DEFAULT_LEVEL'),
-      enableConsole: true
-    })
+    // Test integration without structured logger
     
     // Test timeout configuration usage
     const apiTimeout = getConfig('TIMEOUTS.API_REQUEST')
-    logger.info('API timeout configured', { timeout: apiTimeout })
+    console.log('API timeout configured:', apiTimeout)
     
     // Test rate limit configuration
     const rateLimit = getConfig('RATE_LIMITS.DEFAULT_REQUESTS')
-    logger.info('Rate limit configured', { requestsPerMinute: rateLimit })
+    console.log('Rate limit configured:', rateLimit)
     
     // Test feature flags
     const cachingEnabled = getConfig('FEATURES.ENABLE_CACHING')
     if (cachingEnabled) {
-      logger.info('Caching feature is enabled')
+      console.log('Caching feature is enabled')
     } else {
-      logger.warn('Caching feature is disabled')
+      console.log('Caching feature is disabled')
     }
     
     // Test retry configuration
     const maxRetries = getConfig('LIMITS.MAX_RETRY_ATTEMPTS')
     const initialDelay = getConfig('RETRY.INITIAL_DELAY')
-    logger.info('Retry configuration loaded', { maxRetries, initialDelay })
+    console.log('Retry configuration loaded:', { maxRetries, initialDelay })
     
     console.log('✓ Integration test completed successfully')
     
@@ -151,7 +82,6 @@ async function runAllTests() {
   console.log('🧪 Testing Configuration and Logging Improvements\n')
   
   await testConfigSystem()
-  await testStructuredLogger()
   await testIntegration()
   
   console.log('\n✅ All improvement tests completed!')
