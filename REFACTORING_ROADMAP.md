@@ -43,11 +43,11 @@
 ### ⏳ ФАЗА 2: Декомпозиция Monolith  
 **Цель**: bin/app.js 1660 → ~150 строк
 
-- [ ] **2.1 Создать core архитектуру:**
-  - [ ] `core/Application.js` - Базовая логика приложения
-  - [ ] `core/CLIInterface.js` - Управление терминалом
-  - [ ] `core/RequestRouter.js` - Роутинг запросов
-  - [ ] `core/StateManager.js` - Управление состоянием
+- [x] **2.1 Создать core архитектуру:**
+  - [x] `core/StateManager.js` - Управление состоянием (280+ строк)
+  - [x] `core/CLIInterface.js` - Управление терминалом (350+ строк)
+  - [x] `core/RequestRouter.js` - Роутинг запросов (450+ строк)
+  - [x] `core/Application.js` - Базовая логика приложения (400+ строк)
 
 - [ ] **2.2 Выделить команды:**
   - [ ] `commands/CommandExecutor.js` - Движок выполнения
