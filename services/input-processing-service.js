@@ -25,7 +25,7 @@ export class InputProcessingService {
     if (this.initialized) return
     
     this.initialized = true
-    this.logger.info('InputProcessingService initialized')
+    this.logger.debug('InputProcessingService initialized')
   }
 
   /**
@@ -120,12 +120,13 @@ export class InputProcessingService {
   extractFlags(input, result) {
     let processedInput = input
     
-    // Check for force flags
-    for (const flag of APP_CONSTANTS.FORCE_FLAGS) {
-      if (input.endsWith(flag)) {
+    // Check for force flags (SIMPLE STRING VERSION)
+    const forceFlags = ['-f', '--force']
+    for (const baseFlag of forceFlags) {
+      if (input.endsWith(' ' + baseFlag) || input.endsWith(baseFlag)) {
         result.flags.force = true
-        result.metadata.extractedFlags.push(flag)
-        processedInput = processedInput.replace(new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '').trim()
+        result.metadata.extractedFlags.push(baseFlag)
+        processedInput = processedInput.replace(' ' + baseFlag, '').replace(baseFlag, '').trim()
         this.stats.flagsExtracted++
         break
       }

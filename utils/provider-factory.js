@@ -211,22 +211,17 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async listModels() {
-    this.rateLimiter.recordRequest()
-    const startTime = Date.now()
+    // Anthropic doesn't have a public models endpoint, return static list
+    const staticModels = [
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022', 
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-3-haiku-20240307'
+    ]
     
-    try {
-      const response = await this.makeRequest('https://api.anthropic.com/v1/models')
-      const data = await response.json()
-      
-      const responseTime = Date.now() - startTime
-      this.recordRequest(responseTime)
-      
-      return data.data.sort((a, b) => a.id.localeCompare(b.id))
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      this.recordRequest(responseTime, error)
-      throw new AppError(`Failed to list Anthropic models: ${error.message}`, true, 500)
-    }
+    // Return models in the same format as other providers for consistency
+    return staticModels.map(id => ({ id }))
   }
 
   async createChatCompletion(model, messages, options = {}) {

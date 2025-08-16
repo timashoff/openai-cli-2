@@ -30,7 +30,7 @@ export class ServiceManager {
     if (this.initialized) return
     
     this.startTime = Date.now()
-    this.logger.info('ServiceManager: Starting service initialization...')
+    this.logger.debug('ServiceManager: Starting service initialization...')
     
     try {
       // Initialize services in dependency order
@@ -38,13 +38,13 @@ export class ServiceManager {
       await this.initializeCommandProcessingService()
       
       // Always use modern provider initialization
-      this.logger.info('ServiceManager: Modern AI provider initialization')
+      this.logger.debug('ServiceManager: Modern AI provider initialization')
       await this.initializeAIProviderService()
       
       this.initialized = true
       this.stats.totalInitTime = Date.now() - this.startTime
       
-      this.logger.info(`ServiceManager: All services initialized in ${this.stats.totalInitTime}ms`)
+      this.logger.debug(`ServiceManager: All services initialized in ${this.stats.totalInitTime}ms`)
       this.logServiceStatus()
       
     } catch (error) {
@@ -284,13 +284,9 @@ export class ServiceManager {
   logServiceStatus() {
     const status = this.getServiceStatus()
     
-    console.log(`${color.green}✓ Services initialized:${color.reset}`)
-    for (const [name, serviceStatus] of Object.entries(status.services)) {
-      const healthIcon = serviceStatus.isHealthy ? '✓' : '✗'
-      const healthColor = serviceStatus.isHealthy ? color.green : color.red
-      console.log(`  ${healthColor}${healthIcon} ${name}${color.reset}`)
-    }
-    console.log(`${color.grey}  Total init time: ${status.stats.totalInitTime}ms${color.reset}`)
+    // Silent mode - only log to debug, no console output for clean UI
+    this.logger.debug(`Services initialized: ${Object.keys(status.services).join(', ')}`)
+    this.logger.debug(`Total init time: ${status.stats.totalInitTime}ms`)
   }
 
   /**

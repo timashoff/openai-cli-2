@@ -22,7 +22,7 @@ export class CommandProcessingService {
     try {
       await this.refreshInstructionsCache()
       this.initialized = true
-      this.logger.info('CommandProcessingService initialized')
+      this.logger.debug('CommandProcessingService initialized')
     } catch (error) {
       this.logger.error('Failed to initialize CommandProcessingService:', error)
       throw error
