@@ -7,8 +7,7 @@ import { API_PROVIDERS } from '../config/api_providers.js'
 import { DEFAULT_MODELS } from '../config/default_models.js'
 // Migration no longer needed - commands already in database
 // import { migrateInstructionsToDatabase } from '../utils/migration.js'
-import { multiProviderTranslator } from '../utils/multi-provider-translator.js'
-import { multiCommandProcessor } from '../utils/multi-command-processor.js'
+// Multi-provider imports removed - using database-driven multi-model support
 import { mcpManager } from '../utils/mcp-manager.js'
 import { fetchMCPServer } from '../utils/fetch-mcp-server.js'
 import { searchMCPServer } from '../utils/search-mcp-server.js'
@@ -39,9 +38,7 @@ export class ApplicationInitializer {
     // Initialize AI providers
     await this.initializeProviders()
     
-    // Initialize multi-provider systems
-    await multiProviderTranslator.initialize()
-    await multiCommandProcessor.initialize()
+    // Multi-provider systems removed - all commands now support multiple models via database
     
     // Initialize MCP servers
     await this.initializeMCPServers()
@@ -73,7 +70,10 @@ export class ApplicationInitializer {
             models = await provider.listModels()
           } catch (error) {
             logger.warn(`Failed to list models for ${providerKey}: ${error.message}`)
-            models = DEFAULT_MODELS[providerKey] || []
+            // Fallback to default models with proper array format
+            if (DEFAULT_MODELS[providerKey] && DEFAULT_MODELS[providerKey].model) {
+              models = [DEFAULT_MODELS[providerKey].model]
+            }
           }
 
           availableProviders.push({
@@ -100,11 +100,12 @@ export class ApplicationInitializer {
     this.app.aiState.models = defaultProvider.models
     this.app.aiState.selectedProviderKey = defaultProvider.key
     
-    // Set default model
-    const defaultModel = defaultProvider.models.find(m => typeof m === 'string' && m.includes('gpt-4')) || 
-                        defaultProvider.models.find(m => typeof m === 'string' && m.includes('gpt')) ||
-                        defaultProvider.models.find(m => typeof m === 'string' && m.includes('claude')) ||
-                        defaultProvider.models[0]
+    // Set default model with proper null checking
+    const models = defaultProvider.models || []
+    const defaultModel = models.find(m => typeof m === 'string' && m.includes('gpt-4')) || 
+                        models.find(m => typeof m === 'string' && m.includes('gpt')) ||
+                        models.find(m => typeof m === 'string' && m.includes('claude')) ||
+                        models[0] || 'gpt-5-mini'
     
     this.app.aiState.model = defaultModel
     process.title = defaultModel

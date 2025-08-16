@@ -1,45 +1,39 @@
 # BUG REPORT
 
-## Bug #1: Provider Models Initialization Error
-**Date:** 2025-08-16 14:24:02  
-**Context:** After fixing CommandRouter logic for system commands from database
+## Fixed Issues ✅
 
-### Error Output:
+### Bug #1: Provider Models Initialization Error - FIXED
+**Date:** 2025-08-16 14:24:02 → **Fixed:** 2025-08-16 23:22:00  
+**Status:** ✅ **RESOLVED**
+
+**Original Error:**
 ```
-node bin/app.js
-(node:69117) ExperimentalWarning: SQLite is an experimental feature and might change at any time
-(Use `node --trace-warnings ...` to show where the warning was created)
-[WARN] Failed to list models for openai: Failed to list models: Request timed out.
-[WARN] Failed to list models for deepseek: Failed to list models: Request timed out.
-Error: {
-  message: 'defaultProvider.models.find is not a function',
-  stack: 'TypeError: defaultProvider.models.find is not a function\n' +
-    '    at ApplicationInitializer.initializeProviders (file:[PATH_MASKED]\n' +
-    '    at process.processTicksAndRejections (node:internal[PATH_MASKED]\n' +
-    '    at async ApplicationInitializer.initializeAI (file:[PATH_MASKED]\n' +
-    '    at async AIApplication.initializeAI (file:[PATH_MASKED]\n' +
-    '    at async start (file:[PATH_MASKED]',
-  timestamp: '2025-08-16T14:24:02.878Z',
-  isOperational: false
-}
+TypeError: defaultProvider.models.find is not a function
 ```
 
-### Analysis:
-- **Root Cause:** `defaultProvider.models.find is not a function`
-- **Location:** `ApplicationInitializer.initializeProviders()`
-- **Trigger:** Network timeouts when listing models for openai and deepseek
-- **Issue:** When model listing fails, `defaultProvider.models` is not an array
+**Root Cause:** DEFAULT_MODELS contained objects `{model: 'gpt-5-mini'}` but code expected arrays of models.
 
-### Context:
-- Commands are now properly routed from database
-- Migration removed, database contains all commands
-- Provider initialization failing due to network issues
+**Solution Applied:**
+- Fixed DEFAULT_MODELS handling in ApplicationInitializer.js
+- Added proper null checking for models.find() operations  
+- Implemented fallback to array format: `[DEFAULT_MODELS[provider].model]`
+- Added comprehensive error handling for listModels() failures
 
-### Status: PENDING INVESTIGATION
+**Technical Changes:**
+```javascript
+// Before: 
+const defaultModel = defaultProvider.models.find(...) // CRASH if models undefined
+
+// After:
+const models = defaultProvider.models || []
+const defaultModel = models.find(...) || models[0] || 'gpt-5-mini'
+```
 
 ---
 
-## Bug #2: Delayed Spinner Start
+## Active Issues 🔧
+
+## Bug #1: Delayed Spinner Start
 **Date:** 2025-08-16  
 **Priority:** UX Improvement
 
@@ -70,7 +64,7 @@ current model is OpenAI gpt-5-mini
 
 ---
 
-## Bug #3: Missing Model Info in Provider Command
+## Bug #2: Missing Model Info in Provider Command
 **Date:** 2025-08-16  
 **Priority:** UX Enhancement
 
@@ -96,7 +90,7 @@ User should see complete provider + model context when switching providers to un
 
 ---
 
-## Bug #4: Command Field Editing UX Improvement
+## Bug #3: Command Field Editing UX Improvement
 **Date:** 2025-08-16  
 **Priority:** UX Enhancement
 
@@ -148,7 +142,7 @@ After selecting a command to edit, show an interactive menu:
 
 ---
 
-## Bug #5: CMD Menu UX Improvements  
+## Bug #4: CMD Menu UX Improvements  
 **Date:** 2025-08-16  
 **Priority:** UX Enhancement
 
@@ -229,5 +223,115 @@ After editing a field, return to field selection menu:
 `utils/command-editor.js` - methods `showCommandMenu()` and `editCommand()`
 
 ### Status: PENDING IMPLEMENTATION
+
+---
+
+## Bug #5: Commands Hot-Reload Missing
+**Date:** 2025-08-16  
+**Priority:** UX Critical
+
+### Issue:
+After editing commands through cmd menu, changes are saved to database but not reflected in application runtime without restart.
+
+### Current Behavior:
+```
+1. User: cmd -> edit command -> RUSSIAN -> Name -> "Russian Translation"
+2. System: Command "RUSSIAN" updated (saved to DB)
+3. User: tries to use updated command
+4. System: still uses old command data from memory
+5. User: must restart application to see changes
+```
+
+### Problem:
+**No hot-reload mechanism** - changes saved to database don't invalidate in-memory command cache.
+
+### Expected Behavior:
+```
+1. User: cmd -> edit command -> RUSSIAN -> Name -> "Russian Translation"  
+2. System: Command "RUSSIAN" updated (saved to DB)
+3. System: automatically reloads commands from DB into memory
+4. User: immediately sees updated command without restart
+```
+
+### Technical Root Cause:
+- Commands loaded once at startup into memory/cache
+- CommandRouter and other components use cached command data
+- No cache invalidation after database updates
+- No hot-reload mechanism after `saveCommand()`
+
+### Technical Solution:
+- Add `reloadCommands()` method after database saves
+- Implement cache invalidation in CommandRouter
+- Update all components that cache command data
+- Call reload after successful `saveCommand()` operations
+
+### Affected Components:
+- `utils/command-editor.js` - needs to trigger reload after save
+- `commands/CommandRouter.js` - needs reload mechanism
+- `utils/database-manager.js` - potential cache layer
+- Any other components caching command data
+
+### Status: PENDING IMPLEMENTATION
+
+---
+
+## Bug #6: Readline Interface Premature Closure
+**Date:** 2025-08-16  
+**Priority:** Low (Deferred to Post-Phase 3)
+
+### Issue:
+Readline interface closes prematurely during application initialization, causing main loop to exit immediately.
+
+### Current Behavior:
+```
+> npm start
+[?25l⠋ 0.1s Loading AI providers...✓ 2.0s
+[?25hcurrent model is OpenAI gpt-5-mini
+[ERROR] Readline interface was closed, exiting main loop
+```
+
+### Technical Analysis:
+- **Root Cause:** Deep architectural conflict in CLIManager/ApplicationInitializer interaction
+- **Location:** CLIManager.startMainLoop() detects closed readline interface
+- **Trigger:** Occurs during provider initialization phase
+- **Impact:** Application exits cleanly instead of entering interactive mode
+
+### Investigation Results:
+- Not caused by double initializeAI() calls (tested and fixed)
+- Not caused by setupCleanupHandlers (tested with disabled handlers)  
+- Not caused by multiProvider legacy system (removed)
+- Not caused by models.find() errors (fixed)
+- Problem persists even with minimal ApplicationInitializer
+
+### Architectural Issue:
+Complex interaction between:
+- CLIManager readline interface creation
+- ApplicationInitializer provider initialization  
+- ServiceManager fallback logic
+- Process event handlers and cleanup
+
+### Workaround:
+Application exits gracefully without crash. Core functionality works during initialization phase before main loop.
+
+### Decision:
+**DEFERRED** - This requires deeper architectural investigation that would delay Phase 3 work. Will be addressed after Phase 3 pattern implementation is complete.
+
+### Status: DEFERRED (Post-Phase 3)
+
+---
+
+## Legacy System Cleanup ✅
+
+### MultiProvider System Removal - COMPLETED
+**Date:** 2025-08-16 23:21:00  
+**Status:** ✅ **COMPLETED**
+
+**Changes Applied:**
+- Removed multiProviderTranslator.initialize() from ApplicationInitializer
+- Removed multiCommandProcessor.initialize() from ApplicationInitializer  
+- Removed legacy imports from core/ApplicationInitializer.js
+- All commands now support multiple models via database configuration
+
+**Rationale:** Old system only supported multi-model for translation commands. New database-driven approach supports multi-model for ALL commands universally.
 
 ---

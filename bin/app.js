@@ -174,7 +174,9 @@ class AIApplication extends Application {
       console.log(`${color.grey}Continuing with legacy architecture...${color.reset}`)
       
       // Fallback to ApplicationInitializer if ServiceManager fails
-      await this.initializeAI()
+      await this.cliManager.showInitializationSpinner(async () => {
+        await this.initializeAI()
+      })
     }
     
     process.title = this.aiState.model
@@ -193,7 +195,7 @@ async function start() {
   try {
     logger.debug('🚀 Starting Phase 2 AI Application')
     await aiApp.initialize()
-    await aiApp.initializeAI()
+    // initializeAI will be called inside run() during spinner - removing double call
     await aiApp.run()
   } catch (error) {
     errorHandler.handleError(error, { context: 'application_start', fatal: true })

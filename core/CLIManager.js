@@ -56,10 +56,10 @@ export class CLIManager {
    * Setup escape key handling through stdin data events (without raw mode)
    */
   setupEscapeKeyHandling() {
-    // Listen for escape sequences in stdin data
-    process.stdin.on('data', (data) => {
-      // Check for ESC key (ASCII 27 or 0x1b)
-      if (data[0] === 27) {
+    // Setup keypress events for escape handling (compatible with readline)
+    readlineSync.emitKeypressEvents(process.stdin)
+    process.stdin.on('keypress', (str, key) => {
+      if (key && key.name === 'escape') {
         this.handleEscapeKey()
       }
     })
@@ -248,6 +248,12 @@ export class CLIManager {
     logger.debug('🎯 Starting CLI main loop')
     
     while (true) {
+      // Check if readline is still open
+      if (!this.rl || this.rl.closed) {
+        logger.error('Readline interface was closed, exiting main loop')
+        break
+      }
+      
       const prompt = this.getUserPrompt()
       let userInput = await this.rl.question(prompt)
       userInput = userInput.trim()
