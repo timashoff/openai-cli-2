@@ -1,5 +1,4 @@
-import { getInstructionsFromDatabase } from '../utils/migration.js'
-import { SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { getCommandsFromDB } from '../utils/database-manager.js'
 import { logger } from '../utils/logger.js'
 
 /**
@@ -31,7 +30,7 @@ export class CommandProcessingService {
 
   async refreshInstructionsCache() {
     try {
-      this.instructionsCache = getInstructionsFromDatabase()
+      this.instructionsCache = getCommandsFromDB()
       this.lastCacheUpdate = Date.now()
       this.logger.debug(`Loaded ${Object.keys(this.instructionsCache).length} instructions from database`)
     } catch (error) {

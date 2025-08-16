@@ -32,7 +32,7 @@ async function migrateModels() {
     }
     
     // Get all commands
-    const commands = db.getAllCommands()
+    const commands = db.getCommandsFromDB()
     
     console.log('Migrating models for existing commands...')
     

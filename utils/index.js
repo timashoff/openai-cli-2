@@ -151,11 +151,7 @@ const showStatus = (type, time, message = '') => {
   }
 }
 
-const rl = readline.createInterface({ 
-  input, 
-  output,
-  completer
-})
+// Removed global readline interface - conflicts with CLIManager.rl
+// Use CLIManager.rl as the single readline interface in the application
 
-
-export { rl, getClipboardContent, execModel, cache, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }
+export { getClipboardContent, execModel, cache, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }

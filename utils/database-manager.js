@@ -24,6 +24,7 @@ export class DatabaseManager {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS commands (
         id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
         key TEXT NOT NULL,
         description TEXT NOT NULL,
         instruction TEXT NOT NULL,
@@ -44,16 +45,27 @@ export class DatabaseManager {
         throw error
       }
     }
+    
+    // Add name column to existing table if it doesn't exist
+    try {
+      this.db.exec('ALTER TABLE commands ADD COLUMN name TEXT DEFAULT NULL')
+    } catch (error) {
+      // Column might already exist, ignore error
+      if (!error.message.includes('duplicate column name')) {
+        throw error
+      }
+    }
   }
 
-  getAllCommands() {
+  getCommandsFromDB() {
     const stmt = this.db.prepare('SELECT * FROM commands ORDER BY id')
     const rows = stmt.all()
     
-    // Convert to INSTRUCTIONS format
+    // Convert to object format with stable IDs as keys
     const commands = {}
     for (const row of rows) {
       commands[row.id] = {
+        name: row.name || row.id,
         key: JSON.parse(row.key),
         description: row.description,
         instruction: row.instruction,
@@ -71,6 +83,7 @@ export class DatabaseManager {
     if (!row) return null
     
     return {
+      name: row.name || row.id,
       key: JSON.parse(row.key),
       description: row.description,
       instruction: row.instruction,
@@ -78,17 +91,17 @@ export class DatabaseManager {
     }
   }
 
-  saveCommand(id, key, description, instruction, models = null) {
+  saveCommand(id, name, key, description, instruction, models = null) {
     const keyJson = JSON.stringify(key)
     const modelsJson = models ? JSON.stringify(models) : null
     const now = Math.floor(Date.now() / 1000)
     
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO commands (id, key, description, instruction, models, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO commands (id, name, key, description, instruction, models, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
     
-    stmt.run(id, keyJson, description, instruction, modelsJson, now)
+    stmt.run(id, name, keyJson, description, instruction, modelsJson, now)
   }
 
   deleteCommand(id) {
@@ -106,7 +119,8 @@ export class DatabaseManager {
       
       // Insert all instructions
       for (const [id, command] of Object.entries(instructions)) {
-        this.saveCommand(id, command.key, command.description, command.instruction, command.models || null)
+        const name = command.name || id
+        this.saveCommand(id, name, command.key, command.description, command.instruction, command.models || null)
       }
       
       this.db.exec('COMMIT')
@@ -132,4 +146,13 @@ export function getDatabase() {
     dbInstance = new DatabaseManager()
   }
   return dbInstance
+}
+
+/**
+ * Get all commands from database in object format
+ * @returns {Object} Object with command IDs as keys
+ */
+export function getCommandsFromDB() {
+  const db = getDatabase()
+  return db.getCommandsFromDB()
 }

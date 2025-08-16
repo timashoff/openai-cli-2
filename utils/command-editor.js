@@ -1,13 +1,14 @@
 import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
-import { getDatabase } from './database-manager.js'
+import { getDatabase, getCommandsFromDB } from './database-manager.js'
 import { createSelectionTitle } from './menu-helpers.js'
 import { ModelSelector } from './model-selector.js'
 import readline from 'node:readline'
 
 export class CommandEditor {
-  constructor(aiApplication) {
+  constructor(aiApplication, rl = null) {
     this.app = aiApplication
+    this.rl = rl
     this.modelSelector = new ModelSelector(aiApplication)
   }
 
@@ -73,7 +74,7 @@ export class CommandEditor {
       let models = []
 
       if (addModels.toLowerCase() === 'y' || addModels.toLowerCase() === 'yes') {
-        const selectedModels = await this.modelSelector.selectModels([])
+        const selectedModels = await this.modelSelector.selectModels([], this.rl)
         if (selectedModels !== null) {
           models = selectedModels
         }
@@ -92,7 +93,7 @@ export class CommandEditor {
 
   async editCommand() {
     try {
-      const commands = await this.loadCommands()
+      const commands = getCommandsFromDB()
       const commandNames = Object.keys(commands)
       
       if (commandNames.length === 0) {
@@ -116,38 +117,62 @@ export class CommandEditor {
       console.log(color.cyan + `Editing command "${commandName}"` + color.reset)
       console.log('')
 
-      const currentKey = command.key.join(', ')
-      const newKey = await this.promptInput(`Command key [${currentKey}]: `)
-      const newDescription = await this.promptInput(`Description [${command.description}]: `)
-      const newInstruction = await this.promptInput(`Instruction [${command.instruction}]: `)
-
-      // Models editing
-      const currentModels = command.models || []
-      console.log('')
-      if (currentModels.length > 0) {
-        console.log(color.yellow + 'Current models:' + color.reset)
-        currentModels.forEach((model, index) => {
-          console.log(`  ${index + 1}. ${model.provider} - ${model.model}`)
-        })
-      } else {
-        console.log(color.gray + 'No models configured (will use default)' + color.reset)
-      }
+      // Show field selection menu
+      const fieldIndex = await this.selectFieldToEdit()
       
-      const editModels = await this.promptInput('Edit models? (y/n) [n]: ')
-      let finalModels = currentModels
-
-      if (editModels.toLowerCase() === 'y' || editModels.toLowerCase() === 'yes') {
-        const selectedModels = await this.modelSelector.selectModels(currentModels)
-        if (selectedModels !== null) {
-          finalModels = selectedModels
-        }
+      if (fieldIndex === -1) {
+        console.log(color.yellow + 'Cancelled' + color.reset)
+        return
       }
 
-      const finalKey = newKey.trim() ? newKey.split(',').map(k => k.trim()).filter(k => k) : command.key
-      const finalDescription = newDescription.trim() || command.description
-      const finalInstruction = newInstruction.trim() || command.instruction
+      let updatedCommand = { ...command }
 
-      await this.saveCommand(commandName, finalKey, finalDescription, finalInstruction, finalModels)
+      switch (fieldIndex) {
+        case 0: // Name
+          const newName = await this.promptInput(`Name [${command.name}]: `)
+          if (newName.trim()) {
+            updatedCommand.name = newName.trim()
+          }
+          break
+        case 1: // Command key
+          const currentKey = command.key.join(', ')
+          const newKey = await this.promptInput(`Command key [${currentKey}]: `)
+          if (newKey.trim()) {
+            updatedCommand.key = newKey.split(',').map(k => k.trim()).filter(k => k)
+          }
+          break
+        case 2: // Description
+          const newDescription = await this.promptInput(`Description [${command.description}]: `)
+          if (newDescription.trim()) {
+            updatedCommand.description = newDescription.trim()
+          }
+          break
+        case 3: // Instruction
+          const newInstruction = await this.promptInput(`Instruction [${command.instruction}]: `)
+          if (newInstruction.trim()) {
+            updatedCommand.instruction = newInstruction.trim()
+          }
+          break
+        case 4: // Models
+          const currentModels = command.models || []
+          console.log('')
+          if (currentModels.length > 0) {
+            console.log(color.yellow + 'Current models:' + color.reset)
+            currentModels.forEach((model, index) => {
+              console.log(`  ${index + 1}. ${model.provider} - ${model.model}`)
+            })
+          } else {
+            console.log(color.gray + 'No models configured (will use default)' + color.reset)
+          }
+          
+          const selectedModels = await this.modelSelector.selectModels(currentModels, this.rl)
+          if (selectedModels !== null) {
+            updatedCommand.models = selectedModels
+          }
+          break
+      }
+
+      await this.saveCommand(commandName, updatedCommand.name, updatedCommand.key, updatedCommand.description, updatedCommand.instruction, updatedCommand.models)
       
       console.log(color.green + `Command "${commandName}" updated` + color.reset)
       
@@ -157,9 +182,24 @@ export class CommandEditor {
     }
   }
 
+  async selectFieldToEdit() {
+    const fields = [
+      'Name',
+      'Command key',
+      'Description',
+      'Instruction',
+      'Models'
+    ]
+
+    return await createInteractiveMenu(
+      createSelectionTitle('field', fields.length, 'to edit'),
+      fields
+    )
+  }
+
   async listCommands() {
     try {
-      const commands = await this.loadCommands()
+      const commands = getCommandsFromDB()
       
       console.log(color.cyan + 'Commands list:' + color.reset)
       console.log('')
@@ -188,7 +228,7 @@ export class CommandEditor {
 
   async deleteCommand() {
     try {
-      const commands = await this.loadCommands()
+      const commands = getCommandsFromDB()
       const commandNames = Object.keys(commands)
       
       if (commandNames.length === 0) {
@@ -226,14 +266,6 @@ export class CommandEditor {
     }
   }
 
-  async loadCommands() {
-    try {
-      const db = getDatabase()
-      return db.getAllCommands()
-    } catch (error) {
-      throw new Error(`Failed to load commands: ${error.message}`)
-    }
-  }
 
   async saveCommand(name, key, description, instruction, models = null) {
     try {
@@ -272,7 +304,9 @@ export class CommandEditor {
 
 
   async promptInput(question) {
-    const { rl } = await import('./index.js')
-    return await rl.question(question)
+    if (!this.rl) {
+      throw new Error('Readline interface is required for CommandEditor')
+    }
+    return await this.rl.question(question)
   }
 }

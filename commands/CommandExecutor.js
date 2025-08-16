@@ -20,6 +20,12 @@ export class CommandExecutor {
     this.aiCommands = dependencies.aiCommands
     this.commandEditor = dependencies.commandEditor
     
+    // Legacy dependencies (passed directly)
+    this.cache = dependencies.cache
+    this.mcpManager = dependencies.mcpManager
+    this.intentDetector = dependencies.intentDetector
+    this.multiProviderTranslator = dependencies.multiProviderTranslator
+    
     // Execution statistics
     this.stats = {
       totalExecutions: 0,
@@ -65,6 +71,25 @@ export class CommandExecutor {
     this.specialCommandPatterns = ['cmd', 'кмд']
   }
   
+  /**
+   * Execute user input - main entry point used by app.js
+   * @param {string} userInput - Raw user input
+   * @returns {Promise<void>}
+   */
+  async executeUserInput(userInput) {
+    const result = await this.execute(userInput)
+    
+    // Display result if needed
+    if (result.success && result.result && result.result.displayResult) {
+      this.cliInterface.writeOutput(result.result.displayResult)
+    }
+    
+    // If execution failed, throw error for app error handling
+    if (!result.success) {
+      throw new Error(result.error)
+    }
+  }
+
   /**
    * Execute user input through appropriate command pipeline
    * @param {string} userInput - Raw user input
@@ -145,8 +170,11 @@ export class CommandExecutor {
     const commandName = words[0].toLowerCase()
     const args = words.slice(1)
     
+    console.log(`[DEBUG] Classifying input: "${input}" -> command: "${commandName}"`)
+    
     // Check for system commands
     if (this.systemCommandPatterns.includes(commandName)) {
+      console.log(`[DEBUG] Classified as SYSTEM command`)
       return {
         type: this.COMMAND_TYPES.SYSTEM,
         commandName,
@@ -233,11 +261,30 @@ export class CommandExecutor {
   async executeSystemCommand(classification) {
     const { commandName, args } = classification
     
+    // Handle built-in system commands through RequestRouter
+    const builtinCommands = ['help', 'h', 'exit', 'q']
+    if (builtinCommands.includes(commandName)) {
+      console.log(`[DEBUG] Executing built-in system command: ${commandName}`)
+      
+      // Route through RequestRouter for full processing
+      const routingResult = await this.requestRouter.routeRequest(classification.originalInput || commandName)
+      console.log(`[DEBUG] Routing result:`, { success: routingResult.success, action: routingResult.action })
+      
+      if (routingResult.success) {
+        const result = await this.executeRoutedInstruction(routingResult)
+        console.log(`[DEBUG] Executed result:`, { type: result.type, hasDisplayResult: !!result.displayResult })
+        return result
+      } else {
+        throw new Error(routingResult.error)
+      }
+    }
+    
+    // Handle legacy system commands through systemCommands manager
     if (!this.systemCommands || !this.systemCommands.hasCommand(commandName)) {
       throw new Error(`System command not found: ${commandName}`)
     }
     
-    logger.debug(`Executing system command: ${commandName}`)
+    logger.debug(`Executing legacy system command: ${commandName}`)
     
     const result = await this.systemCommands.executeCommand(commandName, args, {
       app: this,
@@ -372,70 +419,72 @@ export class CommandExecutor {
   }
   
   /**
-   * Process AI request
+   * Process AI request using RequestRouter
    * @private
    * @param {string} input - Processed input
    * @param {Object} command - Command object (if any)
    * @param {Object} metadata - Request metadata
    */
   async processAIRequest(input, command = null, metadata = {}) {
-    // Get AI service from service manager
-    if (!this.serviceManager) {
-      throw new Error('Service manager not available')
+    // Use RequestRouter for complete business logic
+    if (!this.requestRouter) {
+      throw new Error('Request router not available')
     }
     
-    const aiService = this.serviceManager.getAIProviderService()
-    if (!aiService) {
-      throw new Error('AI provider service not available')
+    // Import required dependencies for RequestRouter
+    const { StreamProcessor } = await import('../utils/stream-processor.js')
+    const { configManager } = await import('../config/config-manager.js')
+    
+    // Gather all dependencies needed by RequestRouter.processAIInput
+    const dependencies = {
+      serviceManager: this.serviceManager,
+      cliInterface: this.cliInterface,
+      cache: this.cache,
+      mcpManager: this.mcpManager,
+      intentDetector: this.intentDetector,
+      multiProviderTranslator: this.multiProviderTranslator,
+      StreamProcessor,
+      configManager
     }
     
-    // Prepare messages
-    const messages = this.prepareAIMessages(input, command)
+    // Use RequestRouter's processAIInput for complete business logic
+    await this.requestRouter.processAIInput(input, dependencies)
     
-    // Set processing state
-    const controller = new AbortController()
-    this.stateManager.setProcessingRequest(true, controller)
-    
-    try {
-      // Show processing indicator
-      const spinner = this.cliInterface.showSpinner('Processing AI request')
-      
-      // Create chat completion
-      const response = await this.serviceManager.createChatCompletion(messages, {
-        stream: false, // Simplified for now
-        signal: controller.signal
-      })
-      
-      // Hide spinner
-      this.cliInterface.hideSpinner(spinner)
-      
-      // Handle context for non-translation commands
-      if (!command || !command.isTranslation) {
-        this.stateManager.addToContext('user', input)
-        this.stateManager.addToContext('assistant', response)
-      }
-      
-      return {
-        type: 'instruction',
-        action: 'ai_response',
-        result: response,
-        displayResult: response,
-        command: command?.commandKey || 'chat'
-      }
-      
-    } finally {
-      // Clear processing state
-      this.stateManager.clearRequestState()
+    return {
+      type: 'instruction',
+      action: 'ai_processing_completed',
+      result: 'Processing completed via RequestRouter',
+      displayResult: null, // RequestRouter handles display
+      command: command?.commandKey || 'chat'
     }
   }
+  
   
   /**
    * Process multi-provider request
    * @private
    */
   async processMultiProvider(command) {
-    // TODO: Integrate with multi-provider translator
-    throw new Error('Multi-provider processing not yet implemented in CommandExecutor')
+    if (!this.multiProviderTranslator) {
+      throw new Error('Multi-provider translator not available')
+    }
+    
+    const controller = this.stateManager.getCurrentRequestController()
+    
+    const result = await this.multiProviderTranslator.translateMultiple(
+      command.commandType,
+      command.instruction,
+      command.targetContent,
+      controller.signal,
+      command.models
+    )
+    
+    return {
+      type: 'instruction',
+      action: 'multi_provider_completed',
+      result,
+      displayResult: result
+    }
   }
   
   /**
@@ -443,7 +492,7 @@ export class CommandExecutor {
    * @private
    */
   async processMultiModel(command) {
-    // TODO: Integrate with multi-command processor
+    // TODO: Integrate with multi-command processor when available
     throw new Error('Multi-model processing not yet implemented in CommandExecutor')
   }
   
@@ -552,7 +601,11 @@ export class CommandExecutor {
         requestRouter: !!this.requestRouter,
         systemCommands: !!this.systemCommands,
         aiCommands: !!this.aiCommands,
-        commandEditor: !!this.commandEditor
+        commandEditor: !!this.commandEditor,
+        cache: !!this.cache,
+        mcpManager: !!this.mcpManager,
+        intentDetector: !!this.intentDetector,
+        multiProviderTranslator: !!this.multiProviderTranslator
       },
       commandTypes: this.COMMAND_TYPES,
       patterns: {

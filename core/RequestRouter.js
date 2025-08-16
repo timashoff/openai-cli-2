@@ -6,7 +6,7 @@ import { APP_CONSTANTS } from '../config/constants.js'
 import { getClipboardContent } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
-import { getInstructionsFromDatabase } from '../utils/migration.js'
+import { getCommandsFromDB } from '../utils/database-manager.js'
 import { color } from '../config/color.js'
 
 export class RequestRouter {
@@ -259,31 +259,55 @@ export class RequestRouter {
    * @returns {Promise<Object>} Command check result
    */
   async checkSystemCommands(input) {
-    if (!this.commandHandler) {
-      return { isCommand: false }
+    const trimmedInput = input.trim().toLowerCase()
+    const words = trimmedInput.split(' ')
+    const commandName = words[0]
+    
+    // Built-in system commands
+    const systemCommands = ['help', 'h', 'exit', 'q']
+    const aiCommands = ['provider', 'p', 'model', 'm']
+    
+    if (systemCommands.includes(commandName)) {
+      return {
+        isCommand: true,
+        type: this.REQUEST_TYPES.SYSTEM,
+        commandName,
+        args: words.slice(1),
+        result: null
+      }
     }
     
-    try {
-      const context = { input }
-      const canHandle = await this.commandHandler.canHandle(context)
-      
-      if (canHandle) {
-        const result = await this.commandHandler.handle(context)
-        return {
-          isCommand: true,
-          type: result.type === 'system' ? this.REQUEST_TYPES.SYSTEM : this.REQUEST_TYPES.AI_COMMAND,
-          result,
-          handled: result.handled
-        }
+    if (aiCommands.includes(commandName)) {
+      return {
+        isCommand: true,
+        type: this.REQUEST_TYPES.AI_COMMAND,
+        commandName,
+        args: words.slice(1),
+        result: null
       }
-      
-      return { isCommand: false }
-      
-    } catch (error) {
-      // Log error but continue with other routing
-      console.warn('Command handler error:', error.message)
-      return { isCommand: false }
     }
+    
+    // Legacy commandHandler support
+    if (this.commandHandler) {
+      try {
+        const context = { input }
+        const canHandle = await this.commandHandler.canHandle(context)
+        
+        if (canHandle) {
+          const result = await this.commandHandler.handle(context)
+          return {
+            isCommand: true,
+            type: result.type === 'system' ? this.REQUEST_TYPES.SYSTEM : this.REQUEST_TYPES.AI_COMMAND,
+            result,
+            handled: result.handled
+          }
+        }
+      } catch (error) {
+        console.warn('Legacy command handler failed:', error.message)
+      }
+    }
+    
+    return { isCommand: false }
   }
   
   /**
@@ -357,6 +381,16 @@ export class RequestRouter {
    */
   async routeSystemCommand(routingContext) {
     const { command } = routingContext
+    
+    // Generate help content for help commands
+    if (command.commandName === 'help' || command.commandName === 'h') {
+      const helpContent = await this.generateHelpContent()
+      return {
+        action: 'return_direct_response',
+        result: helpContent,
+        needsAIProcessing: false
+      }
+    }
     
     return {
       action: 'execute_system_command',
@@ -537,14 +571,51 @@ export class RequestRouter {
    */
   async refreshInstructionsDatabase() {
     try {
-      this.instructionsDatabase = getInstructionsFromDatabase()
+      this.instructionsDatabase = getCommandsFromDB()
       this.lastInstructionsLoad = Date.now()
+      console.log(`${color.grey}[DEBUG] Loaded ${Object.keys(this.instructionsDatabase).length} commands from database${color.reset}`)
     } catch (error) {
       console.warn('Failed to load instructions database:', error.message)
       this.instructionsDatabase = {}
     }
   }
   
+  /**
+   * Generate help content
+   * @private
+   */
+  async generateHelpContent() {
+    await this.refreshInstructionsDatabase()
+    
+    let helpText = `${color.cyan}Available commands:${color.reset}\n\n`
+    
+    // System commands
+    helpText += `${color.yellow}System Commands:${color.reset}\n`
+    helpText += `  help, h      - Show this help message\n`
+    helpText += `  provider, p  - Switch AI provider\n`
+    helpText += `  model, m     - Switch AI model\n`
+    helpText += `  exit, q      - Exit application\n\n`
+    
+    // Database commands
+    if (this.instructionsDatabase && Object.keys(this.instructionsDatabase).length > 0) {
+      helpText += `${color.yellow}Instruction Commands:${color.reset}\n`
+      
+      for (const [id, instruction] of Object.entries(this.instructionsDatabase)) {
+        if (instruction.key) {
+          helpText += `  ${instruction.key.padEnd(12)} - ${instruction.instruction.substring(0, 60)}${instruction.instruction.length > 60 ? '...' : ''}\n`
+        }
+      }
+      helpText += '\n'
+    }
+    
+    helpText += `${color.green}Usage Examples:${color.reset}\n`
+    helpText += `  en hello world       - Translate to English\n`
+    helpText += `  provider            - Switch AI provider\n`
+    helpText += `  What is JavaScript?  - Ask a question\n`
+    
+    return helpText
+  }
+
   /**
    * Check if command is translation-related
    * @private
@@ -570,6 +641,279 @@ export class RequestRouter {
     return instruction.models && Array.isArray(instruction.models) && instruction.models.length > 1
   }
   
+  /**
+   * Process AI Input - Core business logic from bin/app.js
+   * @param {string} input - User input
+   * @param {Object} dependencies - Required dependencies (serviceManager, cliInterface, etc.)
+   * @returns {Promise<void>}
+   */
+  async processAIInput(input, dependencies) {
+    const { serviceManager, cliInterface, cache, mcpManager, intentDetector, 
+            multiProviderTranslator, StreamProcessor, configManager } = dependencies
+    
+    let interval
+    let startTime
+    const originalInput = input
+    
+    // Create abort controller for cancellation
+    const currentRequestController = new AbortController()
+    this.stateManager.setCurrentRequestController(currentRequestController)
+    this.stateManager.setProcessingRequest(true)
+    
+    try {
+      // Step 1: Route the request
+      const routingResult = await this.routeRequest(input)
+      
+      if (!routingResult.success) {
+        throw new Error(routingResult.error)
+      }
+      
+      const { action, needsAIProcessing } = routingResult
+      
+      // Step 2: Handle non-AI processing actions
+      if (!needsAIProcessing) {
+        switch (action) {
+          case 'return_cached_result':
+          case 'return_formatted_result':
+          case 'return_direct_response':
+            cliInterface.writeOutput(routingResult.result)
+            return
+          case 'process_multi_provider':
+            await this.handleMultiProviderProcessing(routingResult, dependencies)
+            return
+          case 'process_multi_model':
+            await this.handleMultiModelProcessing(routingResult, dependencies)
+            return
+        }
+      }
+      
+      // Step 3: AI Processing required
+      const { input: processedInput, command } = routingResult
+      const finalInput = processedInput || input
+      
+      // Create cache key
+      const cacheKey = command?.originalInput || finalInput
+      
+      // Check cache for translations
+      if (command?.isTranslation && !routingResult.context.forceRequest && cache.has(cacheKey)) {
+        cliInterface.writeWarning('[from cache]')
+        cliInterface.writeOutput(cache.get(cacheKey))
+        return
+      }
+      
+      // Execute AI processing
+      await this.executeAIProcessing(finalInput, command, {
+        ...dependencies,
+        currentRequestController,
+        cacheKey
+      })
+      
+    } catch (error) {
+      this.stateManager.setProcessingRequest(false)
+      throw error
+    }
+  }
+  
+  /**
+   * Execute AI Processing with streaming support
+   * @param {string} input - Processed input
+   * @param {Object} command - Command context
+   * @param {Object} dependencies - All required dependencies
+   */
+  async executeAIProcessing(input, command, dependencies) {
+    const { serviceManager, cliInterface, cache, StreamProcessor, 
+            currentRequestController, cacheKey, configManager } = dependencies
+    
+    const startTime = Date.now()
+    
+    try {
+      // Get AI state
+      const aiState = this.stateManager.getAIState()
+      
+      // Prepare messages
+      let messages = []
+      if (command?.isTranslation) {
+        messages = [{ role: 'user', content: input }]
+      } else {
+        const contextHistory = this.stateManager.getContextHistory()
+        messages = contextHistory.map(({ role, content }) => ({ role, content }))
+        messages.push({ role: 'user', content: input })
+      }
+      
+      // Start spinner
+      let i = 0
+      const spinnerInterval = setInterval(() => {
+        if (currentRequestController.signal.aborted) {
+          clearInterval(spinnerInterval)
+          return
+        }
+        
+        cliInterface.clearLine()
+        const elapsed = (Date.now() - startTime) / 1000
+        const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        process.stdout.write(`${spinnerChars[i++ % spinnerChars.length]} ${elapsed.toFixed(1)}s`)
+      }, configManager.get('spinnerInterval') || 100)
+      
+      this.stateManager.setSpinnerInterval(spinnerInterval)
+      
+      // Create chat completion
+      const stream = await aiState.provider.createChatCompletion(aiState.model, messages, {
+        stream: true,
+        signal: currentRequestController.signal
+      })
+      
+      // Process streaming response
+      const streamProcessor = new StreamProcessor(aiState.selectedProviderKey)
+      
+      const response = await cliInterface.processStreamingResponse(
+        stream, 
+        streamProcessor, 
+        currentRequestController,
+        null
+      )
+      
+      // Clear spinner
+      clearInterval(spinnerInterval)
+      this.stateManager.setSpinnerInterval(null)
+      
+      // Handle response
+      if (!currentRequestController.signal.aborted && !this.stateManager.shouldReturnToPrompt()) {
+        const fullResponse = response.join('')
+        
+        if (command?.isTranslation) {
+          // Cache translation
+          await cache.set(cacheKey, fullResponse)
+        } else {
+          // Add to context history
+          this.stateManager.addToContext('user', input)
+          this.stateManager.addToContext('assistant', fullResponse)
+          
+          // Trim context if needed
+          const maxHistory = configManager.get('maxContextHistory') || 10
+          const contextHistory = this.stateManager.getContextHistory()
+          if (contextHistory.length > maxHistory) {
+            this.stateManager.setContextHistory(contextHistory.slice(-maxHistory))
+          }
+          
+          // Show context dots
+          cliInterface.showContextHistory(contextHistory.length)
+        }
+      }
+      
+    } catch (error) {
+      // Handle cancellation gracefully
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        const elapsed = (Date.now() - startTime) / 1000
+        cliInterface.showStatus('error', elapsed)
+        return
+      }
+      
+      throw error
+    } finally {
+      // Cleanup
+      const spinnerInterval = this.stateManager.getSpinnerInterval()
+      if (spinnerInterval) {
+        clearInterval(spinnerInterval)
+        this.stateManager.setSpinnerInterval(null)
+      }
+      
+      this.stateManager.setProcessingRequest(false)
+      this.stateManager.setCurrentRequestController(null)
+    }
+  }
+  
+  /**
+   * Handle multi-provider processing
+   * @private
+   */
+  async handleMultiProviderProcessing(routingResult, dependencies) {
+    const { multiProviderTranslator, currentRequestController } = dependencies
+    const { command } = routingResult
+    
+    try {
+      const result = await multiProviderTranslator.translateMultiple(
+        command.id,
+        command.instruction,
+        command.targetContent,
+        currentRequestController?.signal,
+        command.models
+      )
+      
+      const formattedResponse = multiProviderTranslator.formatMultiProviderResponse(result)
+      dependencies.cliInterface.writeOutput(formattedResponse)
+      
+      // Cache result
+      if (dependencies.cache) {
+        await dependencies.cache.setMultipleResponses(command.originalInput, result.translations)
+      }
+      
+    } catch (error) {
+      throw new Error(`Multi-provider processing failed: ${error.message}`)
+    }
+  }
+  
+  /**
+   * Handle multi-model processing
+   * @private
+   */
+  async handleMultiModelProcessing(routingResult, dependencies) {
+    const { multiCommandProcessor } = dependencies
+    const { command } = routingResult
+    
+    try {
+      await multiCommandProcessor.executeMultiple(command)
+    } catch (error) {
+      throw new Error(`Multi-model processing failed: ${error.message}`)
+    }
+  }
+  
+  /**
+   * Process MCP input for URL and search enhancement
+   * @param {string} input - User input
+   * @param {Object} command - Command context
+   * @param {Object} dependencies - MCP dependencies
+   * @returns {Promise<Object>} MCP processing result
+   */
+  async processMCPInput(input, command, dependencies) {
+    const { mcpManager, intentDetector } = dependencies
+    
+    // Check if MCP processing is needed
+    const needsMCP = command?.hasUrl || (intentDetector && await intentDetector.requiresMCP(input))
+    
+    if (!needsMCP) {
+      return null
+    }
+    
+    try {
+      // Determine MCP routing
+      let routing
+      if (command?.hasUrl) {
+        routing = { server: 'fetch', tool: 'fetch_url', confidence: 1.0 }
+      } else {
+        routing = await intentDetector.getMCPRouting(input)
+      }
+      
+      // Execute MCP request
+      const mcpResult = await mcpManager.executeRequest(routing.server, routing.tool, {
+        input: command?.targetContent || input
+      })
+      
+      if (mcpResult && mcpResult.success) {
+        return {
+          enhancedInput: `${input}\\n\\nContent: ${mcpResult.data.content}`,
+          mcpData: mcpResult.data,
+          showMCPData: true
+        }
+      }
+      
+      return null
+      
+    } catch (error) {
+      console.warn(`MCP processing failed: ${error.message}`)
+      return null
+    }
+  }
+
   /**
    * Get routing statistics
    * @returns {Object} Routing statistics

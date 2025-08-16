@@ -2,14 +2,13 @@ import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
 import { createProvider } from './provider-factory.js'
-import { rl } from './index.js'
 
 export class ModelSelector {
   constructor(aiApplication) {
     this.app = aiApplication
   }
 
-  async selectModels(currentModels = []) {
+  async selectModels(currentModels = [], rl = null) {
     let selectedModels = [...currentModels]
     
     console.log(color.cyan + 'Model Selection Menu' + color.reset)
@@ -156,7 +155,10 @@ export class ModelSelector {
     return removeIndex
   }
 
-  async promptForInput(question) {
+  async promptForInput(question, rl) {
+    if (!rl) {
+      throw new Error('Readline interface is required')
+    }
     return new Promise((resolve) => {
       rl.question(question, (answer) => {
         resolve(answer.trim())

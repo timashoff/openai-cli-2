@@ -4,7 +4,7 @@
  */
 import { color } from '../config/color.js'
 import { logger } from '../utils/logger.js'
-import { getInstructionsFromDatabase } from '../utils/migration.js'
+import { getCommandsFromDB } from '../utils/database-manager.js'
 
 export class HelpCommand {
   constructor(dependencies = {}) {
@@ -194,7 +194,7 @@ export class HelpCommand {
     
     // Translation commands from database
     try {
-      const instructions = getInstructionsFromDatabase()
+      const instructions = getCommandsFromDB()
       if (Object.keys(instructions).length > 0) {
         output += `\\n${color.blue}Translation Commands:${color.reset}\\n`
         
@@ -472,7 +472,7 @@ export class HelpCommand {
   async showCommandHelp(commandName) {
     // Try to find command in instruction database
     try {
-      const instructions = getInstructionsFromDatabase()
+      const instructions = getCommandsFromDB()
       
       for (const [id, instruction] of Object.entries(instructions)) {
         if (instruction.key.includes(commandName)) {

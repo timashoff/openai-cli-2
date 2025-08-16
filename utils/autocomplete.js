@@ -1,20 +1,20 @@
-import { SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { getCommandsFromDB } from './database-manager.js'
 
 /**
- * Get all system commands
- * @returns {string[]} array of all system commands
+ * Get all commands from database
+ * @returns {string[]} array of all commands
  */
 function getAllSystemCommands() {
-  const commands = []
+  const commands = getCommandsFromDB()
+  const commandKeys = []
   
-  for (const prop in SYS_INSTRUCTIONS) {
-    const instruction = SYS_INSTRUCTIONS[prop]
-    if (instruction.key && Array.isArray(instruction.key)) {
-      commands.push(...instruction.key)
+  for (const command of Object.values(commands)) {
+    if (command.key && Array.isArray(command.key)) {
+      commandKeys.push(...command.key)
     }
   }
   
-  return commands.sort()
+  return commandKeys.sort()
 }
 
 

@@ -3,7 +3,7 @@
  * Orchestrates all components and manages application lifecycle
  */
 import { getStateManager } from './StateManager.js'
-import { getCLIInterface } from './CLIInterface.js'
+// import { getCLIInterface } from './CLIInterface.js' // Disabled - using CLIManager instead
 import { createRequestRouter } from './RequestRouter.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
@@ -13,7 +13,8 @@ export class Application {
   constructor(dependencies = {}) {
     // Core components
     this.stateManager = getStateManager()
-    this.cliInterface = getCLIInterface(this.stateManager)
+    // this.cliInterface = getCLIInterface(this.stateManager) // Disabled - using CLIManager instead
+    this.cliInterface = null // Set to null to avoid readline conflicts
     this.requestRouter = null // Created during initialization
     
     // Dependencies from legacy system
@@ -51,10 +52,12 @@ export class Application {
     
     try {
       // Initialize CLI interface
-      await this.cliInterface.initialize({
-        enableColors: true,
-        showCursor: true
-      })
+      if (this.cliInterface) {
+        await this.cliInterface.initialize({
+          enableColors: true,
+          showCursor: true
+        })
+      }
       
       // Create request router with dependencies
       this.requestRouter = createRequestRouter(this.stateManager, this.cliInterface, {
@@ -151,12 +154,16 @@ export class Application {
     // Listen for context updates
     this.stateManager.addListener('context-updated', (data) => {
       // Show context history dots
-      this.cliInterface.showContextHistory(data.historyLength)
+      if (this.cliInterface) {
+        this.cliInterface.showContextHistory(data.historyLength)
+      }
     })
     
     // Listen for context cleared
     this.stateManager.addListener('context-cleared', () => {
-      this.cliInterface.writeWarning('Context history cleared')
+      if (this.cliInterface) {
+        this.cliInterface.writeWarning('Context history cleared')
+      }
     })
   }
   

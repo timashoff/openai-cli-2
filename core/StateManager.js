@@ -164,6 +164,54 @@ export class StateManager {
     this.operationState.isProcessingRequest = false
     this.operationState.isTypingResponse = false
   }
+
+  /**
+   * Set current request controller
+   * @param {AbortController} controller - Request controller
+   */
+  setCurrentRequestController(controller) {
+    this.requestState.currentRequestController = controller
+  }
+
+  /**
+   * Set should return to prompt flag
+   * @param {boolean} shouldReturn - Whether to return to prompt
+   */
+  setShouldReturnToPrompt(shouldReturn) {
+    this.operationState.shouldReturnToPrompt = shouldReturn
+  }
+
+  /**
+   * Check if should return to prompt
+   * @returns {boolean} Should return to prompt
+   */
+  shouldReturnToPrompt() {
+    return this.operationState.shouldReturnToPrompt
+  }
+
+  /**
+   * Check if currently typing response
+   * @returns {boolean} Is typing response
+   */
+  isTypingResponse() {
+    return this.operationState.isTypingResponse
+  }
+
+  /**
+   * Check if currently processing request
+   * @returns {boolean} Is processing request
+   */
+  isProcessingRequest() {
+    return this.operationState.isProcessingRequest
+  }
+
+  /**
+   * Get current spinner interval
+   * @returns {number|null} Spinner interval ID
+   */
+  getSpinnerInterval() {
+    return this.requestState.currentSpinnerInterval
+  }
   
   /**
    * Get current request controller
@@ -222,6 +270,15 @@ export class StateManager {
     if (this.contextState.contextHistory.length > maxLength) {
       this.contextState.contextHistory = this.contextState.contextHistory.slice(-maxLength)
     }
+  }
+
+  /**
+   * Set context history directly
+   * @param {Array} history - New context history
+   */
+  setContextHistory(history) {
+    this.contextState.contextHistory = [...history]
+    this.notifyListeners('context-history-set', { length: history.length })
   }
   
   // === User Session Management ===

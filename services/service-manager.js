@@ -35,7 +35,7 @@ export class ServiceManager {
     try {
       // Initialize services in dependency order
       await this.initializeInputProcessingService()
-      await this.initializeCommandProcessingService()
+      // await this.initializeCommandProcessingService() // DISABLED - using CommandRouter from DB
       
       // Always use modern provider initialization
       this.logger.debug('ServiceManager: Modern AI provider initialization')
@@ -146,7 +146,9 @@ export class ServiceManager {
    * @returns {CommandProcessingService}
    */
   getCommandProcessingService() {
-    return this.getService('commandProcessing')
+    // DISABLED - using CommandRouter from DB instead
+    return null
+    // return this.getService('commandProcessing')
   }
 
   /**
@@ -172,17 +174,24 @@ export class ServiceManager {
   }
 
   /**
-   * Find command using command processing service
+   * Find command using database directly
    * @param {string} input - User input
    * @returns {Object|null} Command information
    */
   async findCommand(input) {
-    const commandService = this.getCommandProcessingService()
-    if (!commandService) {
-      throw new Error('Command processing service not available')
-    }
+    // DISABLED - use database directly instead of CommandProcessingService
+    const { getCommandsFromDB } = await import('../utils/database-manager.js')
+    const commands = getCommandsFromDB()
     
-    return await commandService.findCommand(input)
+    const words = input.trim().split(' ')
+    const commandName = words[0].toLowerCase()
+    
+    for (const [id, command] of Object.entries(commands)) {
+      if (command.key && command.key.includes(commandName)) {
+        return { id, ...command }
+      }
+    }
+    return null
   }
 
   /**
