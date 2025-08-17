@@ -299,10 +299,11 @@ export class ServicesAdapter {
        * @returns {Object} Current provider info
        */
       getCurrentProvider() {
+        const currentAIState = app.stateManager.getAIState()
         return {
-          provider: app.aiState.provider,
-          model: app.aiState.model,
-          key: app.aiState.selectedProviderKey
+          provider: currentAIState.provider,
+          model: currentAIState.model,
+          key: currentAIState.selectedProviderKey
         }
       },
 

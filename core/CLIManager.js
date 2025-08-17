@@ -14,6 +14,7 @@ import { logger } from '../utils/logger.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { getAllSystemCommands } from '../utils/autocomplete.js'
 import { stateObserver, STATE_EVENTS, emitStateEvent } from '../patterns/StateObserver.js'
+import { getStateManager } from './StateManager.js'
 
 // Create completer function for system commands autocomplete
 function completer(line) {
@@ -27,26 +28,20 @@ export class CLIManager {
   constructor(app) {
     this.app = app
     
+    // Get StateManager instance
+    this.stateManager = getStateManager()
+    
     // Create own readline interface
     this.rl = readline.createInterface({ 
-      input, 
-      output,
+      input: process.stdin, 
+      output: process.stdout,
       completer // Restored after removing conflicting readline from utils/index.js
     })
     
     // Setup escape key handling through data events (not raw mode)
     this.setupEscapeKeyHandling()
     
-    // Terminal state
-    this.isProcessingRequest = false
-    this.isTypingResponse = false
-    this.currentRequestController = null
-    this.currentSpinnerInterval = null
-    this.currentStreamProcessor = null
-    this.shouldReturnToPrompt = false
-    this.isRetryingProvider = false
-    
-    // CLI state
+    // CLI state (non-StateManager managed)
     this.screenWasCleared = false
     this.keypressEnabled = false
     
@@ -70,26 +65,30 @@ export class CLIManager {
    * Handle escape key press
    */
   handleEscapeKey() {
-    if (this.isProcessingRequest && this.currentRequestController) {
-      if (this.currentSpinnerInterval) {
-        clearInterval(this.currentSpinnerInterval)
-        this.currentSpinnerInterval = null
+    const controller = this.stateManager.getCurrentRequestController()
+    const spinnerInterval = this.stateManager.getSpinnerInterval()
+    
+    if (this.stateManager.isProcessingRequest() && controller) {
+      if (spinnerInterval) {
+        clearInterval(spinnerInterval)
+        this.stateManager.setSpinnerInterval(null)
       }
       
       clearTerminalLine()
-      this.currentRequestController.abort()
-      this.isProcessingRequest = false
+      controller.abort()
+      this.stateManager.setProcessingRequest(false)
       
-      if (this.currentStreamProcessor) {
-        this.currentStreamProcessor.forceTerminate()
+      const streamProcessor = this.stateManager.requestState.currentStreamProcessor
+      if (streamProcessor) {
+        streamProcessor.forceTerminate()
       }
       
       process.stdout.write('\x1B[?25h')
       
-    } else if (this.isTypingResponse) {
+    } else if (this.stateManager.isTypingResponse()) {
       console.log()
-      this.isTypingResponse = false
-      this.shouldReturnToPrompt = true
+      this.stateManager.setTypingResponse(false)
+      this.stateManager.setShouldReturnToPrompt(true)
       process.stdout.write('\x1B[?25h')
     }
   }
@@ -110,26 +109,30 @@ export class CLIManager {
     
     const globalKeyPressHandler = (str, key) => {
       if (key && key.name === 'escape') {
-        if (this.isProcessingRequest && this.currentRequestController) {
-          if (this.currentSpinnerInterval) {
-            clearInterval(this.currentSpinnerInterval)
-            this.currentSpinnerInterval = null
+        const controller = this.stateManager.getCurrentRequestController()
+        const spinnerInterval = this.stateManager.getSpinnerInterval()
+        
+        if (this.stateManager.isProcessingRequest() && controller) {
+          if (spinnerInterval) {
+            clearInterval(spinnerInterval)
+            this.stateManager.setSpinnerInterval(null)
           }
           
           clearTerminalLine()
-          this.currentRequestController.abort()
-          this.isProcessingRequest = false
+          controller.abort()
+          this.stateManager.setProcessingRequest(false)
           
-          if (this.currentStreamProcessor) {
-            this.currentStreamProcessor.forceTerminate()
+          const streamProcessor = this.stateManager.requestState.currentStreamProcessor
+          if (streamProcessor) {
+            streamProcessor.forceTerminate()
           }
           
           process.stdout.write('\x1B[?25h')
           
-        } else if (this.isTypingResponse) {
+        } else if (this.stateManager.isTypingResponse()) {
           console.log()
-          this.isTypingResponse = false
-          this.shouldReturnToPrompt = true
+          this.stateManager.setTypingResponse(false)
+          this.stateManager.setShouldReturnToPrompt(true)
           process.stdout.write('\x1B[?25h')
         }
       }
@@ -248,6 +251,15 @@ export class CLIManager {
   async startMainLoop() {
     logger.debug('🎯 Starting CLI main loop')
     
+    // If readline was closed during initialization, recreate it
+    if (!this.rl || this.rl.closed) {
+      this.rl = readline.createInterface({ 
+        input: process.stdin, 
+        output: process.stdout,
+        completer 
+      })
+    }
+    
     while (true) {
       // Check if readline is still open
       if (!this.rl || this.rl.closed) {
@@ -308,9 +320,11 @@ export class CLIManager {
    * Set request processing state
    */
   setProcessingRequest(value, controller = null, streamProcessor = null) {
-    this.isProcessingRequest = value
-    this.currentRequestController = controller
-    this.currentStreamProcessor = streamProcessor
+    // Use StateManager for state management
+    this.stateManager.setProcessingRequest(value, controller)
+    if (streamProcessor) {
+      this.stateManager.setStreamProcessor(streamProcessor)
+    }
     
     // Emit state event
     if (value) {
@@ -368,7 +382,8 @@ export class CLIManager {
    * Set typing response state
    */
   setTypingResponse(value) {
-    this.isTypingResponse = value
+    // Use StateManager for state management
+    this.stateManager.setTypingResponse(value)
     
     // Emit state event
     if (value) {
@@ -386,7 +401,8 @@ export class CLIManager {
    * Set spinner interval
    */
   setSpinnerInterval(interval) {
-    this.currentSpinnerInterval = interval
+    // Use StateManager for state management
+    this.stateManager.setSpinnerInterval(interval)
     
     // Emit state event
     if (interval) {
@@ -404,17 +420,19 @@ export class CLIManager {
    * Set return to prompt flag
    */
   setShouldReturnToPrompt(value) {
-    this.shouldReturnToPrompt = value
+    // Use StateManager for state management
+    this.stateManager.setShouldReturnToPrompt(value)
   }
 
   /**
    * Get current CLI state
    */
   getState() {
+    const operationState = this.stateManager.getOperationState()
     return {
-      isProcessingRequest: this.isProcessingRequest,
-      isTypingResponse: this.isTypingResponse,
-      shouldReturnToPrompt: this.shouldReturnToPrompt,
+      isProcessingRequest: operationState.isProcessingRequest,
+      isTypingResponse: operationState.isTypingResponse,
+      shouldReturnToPrompt: operationState.shouldReturnToPrompt,
       screenWasCleared: this.screenWasCleared
     }
   }

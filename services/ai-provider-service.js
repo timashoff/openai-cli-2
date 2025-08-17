@@ -371,11 +371,13 @@ export class AIProviderService {
     }
 
     // Update app state if available
-    if (this.app && this.app.aiState) {
-      this.app.aiState.provider = this.currentProvider
-      this.app.aiState.selectedProviderKey = this.currentProviderKey
-      this.app.aiState.model = this.currentModel
-      this.app.aiState.models = providerData.models
+    if (this.app && this.app.stateManager) {
+      this.app.stateManager.updateAIProvider({
+        instance: this.currentProvider,
+        key: this.currentProviderKey,
+        model: this.currentModel,
+        models: providerData.models
+      })
     }
 
     this.stats.providerSwitches++
@@ -407,8 +409,8 @@ export class AIProviderService {
     this.currentModel = model
     
     // Update app state
-    if (this.app && this.app.aiState) {
-      this.app.aiState.model = this.currentModel
+    if (this.app && this.app.stateManager) {
+      this.app.stateManager.updateModel(this.currentModel)
     }
 
     this.stats.modelSwitches++

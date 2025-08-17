@@ -27,6 +27,7 @@ import { ApplicationInitializer } from '../core/ApplicationInitializer.js'
 import { ProviderSwitcher } from '../core/ProviderSwitcher.js'
 import { commandObserver } from '../patterns/CommandObserver.js'
 import { stateObserver } from '../patterns/StateObserver.js'
+import { getStateManager } from '../core/StateManager.js'
 
 /**
  * Phase 2 AI Application with integrated business logic
@@ -35,13 +36,8 @@ class AIApplication extends Application {
   constructor() {
     super()
     
-    // AI state
-    this.aiState = {
-      provider: null,
-      models: [],
-      model: '',
-      selectedProviderKey: ''
-    }
+    // Get StateManager instance (replaces direct aiState)
+    this.stateManager = getStateManager()
     
     // Command managers
     this.aiCommands = new CommandManager()
@@ -70,6 +66,13 @@ class AIApplication extends Application {
     
     // Provider Switcher (extracted)
     this.providerSwitcher = new ProviderSwitcher(this)
+  }
+
+  /**
+   * Get AI state (for backward compatibility)
+   */
+  get aiState() {
+    return this.stateManager.getAIState()
   }
 
   /**
@@ -184,12 +187,13 @@ class AIApplication extends Application {
         }
       }
       
+      
     } catch (error) {
       console.error(`${color.red}Error: Service manager initialization failed: ${error.message}${color.reset}`)
       throw error
     }
     
-    process.title = this.aiState.model
+    process.title = this.stateManager.getAIState().model
     
     // Delegate main loop to CLIManager
     await this.cliManager.startMainLoop()

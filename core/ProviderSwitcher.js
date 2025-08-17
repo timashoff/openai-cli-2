@@ -24,11 +24,11 @@ export class ProviderSwitcher {
       //   process.stdin.setRawMode(false)
       // }
 
-      const newModel = await execModel(this.app.aiState.model, this.app.aiState.models, this.app.cliManager.rl)
-      this.app.aiState.model = newModel
-      process.title = this.app.aiState.model
+      const currentAIState = this.app.stateManager.getAIState()
+      const newModel = await execModel(currentAIState.model, currentAIState.models, this.app.cliManager.rl)
+      this.app.stateManager.updateModel(newModel)
 
-      logger.debug(`Model changed to: ${this.app.aiState.model}`)
+      logger.debug(`Model changed to: ${newModel}`)
 
       // TEMPORARILY DISABLED - causes input doubling
       // if (process.stdin.isTTY && wasRawMode) {
@@ -101,12 +101,12 @@ export class ProviderSwitcher {
       const switchResult = await this.app.serviceManager.switchProvider(selectedProvider.key)
       
       const newCurrentProvider = aiService.getCurrentProvider()
-      this.app.aiState.provider = newCurrentProvider.instance
-      this.app.aiState.selectedProviderKey = newCurrentProvider.key
-      this.app.aiState.model = newCurrentProvider.model
-      this.app.aiState.models = switchResult.availableModels || []
-      
-      process.title = this.app.aiState.model
+      this.app.stateManager.updateAIProvider({
+        instance: newCurrentProvider.instance,
+        key: newCurrentProvider.key,
+        model: newCurrentProvider.model,
+        models: switchResult.availableModels || []
+      })
 
       logger.debug(`Provider switched to: ${newCurrentProvider.key} with model: ${newCurrentProvider.model}`)
 

@@ -398,12 +398,13 @@ export class AIProcessor {
       cliManager.setSpinnerInterval(spinnerInterval)
       interval = spinnerInterval
 
-      const stream = await this.app.aiState.provider.createChatCompletion(this.app.aiState.model, messages, {
+      const currentAIState = this.app.stateManager.getAIState()
+      const stream = await currentAIState.provider.createChatCompletion(currentAIState.model, messages, {
         stream: true,
         signal: controller.signal
       })
 
-      const streamProcessor = new StreamProcessor(this.app.aiState.selectedProviderKey)
+      const streamProcessor = new StreamProcessor(currentAIState.selectedProviderKey)
       cliManager.setProcessingRequest(true, controller, streamProcessor)
       let response = []
       let firstChunk = true
