@@ -1,4 +1,5 @@
 import { AppError } from './error-handler.js'
+import { logger } from './logger.js'
 
 /**
  * Event subscription descriptor
@@ -177,7 +178,7 @@ export class EventBus {
     
     // Track active events for circular dependency detection
     if (this.activeEvents.has(eventName)) {
-      console.warn(`Circular event detected: ${eventName}`)
+      logger.debug(`Circular event detected: ${eventName}`)
     }
     
     this.activeEvents.add(eventName)

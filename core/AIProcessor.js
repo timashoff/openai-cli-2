@@ -7,7 +7,7 @@ import { getClipboardContent, getElapsedTime, clearTerminalLine, showStatus } fr
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
-import { getCommandsFromDB } from '../utils/database-manager.js'
+import { getCommandRepository } from '../patterns/CommandRepository.js'
 import cache from '../utils/cache.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
@@ -18,20 +18,158 @@ import { searchMCPServer } from '../utils/search-mcp-server.js'
 import { mcpManager } from '../utils/mcp-manager.js'
 import { intentDetector } from '../utils/intent-detector.js'
 import { openInBrowser } from '../utils/index.js'
+import { commandObserver, COMMAND_EVENTS } from '../patterns/CommandObserver.js'
+import { HandlerChainFactory } from '../handlers/handler-chain-factory.js'
+import { globalEventBus } from '../utils/event-bus.js'
 
 export class AIProcessor {
   constructor(app) {
     this.app = app
+    this.handlerChain = null
+    this.handlerChainEnabled = false
+    this.initializeHandlerChain()
+  }
+
+  /**
+   * Initialize the Handler Chain for modern request processing
+   */
+  initializeHandlerChain() {
+    try {
+      const dependencies = {
+        eventBus: globalEventBus,
+        logger: logger,
+        errorBoundary: null // Optional for now
+      }
+
+      // Create essential handler chain
+      this.handlerChain = HandlerChainFactory.createRequestChain(dependencies)
+      
+      // Validate the chain
+      const validation = HandlerChainFactory.validateChain(this.handlerChain)
+      if (validation.valid) {
+        logger.info(`Handler Chain initialized: ${validation.handlerTypes.join(' → ')}`)
+        // Enable after testing
+        // this.handlerChainEnabled = true
+      } else {
+        logger.error(`Handler Chain validation failed: ${validation.error}`)
+      }
+    } catch (error) {
+      logger.error(`Failed to initialize Handler Chain: ${error.message}`)
+    }
+  }
+
+  /**
+   * Enable/disable Handler Chain processing
+   * @param {boolean} enabled - Whether to enable Handler Chain
+   */
+  setHandlerChainEnabled(enabled) {
+    if (!this.handlerChain) {
+      logger.warn('Cannot enable Handler Chain - not initialized')
+      return false
+    }
+
+    const wasEnabled = this.handlerChainEnabled
+    this.handlerChainEnabled = enabled
+    
+    logger.info(`Handler Chain ${enabled ? 'enabled' : 'disabled'}`)
+    
+    // Log handler chain status
+    if (enabled && this.handlerChain) {
+      const stats = HandlerChainFactory.getChainStats(this.handlerChain)
+      logger.info('Handler Chain stats:', stats)
+    }
+    
+    return true
+  }
+
+  /**
+   * Get Handler Chain status and statistics
+   * @returns {Object} Handler Chain information
+   */
+  getHandlerChainInfo() {
+    if (!this.handlerChain) {
+      return {
+        initialized: false,
+        enabled: false,
+        error: 'Handler Chain not initialized'
+      }
+    }
+
+    return {
+      initialized: true,
+      enabled: this.handlerChainEnabled,
+      stats: HandlerChainFactory.getChainStats(this.handlerChain),
+      health: HandlerChainFactory.getChainHealth(this.handlerChain),
+      validation: HandlerChainFactory.validateChain(this.handlerChain)
+    }
+  }
+
+  /**
+   * Process input using Handler Chain (modern approach)
+   */
+  async processInputWithHandlerChain(input, cliManager) {
+    if (!this.handlerChain || !this.handlerChainEnabled) {
+      throw new Error('Handler Chain not available')
+    }
+
+    try {
+      // Create processing context
+      const context = {
+        originalInput: input,
+        processedInput: input,
+        command: null,
+        flags: {},
+        metadata: {},
+        services: {
+          app: this.app,
+          cliManager: cliManager,
+          multiCommandProcessor: multiCommandProcessor,
+          cache: cache
+        },
+        abortController: new AbortController(),
+        startTime: new Date(),
+        processingData: new Map()
+      }
+
+      // Process through handler chain
+      const result = await this.handlerChain[0].handle(context)
+      
+      logger.debug('Handler Chain result:', result)
+      
+      return result
+    } catch (error) {
+      logger.error('Handler Chain processing failed:', error)
+      throw error
+    }
   }
 
   /**
    * Process AI input (extracted from original business logic)
    */
   async processAIInput(input, cliManager) {
+    // Option to use Handler Chain (disabled by default for stability)
+    if (this.handlerChainEnabled && this.handlerChain) {
+      logger.debug('Using Handler Chain for request processing')
+      try {
+        return await this.processInputWithHandlerChain(input, cliManager)
+      } catch (error) {
+        logger.error('Handler Chain failed, falling back to legacy processing:', error)
+        // Fall through to legacy processing
+      }
+    }
+
     // Critical business logic - keep original implementation
     let interval
     let startTime
     const originalInput = input
+
+    // Emit input received event
+    commandObserver.emit(COMMAND_EVENTS.INPUT_RECEIVED, {
+      input: input,
+      length: input.length,
+      hasClipboard: input.includes(APP_CONSTANTS.CLIPBOARD_MARKER),
+      hasForceFlag: input.includes('-f') || input.includes('--force')
+    })
 
     const controller = new AbortController()
     cliManager.setProcessingRequest(true, controller)
@@ -68,7 +206,31 @@ export class AIProcessor {
     }
 
     // Find command
-    const command = this.findCommand(input)
+    const command = await this.findCommand(input)
+    
+    // Emit command detection event
+    if (command) {
+      commandObserver.emit(COMMAND_EVENTS.COMMAND_DETECTED, {
+        commandKey: command.commandKey,
+        commandType: command.commandType,
+        isSystemCommand: false,
+        isAICommand: false,
+        isTranslation: command.isTranslation,
+        hasMultipleModels: command.models && command.models.length > 1,
+        hasUrl: command.hasUrl
+      })
+      
+      commandObserver.emit(COMMAND_EVENTS.COMMAND_PARSED, {
+        command: command,
+        hasMultipleModels: command.models && command.models.length > 1,
+        isTranslation: command.isTranslation,
+        hasUrl: command.hasUrl
+      })
+    } else {
+      commandObserver.emit(COMMAND_EVENTS.COMMAND_NOT_FOUND, {
+        input: input.substring(0, 100)
+      })
+    }
 
     // Handle MCP processing (simplified for Phase 2)
     if (command && command.hasUrl) {
@@ -121,14 +283,37 @@ export class AIProcessor {
     if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
       // Check cache for multi-model commands (using clean user input as key)
       if (command.isTranslation && !forceRequest && cache.has(cacheKey)) {
+        const cachedResponse = cache.get(cacheKey)
+        commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
+          cacheKey: cacheKey.substring(0, 50),
+          cacheType: 'multi-model',
+          responseLength: cachedResponse.length,
+          commandKey: command.commandKey
+        })
+        
         console.log(`${color.yellow}[from cache]${color.reset}`)
-        process.stdout.write(cache.get(cacheKey) + '\n')
+        process.stdout.write(cachedResponse + '\n')
         return
+      } else if (command.isTranslation && !forceRequest) {
+        commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
+          cacheKey: cacheKey.substring(0, 50),
+          cacheType: 'multi-model',
+          commandKey: command.commandKey
+        })
       }
       
       try {
         // Show handler info at the very beginning
         console.log(`[Handler: ${command.commandKey}]\n`)
+        
+        // Emit multi-command started event
+        const multiStartTime = Date.now()
+        commandObserver.emit(COMMAND_EVENTS.MULTI_COMMAND_STARTED, {
+          commandKey: command.commandKey,
+          commandType: command.commandType,
+          modelCount: command.models.length,
+          models: command.models
+        })
         
         // Let multiCommandProcessor handle output with proper formatting
         const multiResult = await multiCommandProcessor.executeMultiple(
@@ -139,10 +324,27 @@ export class AIProcessor {
           null  // no onProviderComplete callback - headers handled in MultiCommandProcessor
         )
         
+        // Emit multi-command completed event
+        commandObserver.emit(COMMAND_EVENTS.MULTI_COMMAND_COMPLETED, {
+          commandKey: command.commandKey,
+          duration: Date.now() - multiStartTime,
+          success: multiResult && multiResult.successful > 0,
+          successfulModels: multiResult?.successful || 0,
+          totalModels: multiResult?.total || command.models.length,
+          responseLength: multiResult?.results?.reduce((total, r) => total + (r.response?.length || 0), 0) || 0
+        })
+        
         // Cache the formatted multi-model response for translation commands
         if (command.isTranslation && multiResult && multiResult.results) {
           const formattedResponse = multiCommandProcessor.formatMultiResponse(multiResult, command.commandKey)
           await cache.set(cacheKey, formattedResponse)
+          
+          commandObserver.emit(COMMAND_EVENTS.CACHE_STORED, {
+            cacheKey: cacheKey.substring(0, 50),
+            cacheType: 'multi-model',
+            responseLength: formattedResponse.length,
+            commandKey: command.commandKey
+          })
         }
         
         return
@@ -154,9 +356,23 @@ export class AIProcessor {
 
     // Standard single-provider translation cache check
     if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
+      const cachedResponse = cache.get(cacheKey)
+      commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
+        cacheKey: cacheKey.substring(0, 50),
+        cacheType: 'single-model',
+        responseLength: cachedResponse.length,
+        commandKey: command.commandKey
+      })
+      
       console.log(`${color.yellow}[from cache]${color.reset}`)
-      process.stdout.write(cache.get(cacheKey) + '\\n')
+      process.stdout.write(cachedResponse + '\\n')
       return
+    } else if (command && command.isTranslation && !forceRequest) {
+      commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
+        cacheKey: cacheKey.substring(0, 50),
+        cacheType: 'single-model',
+        commandKey: command.commandKey
+      })
     }
 
     try {
@@ -324,9 +540,9 @@ export class AIProcessor {
   }
 
   /**
-   * Find command in instructions (extracted from original logic)
+   * Find command in instructions using Repository Pattern
    */
-  findCommand(str) {
+  async findCommand(str) {
     const TRANSLATION_KEYS = [
       'RUSSIAN', 'ENGLISH', 'CHINESE', 'PINYIN', 'TRANSCRIPTION', 'HSK', 'HSK_SS'
     ]
@@ -336,36 +552,81 @@ export class AIProcessor {
     const arr = str.trim().split(' ')
     const commandKey = arr.shift()
     
-    const INSTRUCTIONS = getCommandsFromDB()
-    for (const prop in INSTRUCTIONS) {
-      if (INSTRUCTIONS[prop].key.includes(commandKey)) {
+    // Emit database lookup started
+    const dbStartTime = Date.now()
+    commandObserver.emit(COMMAND_EVENTS.DB_LOOKUP_STARTED, {
+      commandKey: commandKey
+    })
+    
+    try {
+      const repository = getCommandRepository()
+      
+      // Get commands count for metrics
+      const allCommands = await repository.getAllCommands()
+      const commandsCount = Object.keys(allCommands).length
+      
+      // Find command by keyword
+      const foundCommand = await repository.findByKeyword(commandKey, { exactMatch: true })
+      
+      // Emit database lookup completed
+      commandObserver.emit(COMMAND_EVENTS.DB_LOOKUP_COMPLETED, {
+        found: !!foundCommand,
+        commandsCount: commandsCount,
+        lookupTime: Date.now() - dbStartTime
+      })
+      
+      if (foundCommand) {
         const restString = arr.join(' ')
-        const isTranslation = TRANSLATION_KEYS.includes(prop)
-        const isDocCommand = prop === 'DOC' || DOC_COMMANDS.includes(commandKey)
+        const isTranslation = TRANSLATION_KEYS.includes(foundCommand.id)
+        const isDocCommand = foundCommand.id === 'DOC' || DOC_COMMANDS.includes(commandKey)
         
-        const hasMultipleModels = INSTRUCTIONS[prop].models && 
-                                  Array.isArray(INSTRUCTIONS[prop].models) && 
-                                  INSTRUCTIONS[prop].models.length > 1
+        const hasMultipleModels = foundCommand.models && 
+                                  Array.isArray(foundCommand.models) && 
+                                  foundCommand.models.length > 1
         const isMultiProvider = hasMultipleModels
         
         const hasUrl = restString && (restString.startsWith('http') || restString.includes('://'))
         
+        // Emit command found event
+        commandObserver.emit(COMMAND_EVENTS.DB_COMMAND_FOUND, {
+          commandKey: commandKey,
+          commandType: foundCommand.id,
+          isTranslation: isTranslation,
+          hasMultipleModels: hasMultipleModels,
+          hasUrl: hasUrl,
+          modelCount: foundCommand.models?.length || 0
+        })
+        
         return {
-          fullInstruction: `${INSTRUCTIONS[prop].instruction}: ${restString}`,
+          fullInstruction: `${foundCommand.instruction}: ${restString}`,
           isTranslation,
           isDocCommand,
           isMultiProvider,
           hasUrl,
           originalInput: str,
           commandKey,
-          commandType: prop,
+          commandType: foundCommand.id,
           targetContent: restString,
-          instruction: INSTRUCTIONS[prop].instruction,
-          models: INSTRUCTIONS[prop].models || null
+          instruction: foundCommand.instruction,
+          models: foundCommand.models || null
         }
       }
+      
+      return null
+      
+    } catch (error) {
+      logger.error(`AIProcessor: Failed to find command ${commandKey}: ${error.message}`)
+      
+      // Emit database lookup completed with error
+      commandObserver.emit(COMMAND_EVENTS.DB_LOOKUP_COMPLETED, {
+        found: false,
+        commandsCount: 0,
+        lookupTime: Date.now() - dbStartTime,
+        error: error.message
+      })
+      
+      return null
     }
-    return null
   }
 
   /**

@@ -13,6 +13,7 @@ import { configManager } from '../config/config-manager.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { getAllSystemCommands } from '../utils/autocomplete.js'
+import { stateObserver, STATE_EVENTS, emitStateEvent } from '../patterns/StateObserver.js'
 
 // Create completer function for system commands autocomplete
 function completer(line) {
@@ -255,8 +256,20 @@ export class CLIManager {
       }
       
       const prompt = this.getUserPrompt()
+      
+      // Emit input waiting event
+      emitStateEvent(STATE_EVENTS.INPUT_WAITING, {
+        prompt: prompt
+      })
+      
       let userInput = await this.rl.question(prompt)
       userInput = userInput.trim()
+      
+      // Emit input received event
+      emitStateEvent(STATE_EVENTS.INPUT_RECEIVED, {
+        input: userInput,
+        length: userInput.length
+      })
       
       // Reset screen cleared flag after prompt is shown
       this.screenWasCleared = false
@@ -298,6 +311,18 @@ export class CLIManager {
     this.isProcessingRequest = value
     this.currentRequestController = controller
     this.currentStreamProcessor = streamProcessor
+    
+    // Emit state event
+    if (value) {
+      emitStateEvent(STATE_EVENTS.REQUEST_PROCESSING_STARTED, {
+        hasController: !!controller,
+        hasStreamProcessor: !!streamProcessor
+      })
+    } else {
+      emitStateEvent(STATE_EVENTS.REQUEST_PROCESSING_STOPPED, {
+        reason: 'processing_completed'
+      })
+    }
     
     // Enable/disable keypress events for escape handling
     if (value) {
@@ -344,6 +369,17 @@ export class CLIManager {
    */
   setTypingResponse(value) {
     this.isTypingResponse = value
+    
+    // Emit state event
+    if (value) {
+      emitStateEvent(STATE_EVENTS.RESPONSE_TYPING_STARTED, {
+        timestamp: Date.now()
+      })
+    } else {
+      emitStateEvent(STATE_EVENTS.RESPONSE_TYPING_STOPPED, {
+        timestamp: Date.now()
+      })
+    }
   }
 
   /**
@@ -351,6 +387,17 @@ export class CLIManager {
    */
   setSpinnerInterval(interval) {
     this.currentSpinnerInterval = interval
+    
+    // Emit state event
+    if (interval) {
+      emitStateEvent(STATE_EVENTS.SPINNER_STARTED, {
+        spinnerType: 'default'
+      })
+    } else {
+      emitStateEvent(STATE_EVENTS.SPINNER_STOPPED, {
+        reason: 'interval_cleared'
+      })
+    }
   }
 
   /**

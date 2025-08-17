@@ -25,6 +25,8 @@ import { CLIManager } from '../core/CLIManager.js'
 import { AIProcessor } from '../core/AIProcessor.js'
 import { ApplicationInitializer } from '../core/ApplicationInitializer.js'
 import { ProviderSwitcher } from '../core/ProviderSwitcher.js'
+import { commandObserver } from '../patterns/CommandObserver.js'
+import { stateObserver } from '../patterns/StateObserver.js'
 
 /**
  * Phase 2 AI Application with integrated business logic
@@ -112,8 +114,8 @@ class AIApplication extends Application {
   /**
    * Find command in instructions (delegated to AIProcessor)
    */
-  findCommand(str) {
-    return this.aiProcessor.findCommand(str)
+  async findCommand(str) {
+    return await this.aiProcessor.findCommand(str)
   }
 
   /**
@@ -151,6 +153,19 @@ class AIApplication extends Application {
   async run() {
     // Migration no longer needed - commands already in database
     // await migrateInstructionsToDatabase()
+    
+    // Start observers for comprehensive session tracking
+    stateObserver.startObserving({
+      trackMetrics: true,
+      trackHistory: true,
+      debug: logger.level === 'debug'
+    })
+    
+    commandObserver.startObserving({
+      trackMetrics: true,
+      trackCache: true,
+      debug: logger.level === 'debug'
+    })
     
     // Initialize providers with CLIManager spinner
     try {

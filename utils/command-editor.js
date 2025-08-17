@@ -1,6 +1,7 @@
 import { color } from '../config/color.js'
 import { createInteractiveMenu } from './interactive_menu.js'
-import { getDatabase, getCommandsFromDB } from './database-manager.js'
+import { getDatabase } from './database-manager.js'
+import { getCommandRepository } from '../patterns/CommandRepository.js'
 import { createSelectionTitle } from './menu-helpers.js'
 import { ModelSelector } from './model-selector.js'
 import readline from 'node:readline'
@@ -93,7 +94,8 @@ export class CommandEditor {
 
   async editCommand() {
     try {
-      const commands = getCommandsFromDB()
+      const repository = getCommandRepository()
+      const commands = await repository.getAllCommands()
       const commandNames = Object.keys(commands)
       
       if (commandNames.length === 0) {
@@ -199,7 +201,8 @@ export class CommandEditor {
 
   async listCommands() {
     try {
-      const commands = getCommandsFromDB()
+      const repository = getCommandRepository()
+      const commands = await repository.getAllCommands()
       
       console.log(color.cyan + 'Commands list:' + color.reset)
       console.log('')
@@ -235,7 +238,8 @@ export class CommandEditor {
 
   async deleteCommand() {
     try {
-      const commands = getCommandsFromDB()
+      const repository = getCommandRepository()
+      const commands = await repository.getAllCommands()
       const commandNames = Object.keys(commands)
       
       if (commandNames.length === 0) {

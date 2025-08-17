@@ -6,6 +6,7 @@ import { getElapsedTime, clearTerminalLine } from './index.js'
 import { StreamProcessor } from './stream-processor.js'
 import { UI_SYMBOLS } from '../config/constants.js'
 import { configManager } from '../config/config-manager.js'
+import { streamingObserver, STREAMING_EVENTS } from '../patterns/StreamingObserver.js'
 
 /**
  * Universal multi-command processor for ANY commands with multiple models
@@ -155,6 +156,12 @@ export class MultiCommandProcessor {
   async executeMultiple(instruction, signal, customModels, defaultModel = null, onProviderComplete = null) {
     let providers = []
 
+    // Start streaming observer for event tracking
+    streamingObserver.startObserving({ 
+      trackMetrics: true, 
+      debug: logger.level === 'debug' 
+    })
+
     // Critical check: ensure MultiCommandProcessor is initialized
     if (!this.isInitialized) {
       logger.error(`🚨 CRITICAL: MultiCommandProcessor not initialized!`)
@@ -194,6 +201,9 @@ export class MultiCommandProcessor {
       const result = await this.executeWithProvider(providers[0], providers[0].model, instruction, signal)
       const elapsed = getElapsedTime(startTime)
       
+      // Stop observer for single execution
+      streamingObserver.stopObserving()
+      
       return {
         results: [result],
         elapsed,
@@ -206,7 +216,13 @@ export class MultiCommandProcessor {
     const startTime = Date.now()
     logger.debug(`Starting multi-command execution with ${providers.length} providers`)
 
-    return await this.executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete)
+    try {
+      return await this.executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete)
+    } catch (error) {
+      // Ensure observer is stopped even on error
+      streamingObserver.stopObserving()
+      throw error
+    }
   }
 
   /**
@@ -240,6 +256,24 @@ export class MultiCommandProcessor {
         leaderboard.sort((a, b) => a.firstChunkTime - b.firstChunkTime)
         logger.debug(`✅ Added to leaderboard: ${provider.name} (index: ${index}) at ${firstChunkTime - startTime}ms`)
         logger.debug(`📊 Leaderboard state:`, leaderboard.map(m => `${m.provider.name}(${m.index})[${m.status}]`))
+        
+        // Emit leaderboard updated event
+        streamingObserver.emit(STREAMING_EVENTS.MULTI_LEADERBOARD_UPDATED, {
+          leaderboard: leaderboard.map(m => ({ 
+            provider: m.provider.name, 
+            status: m.status, 
+            latency: m.firstChunkTime - startTime 
+          })),
+          newLeader: leaderboard[0] ? {
+            provider: leaderboard[0].provider.name,
+            latency: leaderboard[0].firstChunkTime - startTime
+          } : null,
+          addedModel: {
+            provider: provider.name,
+            index,
+            latency: firstChunkTime - startTime
+          }
+        })
       }
     }
     
@@ -354,6 +388,13 @@ export class MultiCommandProcessor {
     
     logger.debug(`Starting ${providers.length} models in parallel with leaderboard system`)
     
+    // Emit multi-stream started event
+    streamingObserver.emit(STREAMING_EVENTS.MULTI_STREAM_STARTED, {
+      totalModels: providers.length,
+      models: providers.map(p => ({ provider: p.name, model: p.model })),
+      instruction: instruction.substring(0, 100) + (instruction.length > 100 ? '...' : '')
+    })
+    
     // Start all models in parallel WITHOUT waiting
     const runningExecutions = providers.map(async (provider, index) => {
       try {
@@ -384,6 +425,15 @@ export class MultiCommandProcessor {
           // Track first chunk for leaderboard
           if (!firstChunkSent) {
             firstChunkSent = true
+            
+            // Emit first chunk event
+            streamingObserver.emit(STREAMING_EVENTS.FIRST_CHUNK, {
+              modelIndex: index,
+              provider: provider.name,
+              model: provider.model,
+              latency: currentTime - startTime,
+              contentPreview: content.substring(0, 50)
+            })
             
             // Update firstChunkTime for existing leaderboard entry
             const existingModel = leaderboard.find(m => m.index === index)
@@ -423,6 +473,16 @@ export class MultiCommandProcessor {
           if (currentlyStreaming?.index === index) {
             process.stdout.write(content)
           }
+          
+          // Emit chunk received event
+          streamingObserver.emit(STREAMING_EVENTS.CHUNK_RECEIVED, {
+            modelIndex: index,
+            provider: provider.name,
+            content: content,
+            chunkSize: content.length,
+            totalSize: accumulatedResponse.length,
+            isCurrentlyStreaming: currentlyStreaming?.index === index
+          })
         }
         
         // Execute model with streaming callback
@@ -436,6 +496,17 @@ export class MultiCommandProcessor {
         
         results[index] = result
         completedCount.value++
+        
+        // Emit model completed event
+        streamingObserver.emit(STREAMING_EVENTS.MODEL_COMPLETED, {
+          modelIndex: index,
+          provider: provider.name,
+          model: provider.model,
+          success: !result.error,
+          error: result.error,
+          responseLength: accumulatedResponse.length,
+          duration: Date.now() - startTime
+        })
         
         // Mark model as done in leaderboard and handle model completion with accumulated response
         updateModelStatus(index, 'done', accumulatedResponse)
@@ -536,6 +607,23 @@ export class MultiCommandProcessor {
     // Output final summary
     const successful = results.filter(r => r && r.response && r.response.trim() && !r.error).length
     process.stdout.write(`${color.grey}[${successful}/${providers.length} models responded in ${elapsed}s]${color.reset}\n`)
+
+    // Emit multi-stream finished event
+    streamingObserver.emit(STREAMING_EVENTS.MULTI_STREAM_FINISHED, {
+      totalModels: providers.length,
+      successfulModels: successful,
+      failedModels: providers.length - successful,
+      totalDuration: elapsed,
+      leaderboard: leaderboard.map(m => ({
+        provider: m.provider.name,
+        status: m.status,
+        responseLength: m.fullResponse?.length || 0,
+        latency: m.firstChunkTime - startTime
+      }))
+    })
+
+    // Stop observer after multi-stream completion
+    streamingObserver.stopObserving()
 
     return {
       results,

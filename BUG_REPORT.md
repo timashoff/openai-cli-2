@@ -1,8 +1,15 @@
 # BUG REPORT
 
+## 📋 Bug Numbering Format
+**Format:** `Bug #YYYYMMDD-HHMM` (timestamp-based)  
+**Examples:** `Bug #20250817-1425`, `Bug #20250816-2143`  
+**Benefits:** Automatic uniqueness, chronological ordering, git correlation  
+
+---
+
 ## Fixed Issues ✅
 
-### Bug #1: Provider Models Initialization Error - FIXED
+### Bug #20250816-1424: Provider Models Initialization Error - FIXED
 **Date:** 2025-08-16 14:24:02 → **Fixed:** 2025-08-16 23:22:00  
 **Status:** ✅ **RESOLVED**
 
@@ -33,14 +40,14 @@ const defaultModel = models.find(...) || models[0] || 'gpt-5-mini'
 
 ## Active Issues 🔧
 
-## Bug #1: Delayed Spinner Start
-**Date:** 2025-08-16  
+### Bug #20250816-2100: Delayed Spinner Start
+**Date:** 2025-08-16 21:00:00  
 **Priority:** UX Improvement
 
-### Issue:
+#### Issue:
 Spinner/loading indicator starts with several seconds delay instead of immediately when application starts.
 
-### Current Behavior:
+#### Current Behavior:
 ```
 node bin/app.js
 (node:71571) ExperimentalWarning: SQLite is an experimental feature and might change at any time
@@ -50,56 +57,172 @@ node bin/app.js
 current model is OpenAI gpt-5-mini
 ```
 
-### Problem:
+#### Problem:
 - Several seconds of "dead time" before spinner appears
 - Timer shows "1.9s" but actual loading took much longer
 - Poor user experience - user doesn't know if app is starting
 
-### Expected Behavior:
+#### Expected Behavior:
 - Spinner should start immediately when app launches
 - Accurate timing display
 - Clear indication that app is loading
 
-### Status: PENDING FIX
+#### Status: PENDING FIX
 
 ---
 
-## Bug #2: Missing Model Info in Provider Command
-**Date:** 2025-08-16  
+### Bug #20250816-2143: Missing Model Info in Provider Command
+**Date:** 2025-08-16 21:43:00  
 **Priority:** UX Enhancement
 
-### Issue:
+#### Issue:
 When using `provider` command, only provider name is shown, missing current model information.
 
-### Current Behavior:
+#### Current Behavior:
 ```
 > provider
 Current provider: openai
 ```
 
-### Expected Behavior:
+#### Expected Behavior:
 ```
 > provider  
 Current provider: openai, current model: gpt-5-mini
 ```
 
-### Improvement:
+#### Improvement:
 User should see complete provider + model context when switching providers to understand what model will be used by default.
 
-### Status: PENDING IMPLEMENTATION
+#### Status: PENDING IMPLEMENTATION
 
 ---
 
-## Bug #3: Command Field Editing UX Improvement
-**Date:** 2025-08-16  
+### Bug #20250817-0845: StateObserver Circular Events - FIXED ✅
+**Date:** 2025-08-17 08:45:00 → **Fixed:** 2025-08-17 14:30:00  
+**Priority:** Medium (Observer Pattern Issue)
+**Status:** ✅ **RESOLVED**
+
+#### Issue:
+Circular event detection warnings interrupt user output during AI responses.
+
+#### Current Behavior:
+```
+> как дела?
+✓ 3.4s
+ВCircular event detected: state:changed
+сё хорошо, спасибо! А у тебя как дела? Чем могу помочь?
+..
+Circular event detected: state:changed
+```
+
+#### Problem:
+- StateObserver.changeState() emits 'state:changed' event
+- CLIManager emitStateEvent() triggers StateObserver handlers
+- Creates circular dependency detected by Event Bus
+- Warning interrupts user output flow
+
+#### Root Cause:
+```
+CLIManager.setProcessingRequest() → emitStateEvent(REQUEST_PROCESSING_STARTED)
+  ↓
+StateObserver.handleRequestProcessingStarted() → changeState(PROCESSING_REQUEST)
+  ↓  
+StateObserver.changeState() → emit('state:changed') ← DUPLICATE EVENT!
+```
+
+#### Solution Applied:
+1. **Removed duplicate event emission** in StateObserver.changeState()
+2. **Replaced console.warn with logger.debug** in Event Bus for less intrusive logging
+3. **Added explanation** why duplicate emission was causing false circularity
+
+#### Technical Changes:
+```javascript
+// StateObserver.js - BEFORE:
+this.emit('state:changed', {
+  previousState,
+  currentState: newState,
+  context,
+  timestamp
+})
+
+// StateObserver.js - AFTER:
+// Note: State change events are already emitted by CLIManager via emitStateEvent()
+// No need to emit duplicate 'state:changed' event here to avoid circular detection
+
+// event-bus.js - BEFORE:
+console.warn(`Circular event detected: ${eventName}`)
+
+// event-bus.js - AFTER:
+logger.debug(`Circular event detected: ${eventName}`)
+```
+
+#### Result:
+- ✅ No more "Circular event detected" warnings in user output
+- ✅ StateObserver continues tracking state changes correctly
+- ✅ Event Bus still detects real circular dependencies but logs quietly
+- ✅ Clean user experience during AI responses
+
+#### Status: FIXED ✅
+
+---
+
+### Bug #20250817-1425: Duplicate Models in Multi-Model Commands
+**Date:** 2025-08-17 14:25:00  
+**Priority:** Medium (Data Integrity)
+
+#### Issue:
+User can accidentally add duplicate models to commands via CommandEditor, causing duplicated output.
+
+#### Current Behavior:
+```
+> rr how do u do?
+[Handler: rr]
+
+DeepSeek (deepseek-chat):
+**Перевод:** Как дела?
+✓ 12.4s
+
+DeepSeek (deepseek-chat):
+**Перевод:** Как дела?  
+✓ 12.4s
+
+OpenAI (gpt-5-mini):
+Перевод: How do u do? — Как вы поживаете?
+✓ 18.1s
+```
+
+#### Problem:
+- CommandEditor allows adding same model multiple times
+- Results in duplicate output from same model
+- Command list shows correct models, but execution duplicates
+- Cache stores duplicated results
+
+#### Example Case:
+Command `rr` has models: `["openai-gpt-5-mini", "deepseek-deepseek-chat", "deepseek-deepseek-chat"]`
+
+#### Technical Solution:
+1. **CommandEditor**: Add uniqueness validation when saving models
+2. **CommandRepository**: Deduplicate in save() method using `[...new Set(models)]`  
+3. **MultiCommandProcessor**: Deduplicate before execution as safety net
+4. **Database Migration**: Clean existing duplicates in commands table
+
+#### Root Cause:
+User accidentally selected same model twice in ModelSelector, no validation prevents duplicates.
+
+#### Status: PENDING FIX
+
+---
+
+## Command Field Editing UX Improvement
+**Bug #20250816-0932: Command Field Editing UX Improvement**  
 **Priority:** UX Enhancement
 
-### Issue:
+#### Issue:
 Two UX improvements needed for command editing:
 1. Interactive field selection menu instead of sequential field skipping
 2. Add "Name" field for human-readable command names
 
-### Current Behavior:
+#### Current Behavior:
 ```
 > cmd
 > edit command
@@ -110,7 +233,7 @@ Two UX improvements needed for command editing:
 > Edit models? (y/n) [n]: [Enter to skip]
 ```
 
-### Expected Behavior:
+#### Expected Behavior:
 After selecting a command to edit, show an interactive menu:
 ```
 > cmd
@@ -125,35 +248,35 @@ After selecting a command to edit, show an interactive menu:
 └────────────────────────┘
 ```
 
-### Improvements:
+#### Improvements:
 1. **Interactive Menu**: Replace sequential field editing with menu-based field selection
 2. **Name Field**: Add human-readable name field (e.g., "Russian Translation" instead of auto-generated "AA" from key "aa")
 
-### Technical Changes:
+#### Technical Changes:
 - Add `name` column to commands database table
 - Update `utils/command-editor.js` with field selection menu
 - Update `utils/database-manager.js` for name field support
 - Modify `addCommand()` and `editCommand()` methods
 
-### Location:
+#### Location:
 `utils/command-editor.js:editCommand()` method around lines 120-150
 
-### Status: PENDING IMPLEMENTATION
+#### Status: PENDING IMPLEMENTATION
 
 ---
 
-## Bug #4: CMD Menu UX Improvements  
-**Date:** 2025-08-16  
+## CMD Menu UX Improvements  
+**Bug #20250816-1156: CMD Menu UX Improvements**  
 **Priority:** UX Enhancement
 
-### Issue:
+#### Issue:
 Three UX improvements needed for cmd command workflow:
 
 1. **Missing Exit option in cmd menu**
 2. **Unclear field editing feedback** 
 3. **Poor navigation flow after field editing**
 
-### 1. Add Exit Option to CMD Menu
+#### 1. Add Exit Option to CMD Menu
 
 **Current Behavior:**
 ```
@@ -176,7 +299,7 @@ Select action:
 Use ↑/↓ to navigate, Enter to select, Esc to cancel
 ```
 
-### 2. Improve Field Editing Feedback
+#### 2. Improve Field Editing Feedback
 
 **Current Behavior:**
 ```
@@ -195,7 +318,7 @@ Name [CHINESE]: Chinese Translation [Enter pressed]
 ✓ Name CHINESE has been changed to Chinese Translation
 ```
 
-### 3. Return to Field Selection After Editing
+#### 3. Return to Field Selection After Editing
 
 **Current Behavior:**
 After editing any field, user is thrown back to main terminal prompt.
@@ -213,24 +336,24 @@ After editing a field, return to field selection menu:
 └────────────────────────┘
 ```
 
-### Technical Changes:
+#### Technical Changes:
 - Add "Exit" option to `showCommandMenu()` actions array
 - Add explicit feedback messages in field editing
 - Implement loop in `editCommand()` to return to field selection
 - Add "Exit" option to field selection menu
 
-### Location:
+#### Location:
 `utils/command-editor.js` - methods `showCommandMenu()` and `editCommand()`
 
-### Status: PENDING IMPLEMENTATION
+#### Status: PENDING IMPLEMENTATION
 
 ---
 
-## Bug #5: Commands Hot-Reload Missing - INVESTIGATED
-**Date:** 2025-08-16  
+## Commands Hot-Reload Missing - INVESTIGATED
+**Bug #20250816-1545: Commands Hot-Reload Missing - INVESTIGATED**  
 **Priority:** UX Critical → **LIKELY RESOLVED**
 
-### Investigation Results:
+#### Investigation Results:
 After analyzing the current architecture, the hot-reload issue may already be resolved or non-critical:
 
 **Main Application Flow (95% of usage):**
@@ -246,7 +369,7 @@ CLIManager.startMainLoop() → app.processCommand() → CommandRouter.processCom
 - `CommandProcessingService` has cache but is **DISABLED** in ServiceManager
 - Legacy components may still have caches
 
-### Current Architecture Analysis:
+#### Current Architecture Analysis:
 ```javascript
 // Main flow - NO CACHE ✅
 CommandRouter.findCommandInDatabase() {
@@ -267,26 +390,27 @@ RequestRouter.findInstructionCommand() {
 }
 ```
 
-### Status Update:
+#### Status Update:
 **LIKELY RESOLVED** - Primary command processing flows already work directly with database without caching. Hot-reload should work for 95% of use cases.
 
 **Remaining Issue:** RequestRouter caches for 30 seconds, but this affects only CommandExecutor usage patterns.
 
-### Recommendation:
+#### Recommendation:
 Test actual hot-reload behavior with current architecture before implementing additional solutions.
 
-### Status: INVESTIGATION COMPLETE → LIKELY NON-CRITICAL
+#### Status: INVESTIGATION COMPLETE → LIKELY NON-CRITICAL
 
 ---
 
-## Bug #6: Model Removal Not Working in Command Editor
-**Date:** 2025-08-16  
+## Model Removal Not Working in Command Editor
+**Bug #20250816-1634: Model Removal Not Working in Command Editor**  
 **Priority:** UX Critical
+**Status:** ✅ **FIXED**
 
-### Issue:
+#### Issue:
 When editing command models through cmd menu, "Remove model" option does nothing - no selection menu appears to choose which model to remove.
 
-### Current Behavior:
+#### Current Behavior:
 ```
 1. User: cmd -> edit command -> RR -> Models
 2. System shows model menu:
@@ -303,7 +427,7 @@ When editing command models through cmd menu, "Remove model" option does nothing
 5. User: stuck, cannot remove specific models
 ```
 
-### Expected Behavior:
+#### Expected Behavior:
 ```
 1. User: cmd -> edit command -> RR -> Models
 2. User: selects "Remove model"
@@ -318,43 +442,7 @@ When editing command models through cmd menu, "Remove model" option does nothing
 5. System: Model removed, returns to model management menu
 ```
 
-### Technical Analysis:
-- **Location**: `utils/model-selector.js` lines 64-74 (Remove model case)
-- **Root Cause**: Code exists but `selectModelToRemove()` method not executing properly
-- **Existing Code**: Method `selectModelToRemove()` defined on lines 141-156
-- **Problem**: Silent failure - no error messages, menu doesn't appear
-- **Impact**: Users cannot remove individual models, only clear all models
-- **Affected Commands**: All commands with multiple models (RR, AA, CC, etc.)
-
-### Investigation Needed:
-```javascript
-// Existing code in model-selector.js:
-case 1: // Remove model
-  if (selectedModels.length === 0) {
-    console.log(color.yellow + 'No models to remove!' + color.reset)
-    return this.selectModels(selectedModels)
-  }
-  const removedModel = await this.selectModelToRemove(selectedModels) // ← This line
-  if (removedModel !== null) {
-    selectedModels.splice(removedModel, 1)
-    console.log(color.green + 'Model removed successfully!' + color.reset)
-  }
-  return this.selectModels(selectedModels)
-```
-
-### Possible Causes:
-1. `createInteractiveMenu` in `selectModelToRemove()` failing silently
-2. Error in asynchronous handling
-3. Interface conflict when already in a menu context
-4. Missing error handling masking the real issue
-
-### Technical Solution:
-- Add debug logging to `selectModelToRemove()` method
-- Add try-catch error handling around `createInteractiveMenu` calls
-- Test if `createInteractiveMenu` works in nested contexts
-- Implement fallback UI if interactive menu fails
-
-### Status: FIXED ✅
+#### Status: FIXED ✅
 
 **Investigation Results:**
 The issue was a combination of UX problems rather than a true bug:
@@ -370,17 +458,17 @@ The issue was a combination of UX problems rather than a true bug:
 
 ---
 
-## Bug #7: Command Name Display Issue - FIXED ✅
-**Date:** 2025-08-16  
+## Command Name Display Issue - FIXED ✅
+**Bug #20250816-1721: Command Name Display Issue - FIXED ✅**  
 **Status:** ✅ **RESOLVED**
 
-### Issue:
+#### Issue:
 Command list showed internal ID "ENGLISH" instead of human-readable name "English".
 
-### Root Cause:
+#### Root Cause:
 In `command-editor.js:207`, code used `name` (internal ID) instead of `cmd.name` (display name).
 
-### Solution Applied:
+#### Solution Applied:
 ```javascript
 // Before:
 Object.entries(commands).forEach(([name, cmd]) => {
@@ -392,26 +480,26 @@ Object.entries(commands).forEach(([id, cmd]) => {
   console.log(color.green + displayName + color.reset + ':')
 ```
 
-### Status: FIXED ✅
+#### Status: FIXED ✅
 
 ---
 
-## Bug #8: Critical saveCommand Parameter Bug - FIXED ✅
-**Date:** 2025-08-16  
+## Critical saveCommand Parameter Bug - FIXED ✅
+**Bug #20250816-1756: Critical saveCommand Parameter Bug - FIXED ✅**  
 **Priority:** CRITICAL
 **Status:** ✅ **RESOLVED**
 
-### Issue:
+#### Issue:
 Method `saveCommand()` in `command-editor.js` had mismatched signature with database layer, causing data to be saved in wrong fields.
 
-### Root Cause:
+#### Root Cause:
 - Database expects: `saveCommand(id, name, key, description, instruction, models)`
 - Command editor had: `saveCommand(name, key, description, instruction, models)` - missing `id` parameter
 
-### Impact:
+#### Impact:
 This could corrupt command data by saving values in wrong database columns.
 
-### Solution Applied:
+#### Solution Applied:
 ```javascript
 // Fixed method signature:
 async saveCommand(id, name, key, description, instruction, models = null)
@@ -420,18 +508,18 @@ async saveCommand(id, name, key, description, instruction, models = null)
 await this.saveCommand(commandName, commandName, keyArray, finalDescription, instruction, models)
 ```
 
-### Status: FIXED ✅
+#### Status: FIXED ✅
 
 ---
 
-## Bug #9: Models Display Protection - IMPROVED ✅
-**Date:** 2025-08-16  
+## Models Display Protection - IMPROVED ✅
+**Bug #20250816-1823: Models Display Protection - IMPROVED ✅**  
 **Status:** ✅ **ENHANCED**
 
-### Issue:
+#### Issue:
 Potential "undefineddefault" display in models list due to null/undefined model data.
 
-### Solution Applied:
+#### Solution Applied:
 Added comprehensive null checking for model display:
 ```javascript
 const modelList = cmd.models.map(m => {
@@ -441,22 +529,22 @@ const modelList = cmd.models.map(m => {
 }).join(', ')
 ```
 
-### Status: IMPROVED ✅
+#### Status: IMPROVED ✅
 
 ---
 
-## Bug #10: CRITICAL MultiCommandProcessor Not Initialized - FIXED ✅
-**Date:** 2025-08-16  
+## CRITICAL MultiCommandProcessor Not Initialized - FIXED ✅
+**Bug #20250816-1945: CRITICAL MultiCommandProcessor Not Initialized - FIXED ✅**  
 **Priority:** CRITICAL
 **Status:** ✅ **RESOLVED**
 
-### Issue:
+#### Issue:
 Application crashes with "No providers available for multi-command execution" when using commands with multiple models.
 
-### Root Cause:
+#### Root Cause:
 **REAL CAUSE FOUND:** ServiceManager (primary initialization path) doesn't initialize `multiCommandProcessor`, only fallback ApplicationInitializer does. When ServiceManager successfully initializes, multiCommandProcessor remains uninitialized.
 
-### Error Flow:
+#### Error Flow:
 1. ServiceManager.initialize() succeeds but skips multiCommandProcessor
 2. User executes multi-model command (e.g., "rr test")  
 3. AIProcessor calls `multiCommandProcessor.executeMultiple()`
@@ -464,7 +552,7 @@ Application crashes with "No providers available for multi-command execution" wh
 5. `filter(provider => this.providers.has(provider.key))` removes all providers
 6. **Fatal Error: "No providers available for multi-command execution"**
 
-### Solution Applied:
+#### Solution Applied:
 ```javascript
 // Added import in ServiceManager:
 import { multiCommandProcessor } from '../utils/multi-command-processor.js'
@@ -475,26 +563,26 @@ this.logger.debug('ServiceManager: Initializing MultiCommandProcessor')
 await multiCommandProcessor.initialize()
 ```
 
-### Technical Changes:
+#### Technical Changes:
 - **File**: `services/service-manager.js` 
 - **Added**: multiCommandProcessor initialization to primary initialization path
 - **Added**: Debug logging and initialization checks in MultiCommandProcessor
 
-### Impact:
+#### Impact:
 **CRITICAL** - All multi-model commands were broken when ServiceManager succeeded. Only worked in fallback mode (when ServiceManager failed).
 
-### Status: FIXED ✅
+#### Status: FIXED ✅
 
 ---
 
-## Bug #11: Readline Interface Premature Closure
-**Date:** 2025-08-16  
+## Readline Interface Premature Closure
+**Bug #20250816-2034: Readline Interface Premature Closure**  
 **Priority:** Low (Deferred to Post-Phase 3)
 
-### Issue:
+#### Issue:
 Readline interface closes prematurely during application initialization, causing main loop to exit immediately.
 
-### Current Behavior:
+#### Current Behavior:
 ```
 > npm start
 [?25l⠋ 0.1s Loading AI providers...✓ 2.0s
@@ -502,33 +590,33 @@ Readline interface closes prematurely during application initialization, causing
 [ERROR] Readline interface was closed, exiting main loop
 ```
 
-### Technical Analysis:
+#### Technical Analysis:
 - **Root Cause:** Deep architectural conflict in CLIManager/ApplicationInitializer interaction
 - **Location:** CLIManager.startMainLoop() detects closed readline interface
 - **Trigger:** Occurs during provider initialization phase
 - **Impact:** Application exits cleanly instead of entering interactive mode
 
-### Investigation Results:
+#### Investigation Results:
 - Not caused by double initializeAI() calls (tested and fixed)
 - Not caused by setupCleanupHandlers (tested with disabled handlers)  
 - Not caused by multiProvider legacy system (removed)
 - Not caused by models.find() errors (fixed)
 - Problem persists even with minimal ApplicationInitializer
 
-### Architectural Issue:
+#### Architectural Issue:
 Complex interaction between:
 - CLIManager readline interface creation
 - ApplicationInitializer provider initialization  
 - ServiceManager fallback logic
 - Process event handlers and cleanup
 
-### Workaround:
+#### Workaround:
 Application exits gracefully without crash. Core functionality works during initialization phase before main loop.
 
-### Decision:
+#### Decision:
 **DEFERRED** - This requires deeper architectural investigation that would delay Phase 3 work. Will be addressed after Phase 3 pattern implementation is complete.
 
-### Status: DEFERRED (Post-Phase 3)
+#### Status: DEFERRED (Post-Phase 3)
 
 ---
 
