@@ -453,6 +453,12 @@ export class MultiCommandProcessor {
               this.stopSpinner()
               currentlyStreaming = existingModel || leaderboard.find(m => m.index === index)
               
+              // CRITICAL FIX: Mark as displayed to prevent duplicate processing in final cleanup
+              if (currentlyStreaming) {
+                currentlyStreaming.displayed = true
+                logger.debug(`Fixed duplicate bug: Marked first streaming model as displayed: ${currentlyStreaming.provider.name} (index: ${currentlyStreaming.index})`)
+              }
+              
               // Show header for this model
               const providerLabel = provider.model 
                 ? `${provider.name} (${provider.model})`
@@ -566,12 +572,12 @@ export class MultiCommandProcessor {
     
     // Final check: Ensure all models have been processed through the leaderboard
     const undisplayedModels = leaderboard.filter(m => !m.displayed)
-    logger.debug(`🔍 Final cleanup: ${undisplayedModels.length} models still undisplayed:`, undisplayedModels.map(m => `${m.provider.name}(${m.index})[${m.status}]`))
+    logger.debug(`🔍 Final cleanup: ${undisplayedModels.length} models still undisplayed:`, undisplayedModels.map(m => `${m.provider.name}(${m.index})[${m.status}][displayed:${m.displayed}]`))
     
     while (leaderboard.some(m => !m.displayed)) {
       const undisplayedModel = leaderboard.find(m => !m.displayed)
       if (undisplayedModel) {
-        logger.debug(`🛠️ Processing remaining model: ${undisplayedModel.provider.name} (${undisplayedModel.index}) [${undisplayedModel.status}]`)
+        logger.debug(`🛠️ Processing remaining model: ${undisplayedModel.provider.name} (${undisplayedModel.index}) [${undisplayedModel.status}][displayed:${undisplayedModel.displayed}]`)
         logger.debug(`📝 fullResponse length: ${undisplayedModel.fullResponse?.length || 0}`)
         logger.debug(`📝 results[${undisplayedModel.index}] response length: ${results[undisplayedModel.index]?.response?.length || 0}`)
         

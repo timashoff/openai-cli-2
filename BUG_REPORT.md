@@ -40,6 +40,65 @@ const defaultModel = models.find(...) || models[0] || 'gpt-5-mini'
 
 ## Active Issues 🔧
 
+### Bug #20250817-1630: Provider Disappears After Failed Initialization
+**Date:** 2025-08-17 16:30:00  
+**Priority:** High (User Experience & Functionality)
+
+#### Issue:
+When a provider (e.g., OpenAI) fails to initialize during application startup (due to network issues, VPN off, etc.), it permanently disappears from the provider selection menu and cannot be re-enabled even after fixing the connectivity issue.
+
+#### Current Behavior:
+```
+1. User starts app without VPN (OpenAI blocked)
+2. ApplicationInitializer: OpenAI fails → fallback to DeepSeek/others
+3. OpenAI removed from available providers list
+4. User enables VPN (OpenAI now accessible)
+5. User: > provider
+   Available providers: deepseek, anthropic  ← OpenAI missing!
+6. No way to re-initialize or recover OpenAI provider
+```
+
+#### Problem Analysis:
+- **No re-initialization mechanism** for failed providers during runtime
+- **Provider filtering** happens once at startup - failed providers are permanently excluded
+- **Static provider list** - no dynamic provider discovery or retry logic
+- **User locked out** from provider even after fixing connectivity
+
+#### Impact:
+- **High UX frustration** - user must restart entire application to access provider
+- **Lost productivity** - can't use preferred models when network conditions change
+- **Poor resilience** - application doesn't adapt to changing network conditions
+
+#### Expected Behavior:
+```
+> provider
+Available providers: 
+▶ deepseek (active)
+  openai (failed - network error) [retry]
+  anthropic (available)
+
+> retry openai
+Attempting to initialize OpenAI provider...
+✓ OpenAI provider initialized successfully
+Current provider: openai
+```
+
+#### Technical Architecture Needed:
+1. **Provider Status Tracking** - track failed/available/active states
+2. **Retry Mechanism** - allow manual or automatic provider re-initialization  
+3. **Dynamic Provider Menu** - show failed providers with retry option
+4. **Background Health Checks** - periodic connectivity verification
+5. **Graceful Recovery** - seamless provider restoration without app restart
+
+#### Root Cause Location:
+- `core/ApplicationInitializer.js` - provider initialization logic
+- Provider selection/filtering mechanism
+- Commands system - `provider` command implementation
+
+#### Status: ACTIVE (Needs Investigation & Fix)
+
+---
+
 ### Bug #20250816-2100: Delayed Spinner Start
 **Date:** 2025-08-16 21:00:00  
 **Priority:** UX Improvement
@@ -166,50 +225,86 @@ logger.debug(`Circular event detected: ${eventName}`)
 
 ---
 
-### Bug #20250817-1425: Duplicate Models in Multi-Model Commands
-**Date:** 2025-08-17 14:25:00  
-**Priority:** Medium (Data Integrity)
+### Bug #20250817-1425: Duplicate Models in Multi-Model Commands - FIXED ✅
+**Date:** 2025-08-17 14:25:00 → **Fixed:** 2025-08-17 16:30:00  
+**Priority:** Medium (Data Integrity)  
+**Status:** ✅ **RESOLVED**
 
 #### Issue:
-User can accidentally add duplicate models to commands via CommandEditor, causing duplicated output.
+Commands with multiple models would execute the first responding model twice instead of executing each model once.
 
-#### Current Behavior:
+#### Current Behavior (BEFORE FIX):
 ```
-> rr how do u do?
-[Handler: rr]
+> aa test debug
+[Handler: aa]
 
 DeepSeek (deepseek-chat):
-**Перевод:** Как дела?
+**Response content**
 ✓ 12.4s
 
-DeepSeek (deepseek-chat):
-**Перевод:** Как дела?  
+DeepSeek (deepseek-chat):    ← DUPLICATE!
+**Response content**  
 ✓ 12.4s
 
-OpenAI (gpt-5-mini):
-Перевод: How do u do? — Как вы поживаете?
+OpenAI (gpt-5-nano):
+**Response content**
 ✓ 18.1s
 ```
 
-#### Problem:
-- CommandEditor allows adding same model multiple times
-- Results in duplicate output from same model
-- Command list shows correct models, but execution duplicates
-- Cache stores duplicated results
+#### Root Cause Found:
+**Critical bug in MultiCommandProcessor leaderboard system**: When the first model responds, it gets set as `currentlyStreaming` but **never marked as `displayed = true`**. During final cleanup, it appears as "undisplayed" and gets processed again.
 
-#### Example Case:
-Command `rr` has models: `["openai-gpt-5-mini", "deepseek-deepseek-chat", "deepseek-deepseek-chat"]`
+**Technical Root Cause:**
+```javascript
+// In onChunk callback (line 460)
+currentlyStreaming = existingModel || leaderboard.find(m => m.index === index)
+// ❌ BUG: displayed flag never set to true
 
-#### Technical Solution:
-1. **CommandEditor**: Add uniqueness validation when saving models
-2. **CommandRepository**: Deduplicate in save() method using `[...new Set(models)]`  
-3. **MultiCommandProcessor**: Deduplicate before execution as safety net
-4. **Database Migration**: Clean existing duplicates in commands table
+// Later in final cleanup (line 574)
+const undisplayedModel = leaderboard.find(m => !m.displayed)
+// ✅ First model still shows displayed:false, gets processed again
+```
 
-#### Root Cause:
-User accidentally selected same model twice in ModelSelector, no validation prevents duplicates.
+#### Solution Applied:
+**Fixed in `utils/multi-command-processor.js`:**
+```javascript
+// Start streaming immediately if no model is currently streaming
+if (!currentlyStreaming) {
+  currentlyStreaming = existingModel || leaderboard.find(m => m.index === index)
+  
+  // CRITICAL FIX: Mark as displayed to prevent duplicate processing in final cleanup
+  if (currentlyStreaming) {
+    currentlyStreaming.displayed = true
+    logger.debug(`Fixed duplicate bug: Marked first streaming model as displayed`)
+  }
+  
+  // Show header...
+}
+```
 
-#### Status: PENDING FIX
+#### Testing Results:
+**AFTER FIX:**
+```
+> aa test debug
+
+DeepSeek (deepseek-chat):
+**Response content**
+✓ 13.6s
+
+OpenAI (gpt-5-nano):
+**Response content**
+✓ 13.6s
+
+[2/2 models responded in 13.6s]    ← Perfect! No duplicates
+```
+
+#### Impact:
+- ✅ **Fixed duplicate execution** - each model now executes exactly once
+- ✅ **Preserved streaming behavior** - real-time output still works correctly
+- ✅ **Maintained leaderboard ordering** - fastest model still displays first
+- ✅ **No performance impact** - minimal code change
+
+#### Status: FIXED ✅
 
 ---
 
