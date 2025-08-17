@@ -81,7 +81,7 @@ export class CommandEditor {
       }
 
       const commandName = key.toUpperCase().replace(/[^A-Z0-9]/g, '_')
-      await this.saveCommand(commandName, keyArray, finalDescription, instruction, models)
+      await this.saveCommand(commandName, commandName, keyArray, finalDescription, instruction, models)
       
       console.log(color.green + `Command "${commandName}" added` + color.reset)
       
@@ -204,14 +204,21 @@ export class CommandEditor {
       console.log(color.cyan + 'Commands list:' + color.reset)
       console.log('')
       
-      Object.entries(commands).forEach(([name, cmd]) => {
-        console.log(color.green + name + color.reset + ':')
+      Object.entries(commands).forEach(([id, cmd]) => {
+        // Use cmd.name (human-readable) instead of id (internal key)
+        const displayName = cmd.name || id
+        console.log(color.green + displayName + color.reset + ':')
         console.log(`  Keys: ${cmd.key.join(', ')}`)
         console.log(`  Description: ${cmd.description}`)
         console.log(`  Instruction: ${cmd.instruction.substring(0, 80)}${cmd.instruction.length > 80 ? '...' : ''}`)
         
         if (cmd.models && cmd.models.length > 0) {
-          const modelList = cmd.models.map(m => `${m.provider}-${m.model}`).join(', ')
+          const modelList = cmd.models.map(m => {
+            // Add null checking for provider and model
+            const provider = m?.provider || 'unknown'
+            const model = m?.model || 'unknown'
+            return `${provider}-${model}`
+          }).join(', ')
           console.log(`  Models: ${modelList}`)
         } else {
           console.log(`  Models: ${color.gray}default${color.reset}`)
@@ -267,10 +274,10 @@ export class CommandEditor {
   }
 
 
-  async saveCommand(name, key, description, instruction, models = null) {
+  async saveCommand(id, name, key, description, instruction, models = null) {
     try {
       const db = getDatabase()
-      db.saveCommand(name, key, description, instruction, models)
+      db.saveCommand(id, name, key, description, instruction, models)
     } catch (error) {
       throw new Error(`Failed to save command: ${error.message}`)
     }

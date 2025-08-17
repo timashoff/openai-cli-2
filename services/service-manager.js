@@ -1,6 +1,7 @@
 import { CommandProcessingService } from './command-processing-service.js'
 import { AIProviderService } from './ai-provider-service.js'
 import { InputProcessingService } from './input-processing-service.js'
+import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
 
@@ -40,6 +41,10 @@ export class ServiceManager {
       // Always use modern provider initialization
       this.logger.debug('ServiceManager: Modern AI provider initialization')
       await this.initializeAIProviderService()
+      
+      // Initialize multi-command processor for commands with multiple models
+      this.logger.debug('ServiceManager: Initializing MultiCommandProcessor')
+      await multiCommandProcessor.initialize()
       
       this.initialized = true
       this.stats.totalInitTime = Date.now() - this.startTime

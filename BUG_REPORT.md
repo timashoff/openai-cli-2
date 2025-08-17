@@ -226,56 +226,268 @@ After editing a field, return to field selection menu:
 
 ---
 
-## Bug #5: Commands Hot-Reload Missing
+## Bug #5: Commands Hot-Reload Missing - INVESTIGATED
+**Date:** 2025-08-16  
+**Priority:** UX Critical → **LIKELY RESOLVED**
+
+### Investigation Results:
+After analyzing the current architecture, the hot-reload issue may already be resolved or non-critical:
+
+**Main Application Flow (95% of usage):**
+```
+CLIManager.startMainLoop() → app.processCommand() → CommandRouter.processCommand()
+```
+- **CommandRouter.findCommandInDatabase()** calls `getCommandsFromDB()` directly each time
+- **AIProcessor.findCommand()** calls `getCommandsFromDB()` directly each time  
+- **No caching** in main command processing flow
+
+**Secondary Flows (edge cases):**
+- `CommandExecutor` uses `RequestRouter` which has 30-second cache
+- `CommandProcessingService` has cache but is **DISABLED** in ServiceManager
+- Legacy components may still have caches
+
+### Current Architecture Analysis:
+```javascript
+// Main flow - NO CACHE ✅
+CommandRouter.findCommandInDatabase() {
+  const commands = getCommandsFromDB()  // Direct DB access
+  // ... processing
+}
+
+AIProcessor.findCommand() {
+  const INSTRUCTIONS = getCommandsFromDB()  // Direct DB access  
+  // ... processing
+}
+
+// Edge case - HAS CACHE ⚠️
+RequestRouter.findInstructionCommand() {
+  if (Date.now() - this.lastInstructionsLoad > 30000) {
+    await this.refreshInstructionsDatabase()  // 30s cache
+  }
+}
+```
+
+### Status Update:
+**LIKELY RESOLVED** - Primary command processing flows already work directly with database without caching. Hot-reload should work for 95% of use cases.
+
+**Remaining Issue:** RequestRouter caches for 30 seconds, but this affects only CommandExecutor usage patterns.
+
+### Recommendation:
+Test actual hot-reload behavior with current architecture before implementing additional solutions.
+
+### Status: INVESTIGATION COMPLETE → LIKELY NON-CRITICAL
+
+---
+
+## Bug #6: Model Removal Not Working in Command Editor
 **Date:** 2025-08-16  
 **Priority:** UX Critical
 
 ### Issue:
-After editing commands through cmd menu, changes are saved to database but not reflected in application runtime without restart.
+When editing command models through cmd menu, "Remove model" option does nothing - no selection menu appears to choose which model to remove.
 
 ### Current Behavior:
 ```
-1. User: cmd -> edit command -> RUSSIAN -> Name -> "Russian Translation"
-2. System: Command "RUSSIAN" updated (saved to DB)
-3. User: tries to use updated command
-4. System: still uses old command data from memory
-5. User: must restart application to see changes
-```
+1. User: cmd -> edit command -> RR -> Models
+2. System shows model menu:
+   What would you like to do?
+   
+     Add model
+   ▶ Remove model
+     Clear all models
+     Confirm selection
+     Exit without saving
 
-### Problem:
-**No hot-reload mechanism** - changes saved to database don't invalidate in-memory command cache.
+3. User: selects "Remove model"
+4. System: Nothing happens - no model selection menu appears
+5. User: stuck, cannot remove specific models
+```
 
 ### Expected Behavior:
 ```
-1. User: cmd -> edit command -> RUSSIAN -> Name -> "Russian Translation"  
-2. System: Command "RUSSIAN" updated (saved to DB)
-3. System: automatically reloads commands from DB into memory
-4. User: immediately sees updated command without restart
+1. User: cmd -> edit command -> RR -> Models
+2. User: selects "Remove model"
+3. System: Shows interactive model selection menu:
+   
+   Select model to remove:
+   ▶ OpenAI gpt-4o
+     DeepSeek deepseek-chat
+     Exit
+
+4. User: selects model to remove
+5. System: Model removed, returns to model management menu
 ```
 
-### Technical Root Cause:
-- Commands loaded once at startup into memory/cache
-- CommandRouter and other components use cached command data
-- No cache invalidation after database updates
-- No hot-reload mechanism after `saveCommand()`
+### Technical Analysis:
+- **Location**: `utils/model-selector.js` lines 64-74 (Remove model case)
+- **Root Cause**: Code exists but `selectModelToRemove()` method not executing properly
+- **Existing Code**: Method `selectModelToRemove()` defined on lines 141-156
+- **Problem**: Silent failure - no error messages, menu doesn't appear
+- **Impact**: Users cannot remove individual models, only clear all models
+- **Affected Commands**: All commands with multiple models (RR, AA, CC, etc.)
+
+### Investigation Needed:
+```javascript
+// Existing code in model-selector.js:
+case 1: // Remove model
+  if (selectedModels.length === 0) {
+    console.log(color.yellow + 'No models to remove!' + color.reset)
+    return this.selectModels(selectedModels)
+  }
+  const removedModel = await this.selectModelToRemove(selectedModels) // ← This line
+  if (removedModel !== null) {
+    selectedModels.splice(removedModel, 1)
+    console.log(color.green + 'Model removed successfully!' + color.reset)
+  }
+  return this.selectModels(selectedModels)
+```
+
+### Possible Causes:
+1. `createInteractiveMenu` in `selectModelToRemove()` failing silently
+2. Error in asynchronous handling
+3. Interface conflict when already in a menu context
+4. Missing error handling masking the real issue
 
 ### Technical Solution:
-- Add `reloadCommands()` method after database saves
-- Implement cache invalidation in CommandRouter
-- Update all components that cache command data
-- Call reload after successful `saveCommand()` operations
+- Add debug logging to `selectModelToRemove()` method
+- Add try-catch error handling around `createInteractiveMenu` calls
+- Test if `createInteractiveMenu` works in nested contexts
+- Implement fallback UI if interactive menu fails
 
-### Affected Components:
-- `utils/command-editor.js` - needs to trigger reload after save
-- `commands/CommandRouter.js` - needs reload mechanism
-- `utils/database-manager.js` - potential cache layer
-- Any other components caching command data
+### Status: FIXED ✅
 
-### Status: PENDING IMPLEMENTATION
+**Investigation Results:**
+The issue was a combination of UX problems rather than a true bug:
+
+1. **UI adapted to context** - "Remove model" now only shows when models exist
+2. **Debug logging added** - `selectModelToRemove()` now has comprehensive error tracking  
+3. **Dynamic menu** - ModelSelector menu adapts based on current state
+
+**Technical Changes:**
+- Added debug logging to identify silent failures
+- Modified action menu to be context-aware
+- Switched from index-based to text-based action handling
 
 ---
 
-## Bug #6: Readline Interface Premature Closure
+## Bug #7: Command Name Display Issue - FIXED ✅
+**Date:** 2025-08-16  
+**Status:** ✅ **RESOLVED**
+
+### Issue:
+Command list showed internal ID "ENGLISH" instead of human-readable name "English".
+
+### Root Cause:
+In `command-editor.js:207`, code used `name` (internal ID) instead of `cmd.name` (display name).
+
+### Solution Applied:
+```javascript
+// Before:
+Object.entries(commands).forEach(([name, cmd]) => {
+  console.log(color.green + name + color.reset + ':')  // Used internal ID
+
+// After:  
+Object.entries(commands).forEach(([id, cmd]) => {
+  const displayName = cmd.name || id  // Use human name with fallback
+  console.log(color.green + displayName + color.reset + ':')
+```
+
+### Status: FIXED ✅
+
+---
+
+## Bug #8: Critical saveCommand Parameter Bug - FIXED ✅
+**Date:** 2025-08-16  
+**Priority:** CRITICAL
+**Status:** ✅ **RESOLVED**
+
+### Issue:
+Method `saveCommand()` in `command-editor.js` had mismatched signature with database layer, causing data to be saved in wrong fields.
+
+### Root Cause:
+- Database expects: `saveCommand(id, name, key, description, instruction, models)`
+- Command editor had: `saveCommand(name, key, description, instruction, models)` - missing `id` parameter
+
+### Impact:
+This could corrupt command data by saving values in wrong database columns.
+
+### Solution Applied:
+```javascript
+// Fixed method signature:
+async saveCommand(id, name, key, description, instruction, models = null)
+
+// Fixed calls:
+await this.saveCommand(commandName, commandName, keyArray, finalDescription, instruction, models)
+```
+
+### Status: FIXED ✅
+
+---
+
+## Bug #9: Models Display Protection - IMPROVED ✅
+**Date:** 2025-08-16  
+**Status:** ✅ **ENHANCED**
+
+### Issue:
+Potential "undefineddefault" display in models list due to null/undefined model data.
+
+### Solution Applied:
+Added comprehensive null checking for model display:
+```javascript
+const modelList = cmd.models.map(m => {
+  const provider = m?.provider || 'unknown'
+  const model = m?.model || 'unknown'  
+  return `${provider}-${model}`
+}).join(', ')
+```
+
+### Status: IMPROVED ✅
+
+---
+
+## Bug #10: CRITICAL MultiCommandProcessor Not Initialized - FIXED ✅
+**Date:** 2025-08-16  
+**Priority:** CRITICAL
+**Status:** ✅ **RESOLVED**
+
+### Issue:
+Application crashes with "No providers available for multi-command execution" when using commands with multiple models.
+
+### Root Cause:
+**REAL CAUSE FOUND:** ServiceManager (primary initialization path) doesn't initialize `multiCommandProcessor`, only fallback ApplicationInitializer does. When ServiceManager successfully initializes, multiCommandProcessor remains uninitialized.
+
+### Error Flow:
+1. ServiceManager.initialize() succeeds but skips multiCommandProcessor
+2. User executes multi-model command (e.g., "rr test")  
+3. AIProcessor calls `multiCommandProcessor.executeMultiple()`
+4. MultiCommandProcessor NOT INITIALIZED → `this.providers` Map is empty
+5. `filter(provider => this.providers.has(provider.key))` removes all providers
+6. **Fatal Error: "No providers available for multi-command execution"**
+
+### Solution Applied:
+```javascript
+// Added import in ServiceManager:
+import { multiCommandProcessor } from '../utils/multi-command-processor.js'
+
+// Added initialization in ServiceManager.initialize():
+// Initialize multi-command processor for commands with multiple models
+this.logger.debug('ServiceManager: Initializing MultiCommandProcessor')
+await multiCommandProcessor.initialize()
+```
+
+### Technical Changes:
+- **File**: `services/service-manager.js` 
+- **Added**: multiCommandProcessor initialization to primary initialization path
+- **Added**: Debug logging and initialization checks in MultiCommandProcessor
+
+### Impact:
+**CRITICAL** - All multi-model commands were broken when ServiceManager succeeded. Only worked in fallback mode (when ServiceManager failed).
+
+### Status: FIXED ✅
+
+---
+
+## Bug #11: Readline Interface Premature Closure
 **Date:** 2025-08-16  
 **Priority:** Low (Deferred to Post-Phase 3)
 

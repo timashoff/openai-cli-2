@@ -118,30 +118,32 @@ export class AIProcessor {
     }
 
     // Handle multi-model commands (modern architecture)
-    if (command && command.models && Array.isArray(command.models) && command.models.length > 1 && !forceRequest) {
+    if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
+      // Check cache for multi-model commands (using clean user input as key)
+      if (command.isTranslation && !forceRequest && cache.has(cacheKey)) {
+        console.log(`${color.yellow}[from cache]${color.reset}`)
+        process.stdout.write(cache.get(cacheKey) + '\n')
+        return
+      }
+      
       try {
-        // Create callback for provider headers and output
-        const onProviderComplete = async (result, index, provider, isFirst) => {
-          if (isFirst && index === 0) {
-            // Show handler info for first provider
-            console.log(`[Handler: ${command.commandKey}]\n`)
-          }
-          
-          // Show provider header
-          const providerLabel = provider.model 
-            ? `${provider.name} (${provider.model})`
-            : provider.name
-          console.log(`${color.cyan}${providerLabel}:${color.reset}`)
-        }
+        // Show handler info at the very beginning
+        console.log(`[Handler: ${command.commandKey}]\n`)
         
         // Let multiCommandProcessor handle output with proper formatting
-        await multiCommandProcessor.executeMultiple(
+        const multiResult = await multiCommandProcessor.executeMultiple(
           finalInput,
           controller.signal,
           command.models,
           null, // defaultModel
-          onProviderComplete
+          null  // no onProviderComplete callback - headers handled in MultiCommandProcessor
         )
+        
+        // Cache the formatted multi-model response for translation commands
+        if (command.isTranslation && multiResult && multiResult.results) {
+          const formattedResponse = multiCommandProcessor.formatMultiResponse(multiResult, command.commandKey)
+          await cache.set(cacheKey, formattedResponse)
+        }
         
         return
       } catch (error) {

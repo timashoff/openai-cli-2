@@ -25,26 +25,32 @@ export class ModelSelector {
       console.log('')
     }
 
-    const actions = [
-      'Add model',
-      'Remove model',
-      'Clear all models',
-      'Confirm selection',
-      'Exit without saving'
-    ]
+    // Adapt menu options based on current state
+    const actions = ['Add model']
+    
+    // Only show "Remove model" if there are models to remove
+    if (selectedModels.length > 0) {
+      actions.push('Remove model')
+      actions.push('Clear all models')
+    }
+    
+    actions.push('Confirm selection')
+    actions.push('Exit without saving')
 
     const selectedAction = await createInteractiveMenu(
       'What would you like to do?',
       actions
     )
 
-    if (selectedAction === -1 || selectedAction === 4) {
+    if (selectedAction === -1) {
       // Exit without saving
       return null
     }
 
-    switch (selectedAction) {
-      case 0: // Add model
+    const selectedActionText = actions[selectedAction]
+    
+    switch (selectedActionText) {
+      case 'Add model':
         const newModel = await this.selectSingleModel()
         if (newModel) {
           // Check if model already selected
@@ -61,11 +67,8 @@ export class ModelSelector {
         // Continue loop
         return this.selectModels(selectedModels)
 
-      case 1: // Remove model
-        if (selectedModels.length === 0) {
-          console.log(color.yellow + 'No models to remove!' + color.reset)
-          return this.selectModels(selectedModels)
-        }
+      case 'Remove model':
+        // This should only be available when models exist (due to our menu logic)
         const removedModel = await this.selectModelToRemove(selectedModels)
         if (removedModel !== null) {
           selectedModels.splice(removedModel, 1)
@@ -73,13 +76,16 @@ export class ModelSelector {
         }
         return this.selectModels(selectedModels)
 
-      case 2: // Clear all
+      case 'Clear all models':
         selectedModels = []
         console.log(color.green + 'All models cleared!' + color.reset)
         return this.selectModels(selectedModels)
 
-      case 3: // Confirm
+      case 'Confirm selection':
         return selectedModels
+
+      case 'Exit without saving':
+        return null
 
       default:
         return null
@@ -139,20 +145,35 @@ export class ModelSelector {
   }
 
   async selectModelToRemove(selectedModels) {
+    console.log(color.cyan + '[DEBUG] selectModelToRemove called' + color.reset)
+    console.log(color.grey + `[DEBUG] selectedModels: ${JSON.stringify(selectedModels)}` + color.reset)
+    
     const modelLabels = selectedModels.map(
       (model, index) => `${index + 1}. ${model.provider} - ${model.model}`
     )
+    
+    console.log(color.grey + `[DEBUG] modelLabels: ${JSON.stringify(modelLabels)}` + color.reset)
 
-    const removeIndex = await createInteractiveMenu(
-      'Select model to remove:',
-      modelLabels
-    )
+    try {
+      const removeIndex = await createInteractiveMenu(
+        'Select model to remove:',
+        modelLabels
+      )
+      
+      console.log(color.grey + `[DEBUG] removeIndex returned: ${removeIndex}` + color.reset)
 
-    if (removeIndex === -1) {
+      if (removeIndex === -1) {
+        console.log(color.yellow + '[DEBUG] User cancelled model removal' + color.reset)
+        return null
+      }
+
+      console.log(color.green + `[DEBUG] Will remove model at index: ${removeIndex}` + color.reset)
+      return removeIndex
+    } catch (error) {
+      console.log(color.red + `[DEBUG] Error in selectModelToRemove: ${error.message}` + color.reset)
+      console.log(color.red + `[DEBUG] Error stack: ${error.stack}` + color.reset)
       return null
     }
-
-    return removeIndex
   }
 
   async promptForInput(question, rl) {

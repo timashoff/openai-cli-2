@@ -44,11 +44,11 @@ class AIApplication extends Application {
     // Command managers
     this.aiCommands = new CommandManager()
     
-    // Modern command system (Phase 2)
-    this.commandExecutor = null
-    this.providerCommand = null
-    this.modelCommand = null
-    this.helpCommand = null
+    // Modern command system - uses extracted components:
+    // - CommandRouter for command routing 
+    // - ProviderSwitcher for provider switching
+    // - AIProcessor for AI processing
+    // - CLIManager for CLI management
     
     // CLI Manager (extracted) - must be created before CommandEditor
     this.cliManager = new CLIManager(this)
@@ -170,13 +170,8 @@ class AIApplication extends Application {
       }
       
     } catch (error) {
-      console.warn(`${color.yellow}Warning: Service manager initialization failed: ${error.message}${color.reset}`)
-      console.log(`${color.grey}Continuing with legacy architecture...${color.reset}`)
-      
-      // Fallback to ApplicationInitializer if ServiceManager fails
-      await this.cliManager.showInitializationSpinner(async () => {
-        await this.initializeAI()
-      })
+      console.error(`${color.red}Error: Service manager initialization failed: ${error.message}${color.reset}`)
+      throw error
     }
     
     process.title = this.aiState.model
