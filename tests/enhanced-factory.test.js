@@ -79,17 +79,8 @@ async function testEnhancedFactory() {
     }
     console.log()
     
-    // Test health check
-    console.log('7. Health check...')
-    const healthCheck = await enhancedProviderFactory.performHealthCheck()
-    console.log(`Overall health: ${healthCheck.overall}`)
-    console.log(`Instances checked: ${Object.keys(healthCheck.instances).length}`)
-    
-    let healthyCount = 0
-    for (const [id, health] of Object.entries(healthCheck.instances)) {
-      if (health.healthy) healthyCount++
-    }
-    console.log(`Healthy instances: ${healthyCount}/${Object.keys(healthCheck.instances).length}\n`)
+    // Health checks removed - simplified provider system
+    console.log('7. Health checks removed for simplification\n')
     
     // Test provider functionality with enhanced features
     console.log('8. Testing enhanced provider functionality...')

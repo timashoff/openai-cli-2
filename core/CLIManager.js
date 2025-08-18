@@ -199,6 +199,70 @@ export class CLIManager {
   }
 
   /**
+   * Create a reusable spinner instance
+   * @param {string} message - Spinner message
+   * @returns {Object} Spinner instance with succeed/fail methods
+   */
+  createSpinner(message) {
+    let spinnerIndex = 0
+    let spinnerInterval = null
+    const startTime = Date.now()
+    let isActive = false
+    
+    const spinner = {
+      get elapsedTime() {
+        return getElapsedTime(startTime)
+      },
+      
+      start() {
+        if (isActive) return
+        isActive = true
+        
+        // Show loading spinner
+        process.stdout.write('\x1B[?25l') // Hide cursor
+        spinnerInterval = setInterval(() => {
+          clearTerminalLine()
+          const elapsedTime = this.elapsedTime
+          process.stdout.write(
+            `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s ${message}${color.reset}`
+          )
+        }, APP_CONSTANTS.SPINNER_INTERVAL)
+      },
+      
+      stop() {
+        if (!isActive) return
+        isActive = false
+        
+        if (spinnerInterval) {
+          clearInterval(spinnerInterval)
+          spinnerInterval = null
+        }
+        clearTerminalLine()
+        process.stdout.write('\x1B[?25h') // Show cursor
+      },
+      
+      succeed(successMessage = null) {
+        this.stop()
+        const finalTime = this.elapsedTime
+        const msg = successMessage || `✓ ${finalTime}s`
+        process.stdout.write(`${msg}\n`)
+      },
+      
+      fail(errorMessage = null) {
+        this.stop()
+        const finalTime = this.elapsedTime
+        const msg = errorMessage || `✗ ${finalTime}s`
+        process.stdout.write(`${color.red}${msg}${color.reset}\n`)
+      }
+    }
+    
+    // Auto-start spinner
+    spinner.start()
+    
+    return spinner
+  }
+
+  /**
    * Process user input with validation (extracted from original)
    */
   async processUserInput(userInput) {

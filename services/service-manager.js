@@ -252,17 +252,12 @@ export class ServiceManager {
       totalServices: this.services.size,
       uptime: this.startTime ? Date.now() - this.startTime : 0,
       services: {},
-      overallHealth: true,
       stats: this.stats
     }
     
     for (const [name, service] of this.services) {
-      const serviceHealth = service.getHealthStatus ? service.getHealthStatus() : { isHealthy: true }
-      status.services[name] = serviceHealth
-      
-      if (!serviceHealth.isHealthy) {
-        status.overallHealth = false
-      }
+      const serviceInfo = { initialized: true }
+      status.services[name] = serviceInfo
     }
     
     return status
@@ -303,36 +298,6 @@ export class ServiceManager {
     this.logger.debug(`Total init time: ${status.stats.totalInitTime}ms`)
   }
 
-  /**
-   * Perform health check on all services
-   * @returns {Object} Health check results
-   */
-  async performHealthCheck() {
-    const results = {
-      overall: true,
-      services: {},
-      timestamp: new Date(),
-      issues: []
-    }
-    
-    for (const [name, service] of this.services) {
-      try {
-        const health = service.getHealthStatus ? service.getHealthStatus() : { isHealthy: true }
-        results.services[name] = health
-        
-        if (!health.isHealthy) {
-          results.overall = false
-          results.issues.push(`Service ${name} is unhealthy`)
-        }
-      } catch (error) {
-        results.overall = false
-        results.services[name] = { isHealthy: false, error: error.message }
-        results.issues.push(`Health check failed for ${name}: ${error.message}`)
-      }
-    }
-    
-    return results
-  }
 
   /**
    * Gracefully dispose of all services

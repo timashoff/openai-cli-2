@@ -11,12 +11,10 @@ export const execProvider = async (currentProviderKey, providers, rl) => {
       color.reset + '\n'
   )
 
-  // Create provider options with health status indicators
+  // Create clean provider options
   const providerOptions = providers.map(provider => {
-    const healthIcon = provider.isHealthy ? '✓' : '✗'
-    const healthColor = provider.isHealthy ? color.green : color.red
     const status = provider.isCurrent ? ' (current)' : ''
-    return `${healthColor}${healthIcon}${color.reset} ${provider.name}${status}`
+    return `${provider.name}${status}`
   })
   
   const currentProviderIndex = providers.findIndex(provider => provider.isCurrent)
@@ -40,22 +38,6 @@ export const execProvider = async (currentProviderKey, providers, rl) => {
   
   const selectedProvider = providers[selectedIndex]
   
-  if (!selectedProvider.isHealthy) {
-    console.log(
-      color.red +
-        'Error: Selected provider is unhealthy and cannot be used.' +
-        color.reset + '\n'
-    )
-    return null
-  }
-  
-  console.log(
-    color.reset +
-      'Your provider is now: ' +
-      color.cyan +
-      selectedProvider.name +
-      color.reset
-  )
-  
+  // Don't show "Your provider is now" - spinner will show the actual result
   return selectedProvider
 }

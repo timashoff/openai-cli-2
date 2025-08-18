@@ -33,19 +33,8 @@ async function testServices() {
       hasClipboard: inputResult.metadata.hasClipboard
     })
     
-    // Test command processing
-    console.log('\n3. Testing command processing...')
-    const commandService = serviceManager.getCommandProcessingService()
-    
-    const testCommands = ['help', 'aa hello world', 'gg this text', 'unknown command']
-    for (const cmd of testCommands) {
-      const command = await commandService.findCommand(cmd)
-      console.log(`Command "${cmd}":`, command ? {
-        type: command.type,
-        name: command.name || command.commandKey,
-        isMultiCommand: command.isMultiCommand
-      } : 'Not found')
-    }
+    // Command processing now uses database directly (service disabled)
+    console.log('\n3. Command processing uses database directly (simplified)...')
     
     // Test AI provider service
     console.log('\n4. Testing AI provider service...')
@@ -53,7 +42,7 @@ async function testServices() {
     const providers = aiService.getAvailableProviders()
     console.log(`Available providers: ${providers.length}`)
     providers.forEach(p => {
-      console.log(`  - ${p.name} (${p.key}): ${p.models.length} models, healthy: ${p.isHealthy}`)
+      console.log(`  - ${p.name} (${p.key}): ${p.models.length} models`)
     })
     
     const currentProvider = aiService.getCurrentProvider()
@@ -71,13 +60,7 @@ async function testServices() {
     const stats = serviceManager.getServiceStats()
     console.log('Service stats:', Object.keys(stats.services))
     
-    // Test health check
-    console.log('\n7. Health check...')
-    const healthCheck = await serviceManager.performHealthCheck()
-    console.log(`Health check overall: ${healthCheck.overall}`)
-    if (healthCheck.issues.length > 0) {
-      console.log('Issues:', healthCheck.issues)
-    }
+    // Health checks removed - simplified provider system
     
     console.log('\n✅ All service tests completed successfully!')
     

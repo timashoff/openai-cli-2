@@ -399,7 +399,15 @@ export class AIProcessor {
       interval = spinnerInterval
 
       const currentAIState = this.app.stateManager.getAIState()
-      const stream = await currentAIState.provider.createChatCompletion(currentAIState.model, messages, {
+      
+      // Check if provider key is available - provider instance will be lazy loaded
+      if (!currentAIState.selectedProviderKey) {
+        throw new Error(`No provider selected`)
+      }
+      
+      // Use ServiceManager to handle lazy loading of provider
+      const aiService = this.app.serviceManager.getAIProviderService()
+      const stream = await aiService.createChatCompletion(messages, {
         stream: true,
         signal: controller.signal
       })
@@ -526,7 +534,46 @@ export class AIProcessor {
       } else {
         clearTerminalLine()
         showStatus('error', finalTime)
-        errorHandler.handleError(error, { context: 'ai_processing' })
+        
+        // Handle provider-specific errors with user-friendly UI
+        if (error.message && error.message.includes('is not working properly')) {
+          const providerMatch = error.message.match(/Current provider \((\w+)\)/)
+          const providerName = providerMatch ? providerMatch[1] : 'current provider'
+          
+          console.log(`\n${color.red}❌ Provider not working: ${providerName}${color.reset}`)
+          
+          try {
+            // Ask user if they want to switch providers
+            const answer = await cliManager.rl.question('Would you like to switch to another provider? (y/n): ')
+            
+            if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+              // Get available providers and offer switching
+              const aiService = this.app.serviceManager.getAIProviderService()
+              if (aiService) {
+                const availableProviders = aiService.getAvailableProviders()
+                const currentProvider = aiService.getCurrentProvider()
+                
+                if (availableProviders.length > 1) {
+                  const { execProvider } = await import('../utils/provider/execProvider.js')
+                  
+                  const selectedProvider = await execProvider(currentProvider.key, availableProviders, cliManager.rl)
+                  
+                  if (selectedProvider && selectedProvider.key !== currentProvider.key) {
+                    await this.app.serviceManager.switchProvider(selectedProvider.key)
+                    console.log(`${color.green}✓ Switched to ${selectedProvider.name}${color.reset}`)
+                  }
+                } else {
+                  console.log(`${color.yellow}Only one provider available: ${availableProviders[0]?.name || 'unknown'}${color.reset}`)
+                }
+              }
+            }
+          } catch (switchError) {
+            console.log(`${color.red}Error switching provider: ${switchError.message}${color.reset}`)
+          }
+        } else {
+          // Handle other errors with standard error handler
+          errorHandler.handleError(error, { context: 'ai_processing' })
+        }
       }
     } finally {
       if (interval) {

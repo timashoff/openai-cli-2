@@ -8,7 +8,7 @@ import { RetryPlugin } from '../plugins/retry-plugin.js'
 
 /**
  * Service for managing AI providers and models
- * Handles provider initialization, switching, and health monitoring
+ * Handles provider initialization and switching
  */
 export class AIProviderService {
   constructor(dependencies = {}) {
@@ -19,12 +19,9 @@ export class AIProviderService {
     this.currentModel = null
     this.currentProviderKey = null
     this.initialized = false
-    this.healthCheckInterval = null
     this.stats = {
       providerSwitches: 0,
-      modelSwitches: 0,
-      healthChecks: 0,
-      failedHealthChecks: 0
+      modelSwitches: 0
     }
     
     // Initialize retry plugin with Anthropic-specific settings
@@ -46,7 +43,6 @@ export class AIProviderService {
     try {
       await this.initializeAvailableProviders()
       await this.setDefaultProvider()
-      this.startHealthMonitoring()
       this.initialized = true
       this.logger.debug('AIProviderService initialized')
     } catch (error) {
@@ -67,8 +63,8 @@ export class AIProviderService {
       throw new Error('No AI providers available - check your API keys')
     }
     
-    // Determine default provider (preference order: openai, anthropic, deepseek)
-    const preferredOrder = ['openai', 'anthropic', 'deepseek']
+    // Determine default provider (preference order: openai, deepseek, anthropic)
+    const preferredOrder = ['openai', 'deepseek', 'anthropic']
     const defaultProviderKey = preferredOrder.find(key => availableProviderKeys.includes(key)) || availableProviderKeys[0]
     
     // Initialize ONLY the default provider immediately
@@ -92,10 +88,7 @@ export class AIProviderService {
       this.providers.set(defaultProviderKey, {
         instance: provider,
         config,
-        models,
-        isHealthy: true,
-        lastHealthCheck: Date.now(),
-        errorCount: 0
+        models
       })
       
       this.logger.debug(`Default provider ${defaultProviderKey} initialized with ${models.length} models`)
@@ -107,9 +100,6 @@ export class AIProviderService {
             instance: null, // Will be loaded on demand
             config: API_PROVIDERS[providerKey],
             models: [],
-            isHealthy: null, // Unknown until loaded
-            lastHealthCheck: null,
-            errorCount: 0,
             isLazyLoading: true
           })
         }
@@ -124,7 +114,7 @@ export class AIProviderService {
     } catch (error) {
       this.logger.debug(`Default provider ${defaultProviderKey} failed: ${error.message}`)
       
-      // Try fallback providers
+      // Try fallback providers (OpenAI → DeepSeek priority)
       const remainingProviders = preferredOrder.filter(key => 
         key !== defaultProviderKey && availableProviderKeys.includes(key)
       )
@@ -150,10 +140,7 @@ export class AIProviderService {
           this.providers.set(fallbackProviderKey, {
             instance: provider,
             config,
-            models,
-            isHealthy: true,
-            lastHealthCheck: Date.now(),
-            errorCount: 0
+            models
           })
           
           this.logger.debug(`Fallback provider ${fallbackProviderKey} initialized, testing connectivity...`)
@@ -186,9 +173,6 @@ export class AIProviderService {
                 instance: null,
                 config: API_PROVIDERS[providerKey],
                 models: [],
-                isHealthy: null,
-                lastHealthCheck: null,
-                errorCount: 0,
                 isLazyLoading: true
               })
             }
@@ -214,17 +198,8 @@ export class AIProviderService {
       return models || []
     } catch (error) {
       this.logger.debug(`Failed to load models for ${providerKey}:`, error.message)
-      
-      // Fallback to default models if available
-      const fallbackModels = DEFAULT_MODELS[providerKey]
-      if (fallbackModels) {
-        // Ensure fallback model is in consistent format (array of objects with id)
-        const fallbackModelId = typeof fallbackModels.model === 'string' 
-          ? fallbackModels.model 
-          : fallbackModels.model?.id || fallbackModels.model?.name || 'default'
-        return [{ id: fallbackModelId }]
-      }
-      return []
+      // Fail fast - no fallback models masking real problems
+      throw error
     }
   }
 
@@ -268,9 +243,6 @@ export class AIProviderService {
         instance: provider,
         config: providerInfo.config,
         models,
-        isHealthy: true,
-        lastHealthCheck: Date.now(),
-        errorCount: 0,
         isLazyLoading: false
       }
       
@@ -286,9 +258,6 @@ export class AIProviderService {
       this.providers.set(providerKey, {
         ...providerInfo,
         instance: null,
-        isHealthy: false,
-        lastHealthCheck: Date.now(),
-        errorCount: providerInfo.errorCount + 1,
         isLazyLoading: false
       })
       
@@ -302,7 +271,7 @@ export class AIProviderService {
     
     for (const providerKey of preferredOrder) {
       if (this.providers.has(providerKey) && 
-          this.providers.get(providerKey).isHealthy && 
+          this.providers.get(providerKey).instance && 
           DEFAULT_MODELS[providerKey]) {
         const modelConfig = DEFAULT_MODELS[providerKey]
         const preferredModel = modelConfig.model
@@ -313,80 +282,65 @@ export class AIProviderService {
       }
     }
     
-    // Fallback to first HEALTHY provider with its preferred model
-    const healthyProviders = Array.from(this.providers.entries())
-      .filter(([key, data]) => data.isHealthy)
+    // Fallback to first available provider with its preferred model
+    const availableProviders = Array.from(this.providers.entries())
+      .filter(([key, data]) => data.instance)
     
-    if (healthyProviders.length === 0) {
-      throw new Error('No healthy providers available')
+    if (availableProviders.length === 0) {
+      throw new Error('No providers available')
     }
     
-    const [firstHealthyProviderKey, firstHealthyProviderData] = healthyProviders[0]
-    const fallbackModel = DEFAULT_MODELS[firstHealthyProviderKey]?.model || 'gpt-4o-mini'
-    this.logger.warn(`Falling back to healthy provider: ${firstHealthyProviderKey} with model: ${fallbackModel}`)
-    await this.switchProvider(firstHealthyProviderKey, fallbackModel)
+    const [firstAvailableProviderKey, firstAvailableProviderData] = availableProviders[0]
+    const fallbackModel = DEFAULT_MODELS[firstAvailableProviderKey]?.model || 'gpt-4o-mini'
+    this.logger.warn(`Falling back to available provider: ${firstAvailableProviderKey} with model: ${fallbackModel}`)
+    await this.switchProvider(firstAvailableProviderKey, fallbackModel)
   }
 
   async switchProvider(providerKey, model = null) {
-    let providerData = this.providers.get(providerKey)
-    if (!providerData) {
-      throw new Error(`Provider ${providerKey} not available`)
+    // Check if provider is configured
+    const config = API_PROVIDERS[providerKey]
+    if (!config || !process.env[config.apiKeyEnv]) {
+      throw new Error(`Provider ${providerKey} is not configured or missing API key`)
     }
 
-    // If provider is lazy loading or has no instance, load it now
-    if (providerData.isLazyLoading || !providerData.instance) {
-      try {
-        providerData = await this.lazyLoadProvider(providerKey)
-      } catch (error) {
-        throw new Error(`Failed to load provider ${providerKey}: ${error.message}`)
-      }
-    }
-
-    if (!providerData.isHealthy) {
-      throw new Error(`Provider ${providerKey} is currently unhealthy`)
-    }
-
-    if (!providerData.instance) {
-      throw new Error(`Provider ${providerKey} has null instance (failed initialization)`)
-    }
-
+    // Instant switch - just update current provider info
     this.currentProviderKey = providerKey
-    this.currentProvider = providerData.instance
     
-    // Set model (use preferred model from config, not random first model)
+    // Set model from config or parameter
     if (model) {
       this.currentModel = model
     } else {
-      // Use preferred model from DEFAULT_MODELS for this provider
-      const preferredModel = DEFAULT_MODELS[providerKey]?.model
-      if (preferredModel) {
-        this.currentModel = preferredModel
-      } else if (providerData.models.length > 0) {
-        // Fallback: extract ID from first model object  
-        const firstModel = providerData.models[0]
-        this.currentModel = typeof firstModel === 'string' ? firstModel : firstModel.id || firstModel.name || 'default'
-      } else {
-        this.currentModel = 'default'
-      }
+      // Use preferred model from DEFAULT_MODELS
+      this.currentModel = DEFAULT_MODELS[providerKey]?.model || 'default'
     }
-
-    // Update app state if available
+    
+    // Create placeholder provider data for getAvailableProviders()
+    if (!this.providers.has(providerKey)) {
+      this.providers.set(providerKey, {
+        instance: null, // Will be created on first use
+        config,
+        models: [],
+        isLazyLoading: true
+      })
+    }
+    
+    // Update app state
     if (this.app && this.app.stateManager) {
       this.app.stateManager.updateAIProvider({
-        instance: this.currentProvider,
+        instance: null, // Will be lazy loaded
         key: this.currentProviderKey,
         model: this.currentModel,
-        models: providerData.models
+        models: []
       })
     }
 
     this.stats.providerSwitches++
-    this.logger.debug(`Switched to provider: ${providerKey}, model: ${this.currentModel}`)
+    this.logger.debug(`Instantly switched to provider: ${providerKey}, model: ${this.currentModel}`)
     
     return {
       provider: providerKey,
       model: this.currentModel,
-      availableModels: providerData.models
+      availableModels: []
     }
   }
 
@@ -426,7 +380,7 @@ export class AIProviderService {
 
     const currentKey = this.currentProviderKey
     const availableProviders = Array.from(this.providers.keys())
-      .filter(key => key !== currentKey && this.providers.get(key).isHealthy)
+      .filter(key => key !== currentKey && this.providers.get(key).instance)
 
     if (availableProviders.length === 0) {
       return false
@@ -449,118 +403,100 @@ export class AIProviderService {
       key: this.currentProviderKey,
       instance: this.currentProvider,
       model: this.currentModel,
-      isHealthy: this.currentProviderKey ? this.providers.get(this.currentProviderKey)?.isHealthy : false
+      hasCurrentProvider: !!this.currentProvider
     }
   }
 
   getAvailableProviders() {
-    const providers = []
-    for (const [key, data] of this.providers) {
-      providers.push({
+    // Return ALL providers that have API keys, regardless of initialization status
+    return Object.entries(API_PROVIDERS)
+      .filter(([key, config]) => process.env[config.apiKeyEnv])
+      .map(([key, config]) => ({
         key,
-        name: data.config.name,
-        models: data.models,
-        isHealthy: data.isHealthy === null ? true : data.isHealthy, // Assume lazy providers are healthy until proven otherwise
+        name: config.name,
+        models: this.providers.get(key)?.models || [],
         isCurrent: key === this.currentProviderKey,
-        isLazyLoading: data.isLazyLoading || false
-      })
-    }
-    return providers
+        isLazyLoading: !this.providers.get(key)?.instance
+      }))
   }
 
   async createChatCompletion(messages, options = {}) {
-    if (!this.currentProvider) {
-      throw new Error('No provider currently active')
+    if (!this.currentProviderKey) {
+      throw new Error('No provider currently selected')
     }
 
-    try {
-      return await this.currentProvider.createChatCompletion(
-        this.currentModel,
-        messages,
-        options
-      )
-    } catch (error) {
-      // Mark provider as potentially unhealthy after error
-      const providerData = this.providers.get(this.currentProviderKey)
-      if (providerData) {
-        providerData.errorCount++
-        if (providerData.errorCount > 3) {
-          providerData.isHealthy = false
-        }
-      }
-      
-      throw error
-    }
-  }
-
-  startHealthMonitoring() {
-    if (this.healthCheckInterval) return
-    
-    // Check provider health every 5 minutes
-    this.healthCheckInterval = setInterval(async () => {
-      await this.performHealthChecks()
-    }, 5 * 60 * 1000)
-  }
-
-  async performHealthChecks() {
-    this.stats.healthChecks++
-    
-    for (const [key, providerData] of this.providers) {
+    // Lazy load provider on first use
+    let providerData = this.providers.get(this.currentProviderKey)
+    if (!providerData || !providerData.instance) {
       try {
-        // Skip health check if provider instance is null (failed initialization)
-        if (!providerData.instance) {
-          providerData.isHealthy = false
-          this.logger.debug(`Provider ${key} skipped health check - null instance`)
-          continue
-        }
+        this.logger.debug(`Lazy loading provider on first use: ${this.currentProviderKey}`)
         
-        // Simple health check - try to list models
-        await providerData.instance.listModels()
-        providerData.isHealthy = true
-        providerData.errorCount = 0
-        providerData.lastHealthCheck = Date.now()
-      } catch (error) {
-        providerData.errorCount++
-        if (providerData.errorCount > 2) {
-          providerData.isHealthy = false
-          this.stats.failedHealthChecks++
-          this.logger.warn(`Provider ${key} marked as unhealthy: ${error.message}`)
+        const config = API_PROVIDERS[this.currentProviderKey]
+        this.logger.debug(`Config for ${this.currentProviderKey}:`, config)
+        
+        this.logger.debug(`Creating provider instance...`)
+        const provider = createProvider(this.currentProviderKey, config)
+        
+        this.logger.debug(`Initializing client for ${this.currentProviderKey}...`)
+        await provider.initializeClient()
+        
+        // Enhance with retry logic
+        this.retryPlugin.enhanceInstanceWithRetry(provider)
+        
+        // Update provider data
+        providerData = {
+          instance: provider,
+          config,
+          models: [], // Don't load models unless needed
+          isLazyLoading: false
         }
+        this.providers.set(this.currentProviderKey, providerData)
+        this.currentProvider = provider
+        
+        this.logger.debug(`Provider ${this.currentProviderKey} loaded successfully`)
+      } catch (error) {
+        this.logger.error(`REAL ERROR for ${this.currentProviderKey}:`, error.message)
+        this.logger.error(`Error stack:`, error.stack)
+        // Throw original error without wrapping to see real cause
+        throw error
       }
+    } else {
+      this.currentProvider = providerData.instance
     }
+
+    return await this.currentProvider.createChatCompletion(
+      this.currentModel,
+      messages,
+      options
+    )
   }
+
+
 
   getProviderStats() {
     return {
       ...this.stats,
       totalProviders: this.providers.size,
-      healthyProviders: Array.from(this.providers.values()).filter(p => p.isHealthy).length,
+      availableProviders: Array.from(this.providers.values()).filter(p => p.instance).length,
       currentProvider: this.currentProviderKey,
       currentModel: this.currentModel
     }
   }
 
   getHealthStatus() {
-    const healthyProviders = Array.from(this.providers.values()).filter(p => p.isHealthy).length
+    const availableProviders = Array.from(this.providers.values()).filter(p => p.instance).length
     
     return {
       initialized: this.initialized,
       totalProviders: this.providers.size,
-      healthyProviders,
+      availableProviders,
       hasCurrentProvider: !!this.currentProvider,
-      currentProviderHealthy: this.currentProviderKey ? 
-        this.providers.get(this.currentProviderKey)?.isHealthy : false,
-      isHealthy: this.initialized && healthyProviders > 0 && !!this.currentProvider
+      isReady: this.initialized && availableProviders > 0 && !!this.currentProvider
     }
   }
 
 
   dispose() {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval)
-      this.healthCheckInterval = null
-    }
-    
     this.providers.clear()
     this.currentProvider = null
     this.currentProviderKey = null

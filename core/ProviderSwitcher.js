@@ -4,6 +4,7 @@
  */
 import { logger } from '../utils/logger.js'
 import { errorHandler } from '../utils/error-handler.js'
+import { color } from '../config/color.js'
 
 export class ProviderSwitcher {
   constructor(app) {
@@ -97,18 +98,26 @@ export class ProviderSwitcher {
         return
       }
 
-      // Switch to selected provider using ServiceManager
-      const switchResult = await this.app.serviceManager.switchProvider(selectedProvider.key)
-      
-      const newCurrentProvider = aiService.getCurrentProvider()
-      this.app.stateManager.updateAIProvider({
-        instance: newCurrentProvider.instance,
-        key: newCurrentProvider.key,
-        model: newCurrentProvider.model,
-        models: switchResult.availableModels || []
-      })
+      // Instant switch without validation - errors will show during usage
+      try {
+        const switchResult = await this.app.serviceManager.switchProvider(selectedProvider.key)
+        
+        const newCurrentProvider = aiService.getCurrentProvider()
+        this.app.stateManager.updateAIProvider({
+          instance: newCurrentProvider.instance,
+          key: newCurrentProvider.key,
+          model: newCurrentProvider.model,
+          models: switchResult.availableModels || []
+        })
 
-      logger.debug(`Provider switched to: ${newCurrentProvider.key} with model: ${newCurrentProvider.model}`)
+        // Simple confirmation message
+        console.log(`Switched to ${selectedProvider.name}`)
+        
+        logger.debug(`Provider switched to: ${newCurrentProvider.key} with model: ${newCurrentProvider.model}`)
+      } catch (switchError) {
+        // Simple error message without retry loop
+        console.log(`${color.red}Failed to switch to ${selectedProvider.name}: ${switchError.message}${color.reset}`)
+      }
 
       if (process.stdin.isTTY && wasRawMode) {
         process.stdin.setRawMode(true)

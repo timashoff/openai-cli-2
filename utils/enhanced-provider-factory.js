@@ -17,18 +17,15 @@ export class EnhancedProviderFactory {
     this.config = {
       defaultTimeout: 180000,
       defaultRetries: 3,
-      healthCheckInterval: 300000, // 5 minutes
       instancePoolSize: 5
     }
     this.stats = {
       providersCreated: 0,
       providersDestroyed: 0,
-      healthChecks: 0,
       middlewareExecutions: 0
     }
     
     this.initializeBuiltinProviders()
-    this.startHealthMonitoring()
   }
 
   /**
@@ -329,42 +326,6 @@ export class EnhancedProviderFactory {
     }
   }
 
-  /**
-   * Perform health check on all instances
-   * @returns {Object} Health check results
-   */
-  async performHealthCheck() {
-    this.stats.healthChecks++
-    const results = {
-      overall: true,
-      timestamp: new Date(),
-      instances: {},
-      issues: []
-    }
-
-    for (const [instanceId, data] of this.instanceRegistry) {
-      try {
-        const isHealthy = await this._checkInstanceHealth(data.instance)
-        results.instances[instanceId] = {
-          healthy: isHealthy,
-          uptime: Date.now() - data.createdAt,
-          lastUsed: data.lastUsed,
-          requests: data.stats.requests
-        }
-
-        if (!isHealthy) {
-          results.overall = false
-          results.issues.push(`Instance ${instanceId} is unhealthy`)
-        }
-      } catch (error) {
-        results.instances[instanceId] = { healthy: false, error: error.message }
-        results.overall = false
-        results.issues.push(`Health check failed for ${instanceId}: ${error.message}`)
-      }
-    }
-
-    return results
-  }
 
   /**
    * Private helper methods
@@ -427,29 +388,7 @@ export class EnhancedProviderFactory {
     }
   }
 
-  async _checkInstanceHealth(instance) {
-    try {
-      if (instance.healthCheck) {
-        return await instance.healthCheck()
-      }
-      
-      // Basic health check - try to list models
-      await instance.listModels()
-      return true
-    } catch (error) {
-      return false
-    }
-  }
 
-  startHealthMonitoring() {
-    setInterval(async () => {
-      try {
-        await this.performHealthCheck()
-      } catch (error) {
-        logger.error('Health monitoring error:', error)
-      }
-    }, this.config.healthCheckInterval)
-  }
 
   /**
    * Dispose factory and all instances
