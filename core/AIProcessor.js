@@ -282,7 +282,7 @@ export class AIProcessor {
     // Handle multi-model commands (modern architecture)
     if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
       // Check cache for multi-model commands (using clean user input as key)
-      if (command.isTranslation && !forceRequest && cache.has(cacheKey)) {
+      if (command.cache_enabled && !forceRequest && cache.has(cacheKey)) {
         const cachedResponse = cache.get(cacheKey)
         commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
           cacheKey: cacheKey.substring(0, 50),
@@ -294,7 +294,7 @@ export class AIProcessor {
         console.log(`${color.yellow}[from cache]${color.reset}`)
         process.stdout.write(cachedResponse + '\n')
         return
-      } else if (command.isTranslation && !forceRequest) {
+      } else if (command.cache_enabled && !forceRequest) {
         commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
           cacheKey: cacheKey.substring(0, 50),
           cacheType: 'multi-model',
@@ -334,8 +334,8 @@ export class AIProcessor {
           responseLength: multiResult?.results?.reduce((total, r) => total + (r.response?.length || 0), 0) || 0
         })
         
-        // Cache the formatted multi-model response for translation commands
-        if (command.isTranslation && multiResult && multiResult.results) {
+        // Cache the formatted multi-model response for commands with caching enabled
+        if (command.cache_enabled && multiResult && multiResult.results) {
           const formattedResponse = multiCommandProcessor.formatMultiResponse(multiResult, command.commandKey)
           await cache.set(cacheKey, formattedResponse)
           
@@ -354,8 +354,8 @@ export class AIProcessor {
       }
     }
 
-    // Standard single-provider translation cache check
-    if (command && command.isTranslation && !forceRequest && cache.has(cacheKey)) {
+    // Standard single-provider cache check for commands with caching enabled
+    if (command && command.cache_enabled && !forceRequest && cache.has(cacheKey)) {
       const cachedResponse = cache.get(cacheKey)
       commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
         cacheKey: cacheKey.substring(0, 50),
@@ -367,7 +367,7 @@ export class AIProcessor {
       console.log(`${color.yellow}[from cache]${color.reset}`)
       process.stdout.write(cachedResponse + '\\n')
       return
-    } else if (command && command.isTranslation && !forceRequest) {
+    } else if (command && command.cache_enabled && !forceRequest) {
       commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
         cacheKey: cacheKey.substring(0, 50),
         cacheType: 'single-model',
@@ -483,8 +483,8 @@ export class AIProcessor {
 
         response = chunks
 
-        // Cache handling for single-model commands
-        if (command.isTranslation && response.length > 0) {
+        // Cache handling for single-model commands with caching enabled
+        if (command.cache_enabled && response.length > 0) {
           const responseText = response.join('')
           if (responseText.trim()) {
             await cache.set(cacheKey, responseText)
@@ -657,7 +657,7 @@ export class AIProcessor {
         }
 
         const fullResponse = response.join('')
-        if (command && command.isTranslation) {
+        if (command && command.cache_enabled) {
           await cache.set(cacheKey, fullResponse)
         } else {
           this.app.addToContext('user', finalInput)
@@ -805,7 +805,8 @@ export class AIProcessor {
           commandType: foundCommand.id,
           targetContent: restString,
           instruction: foundCommand.instruction,
-          models: foundCommand.models || null
+          models: foundCommand.models || null,
+          cache_enabled: foundCommand.cache_enabled !== undefined ? foundCommand.cache_enabled : true
         }
       }
       

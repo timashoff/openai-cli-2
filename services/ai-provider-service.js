@@ -303,7 +303,7 @@ export class AIProviderService {
       throw new Error(`Provider ${providerKey} is not configured or missing API key`)
     }
 
-    // Instant switch - just update current provider info
+    // Update current provider info
     this.currentProviderKey = providerKey
     
     // Set model from config or parameter
@@ -314,33 +314,52 @@ export class AIProviderService {
       this.currentModel = DEFAULT_MODELS[providerKey]?.model || 'default'
     }
     
-    // Create placeholder provider data for getAvailableProviders()
-    if (!this.providers.has(providerKey)) {
-      this.providers.set(providerKey, {
-        instance: null, // Will be created on first use
-        config,
-        models: [],
-        isLazyLoading: true
-      })
+    let providerData = this.providers.get(providerKey)
+    let availableModels = []
+    
+    // If provider doesn't exist or is lazy loading, load it now
+    if (!providerData || providerData.isLazyLoading) {
+      this.logger.debug(`Loading models for provider: ${providerKey}`)
+      
+      try {
+        // Try to lazy load the provider to get models
+        providerData = await this.lazyLoadProvider(providerKey)
+        availableModels = providerData.models || []
+        this.logger.debug(`Successfully loaded ${availableModels.length} models for ${providerKey}`)
+      } catch (error) {
+        this.logger.debug(`Failed to load models for ${providerKey}: ${error.message}`)
+        
+        // Create placeholder with empty models if loading fails
+        providerData = {
+          instance: null,
+          config,
+          models: [],
+          isLazyLoading: true
+        }
+        this.providers.set(providerKey, providerData)
+      }
+    } else {
+      // Provider already loaded, use existing models
+      availableModels = providerData.models || []
     }
     
-    // Update app state
+    // Update app state with loaded models
     if (this.app && this.app.stateManager) {
       this.app.stateManager.updateAIProvider({
-        instance: null, // Will be lazy loaded
+        instance: providerData.instance,
         key: this.currentProviderKey,
         model: this.currentModel,
-        models: []
+        models: availableModels
       })
     }
 
     this.stats.providerSwitches++
-    this.logger.debug(`Instantly switched to provider: ${providerKey}, model: ${this.currentModel}`)
+    this.logger.info(`✅ Switched to provider: ${providerKey}, model: ${this.currentModel}, available models: ${availableModels.length}`)
     
     return {
       provider: providerKey,
       model: this.currentModel,
-      availableModels: []
+      availableModels: availableModels
     }
   }
 

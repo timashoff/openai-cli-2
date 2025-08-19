@@ -694,8 +694,8 @@ export class RequestRouter {
       // Create cache key
       const cacheKey = command?.originalInput || finalInput
       
-      // Check cache for translations
-      if (command?.isTranslation && !routingResult.context.forceRequest && cache.has(cacheKey)) {
+      // Check cache for commands with caching enabled
+      if (command?.cache_enabled && !routingResult.context.forceRequest && cache.has(cacheKey)) {
         cliInterface.writeWarning('[from cache]')
         cliInterface.writeOutput(cache.get(cacheKey))
         return
@@ -780,8 +780,8 @@ export class RequestRouter {
       if (!currentRequestController.signal.aborted && !this.stateManager.shouldReturnToPrompt()) {
         const fullResponse = response.join('')
         
-        if (command?.isTranslation) {
-          // Cache translation
+        if (command?.cache_enabled) {
+          // Cache response for commands with caching enabled
           await cache.set(cacheKey, fullResponse)
         } else {
           // Add to context history

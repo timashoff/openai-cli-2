@@ -317,5 +317,33 @@ export default {
     }
     
     return undefined
+  },
+  
+  /**
+   * Clear all cache entries for a specific command
+   * @param {string} commandKey - Command key to clear cache for (e.g., 'KG', 'kg')
+   */
+  async clearCommandCache(commandKey) {
+    const keysToDelete = []
+    const commandLower = commandKey.toLowerCase()
+    
+    // Find all cache keys that start with the command
+    for (const key in cache) {
+      const keyLower = key.toLowerCase()
+      if (keyLower.startsWith(commandLower + ' ') || keyLower === commandLower) {
+        keysToDelete.push(key)
+      }
+    }
+    
+    // Delete found keys
+    for (const key of keysToDelete) {
+      delete cache[key]
+    }
+    
+    if (keysToDelete.length > 0) {
+      await saveCache()
+    }
+    
+    return keysToDelete.length
   }
 }

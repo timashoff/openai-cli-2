@@ -348,6 +348,9 @@ export class MultiCommandProcessor {
       
       // Show header for this model (only for non-streaming models)
       if (model.status === 'done') {
+        logger.debug(`📋 Showing header for completed model: ${model.provider.name} (index: ${model.index})`)
+        logger.debug(`📋 Provider data:`, { key: model.provider.key, name: model.provider.name, model: model.provider.model })
+        
         const providerLabel = model.provider.model 
           ? `${model.provider.name} (${model.provider.model})`
           : model.provider.name
@@ -460,6 +463,9 @@ export class MultiCommandProcessor {
               }
               
               // Show header for this model
+              logger.debug(`📋 Showing header for first streaming model: ${provider.name} (index: ${index})`)
+              logger.debug(`📋 Provider data:`, { key: provider.key, name: provider.name, model: provider.model })
+              
               const providerLabel = provider.model 
                 ? `${provider.name} (${provider.model})`
                 : provider.name
@@ -684,8 +690,8 @@ export class MultiCommandProcessor {
         output += `${color.yellow}No response${color.reset}\n`
       }
       
-      // Add timer for each model (estimate)
-      output += `${color.green}✓ cached${color.reset}\n\n`
+      // Add timer for each model (will be replaced with real timing in streaming mode)
+      output += `${color.green}✓ formatted${color.reset}\n\n`
     }
     
     // Add summary

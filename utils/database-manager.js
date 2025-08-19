@@ -55,6 +55,16 @@ export class DatabaseManager {
         throw error
       }
     }
+    
+    // Add cache_enabled column to existing table if it doesn't exist
+    try {
+      this.db.exec('ALTER TABLE commands ADD COLUMN cache_enabled INTEGER DEFAULT 1')
+    } catch (error) {
+      // Column might already exist, ignore error
+      if (!error.message.includes('duplicate column name')) {
+        throw error
+      }
+    }
   }
 
   getCommandsFromDB() {
@@ -69,7 +79,8 @@ export class DatabaseManager {
         key: JSON.parse(row.key),
         description: row.description,
         instruction: row.instruction,
-        models: row.models ? JSON.parse(row.models) : null
+        models: row.models ? JSON.parse(row.models) : null,
+        cache_enabled: Boolean(row.cache_enabled !== 0) // SQLite INTEGER to Boolean
       }
     }
     
@@ -87,21 +98,23 @@ export class DatabaseManager {
       key: JSON.parse(row.key),
       description: row.description,
       instruction: row.instruction,
-      models: row.models ? JSON.parse(row.models) : null
+      models: row.models ? JSON.parse(row.models) : null,
+      cache_enabled: Boolean(row.cache_enabled !== 0) // SQLite INTEGER to Boolean
     }
   }
 
-  saveCommand(id, name, key, description, instruction, models = null) {
+  saveCommand(id, name, key, description, instruction, models = null, cache_enabled = true) {
     const keyJson = JSON.stringify(key)
     const modelsJson = models ? JSON.stringify(models) : null
+    const cacheEnabledInt = cache_enabled ? 1 : 0 // Boolean to SQLite INTEGER
     const now = Math.floor(Date.now() / 1000)
     
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO commands (id, name, key, description, instruction, models, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO commands (id, name, key, description, instruction, models, cache_enabled, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     
-    stmt.run(id, name, keyJson, description, instruction, modelsJson, now)
+    stmt.run(id, name, keyJson, description, instruction, modelsJson, cacheEnabledInt, now)
   }
 
   deleteCommand(id) {
@@ -120,7 +133,8 @@ export class DatabaseManager {
       // Insert all instructions
       for (const [id, command] of Object.entries(instructions)) {
         const name = command.name || id
-        this.saveCommand(id, name, command.key, command.description, command.instruction, command.models || null)
+        const cache_enabled = command.cache_enabled !== undefined ? command.cache_enabled : true
+        this.saveCommand(id, name, command.key, command.description, command.instruction, command.models || null, cache_enabled)
       }
       
       this.db.exec('COMMIT')

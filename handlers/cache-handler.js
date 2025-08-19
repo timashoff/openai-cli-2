@@ -88,7 +88,7 @@ export class CacheHandler extends BaseRequestHandler {
         context.cacheInfo = {
           type: cacheResult.type,
           key: cacheResult.key,
-          shouldCache: true
+          shouldCache: cacheResult.type !== 'disabled' && !!cacheResult.key
         }
         
         return this.createPassThrough(context.processedInput, {
@@ -168,6 +168,16 @@ export class CacheHandler extends BaseRequestHandler {
   determineCacheInfo(context) {
     const instruction = context.instructionInfo
     const command = context.command
+    
+    // Check if caching is enabled for this command/instruction
+    const cacheEnabled = command?.cache_enabled !== false && instruction?.cache_enabled !== false
+    
+    if (!cacheEnabled) {
+      return {
+        type: 'disabled',
+        key: null
+      }
+    }
     
     // Multi-command cache (multiple models)
     if (command?.models && Array.isArray(command.models) && command.models.length > 1) {

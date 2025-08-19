@@ -82,7 +82,7 @@ export class CommandEditor {
       }
 
       const commandName = key.toUpperCase().replace(/[^A-Z0-9]/g, '_')
-      await this.saveCommand(commandName, commandName, keyArray, finalDescription, instruction, models)
+      await this.saveCommand(commandName, commandName, keyArray, finalDescription, instruction, models, true) // Cache enabled by default
       
       console.log(color.green + `Command "${commandName}" added` + color.reset)
       
@@ -172,9 +172,41 @@ export class CommandEditor {
             updatedCommand.models = selectedModels
           }
           break
+        case 5: // Cache enabled
+          const currentCacheStatus = command.cache_enabled !== undefined ? command.cache_enabled : true
+          const cacheOptions = ['Enable cache', 'Disable cache']
+          const currentSelection = currentCacheStatus ? 0 : 1
+          
+          console.log('')
+          console.log(color.yellow + `Current cache setting: ${currentCacheStatus ? 'enabled' : 'disabled'}` + color.reset)
+          
+          const cacheSelectionIndex = await createInteractiveMenu(
+            'Select cache setting:',
+            cacheOptions
+          )
+          
+          if (cacheSelectionIndex !== -1) {
+            const newCacheEnabled = cacheSelectionIndex === 0
+            const cacheWasDisabled = currentCacheStatus && !newCacheEnabled
+            
+            updatedCommand.cache_enabled = newCacheEnabled
+            console.log(color.green + `Cache ${updatedCommand.cache_enabled ? 'enabled' : 'disabled'}` + color.reset)
+            
+            // Clear cache when disabling caching
+            if (cacheWasDisabled) {
+              try {
+                const cache = await import('../utils/cache.js')
+                await cache.default.clearCommandCache(commandName)
+                console.log(color.grey + '🗑️ Command cache cleared' + color.reset)
+              } catch (error) {
+                console.log(color.yellow + 'Warning: Could not clear cache: ' + error.message + color.reset)
+              }
+            }
+          }
+          break
       }
 
-      await this.saveCommand(commandName, updatedCommand.name, updatedCommand.key, updatedCommand.description, updatedCommand.instruction, updatedCommand.models)
+      await this.saveCommand(commandName, updatedCommand.name, updatedCommand.key, updatedCommand.description, updatedCommand.instruction, updatedCommand.models, updatedCommand.cache_enabled)
       
       console.log(color.green + `Command "${commandName}" updated` + color.reset)
       
@@ -190,7 +222,8 @@ export class CommandEditor {
       'Command key',
       'Description',
       'Instruction',
-      'Models'
+      'Models',
+      'Cache enabled'
     ]
 
     return await createInteractiveMenu(
@@ -278,11 +311,11 @@ export class CommandEditor {
   }
 
 
-  async saveCommand(id, name, key, description, instruction, models = null) {
+  async saveCommand(id, name, key, description, instruction, models = null, cache_enabled = true) {
     try {
       // Use CommandRepository for automatic cache invalidation and hot-reload
       const repository = getCommandRepository()
-      await repository.save(id, { name, key, description, instruction, models })
+      await repository.save(id, { name, key, description, instruction, models, cache_enabled })
       console.log(color.grey + '🔄 Cache invalidated for hot-reload' + color.reset)
     } catch (error) {
       throw new Error(`Failed to save command: ${error.message}`)

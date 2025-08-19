@@ -51,6 +51,61 @@ this.cacheExpiry = 30 * 1000
 
 ---
 
+### Bug #20250819-0415: Anthropic Provider "0 available models" - FIXED ✅
+**Date:** 2025-08-19 04:15:00 → **Fixed:** 2025-08-19 04:45:00  
+**Priority:** HIGH (Provider Functionality)  
+**Status:** ✅ **RESOLVED**
+
+**Problem:** Anthropic provider shows "0 available models" in model selection UI and current model becomes "undefined" after selection.
+
+**Root Cause:** `AIProviderService.switchProvider()` created provider placeholder with empty models array and never called lazy loading to populate models.
+
+**Technical Analysis:**
+```javascript
+// Problem: switchProvider() set empty models and never loaded them
+this.providers.set(providerKey, {
+  instance: null,
+  config,
+  models: [],  // ❌ Empty array never populated
+  isLazyLoading: true
+})
+
+// UI got models from this empty array
+models: this.providers.get(key)?.models || []  // ❌ Always []
+```
+
+**Solution Applied:**
+- Modified `switchProvider()` to automatically call `lazyLoadProvider()` when needed
+- Provider now loads models immediately during switching instead of waiting for first API call
+- Added proper error handling for failed model loading
+- Enhanced logging for debugging provider switching
+
+**Technical Changes:**
+```javascript
+// Before: Empty models, lazy loading deferred
+models: []
+
+// After: Automatic model loading during switch
+if (!providerData || providerData.isLazyLoading) {
+  providerData = await this.lazyLoadProvider(providerKey)
+  availableModels = providerData.models || []
+}
+```
+
+**Impact:**
+- ✅ **Anthropic model selection works** - shows 5 available Claude models
+- ✅ **Current model persists** - no more "undefined" after selection
+- ✅ **Immediate model loading** - no delay waiting for first API call
+- ✅ **Better UX** - users see available models immediately after provider switch
+
+**Testing Results:**
+- Provider switch test: ✅ Available models: 5 (instead of 0)
+- Model list: ✅ All 5 Claude models loaded correctly
+- Model selection: ✅ No more "undefined" current model
+- Performance: ✅ No impact on switching speed
+
+---
+
 ### Bug #20250816-1424: Provider Models Initialization Error - FIXED
 **Date:** 2025-08-16 14:24:02 → **Fixed:** 2025-08-16 23:22:00  
 **Status:** ✅ **RESOLVED**
@@ -77,6 +132,66 @@ const defaultModel = defaultProvider.models.find(...) // CRASH if models undefin
 const models = defaultProvider.models || []
 const defaultModel = models.find(...) || models[0] || 'gpt-5-mini'
 ```
+
+---
+
+## Recent Fixes ✅
+
+### Bug #20250819-0628: Multi-Model Caching Not Working for Custom Commands - FIXED ✅
+**Date:** 2025-08-19 06:28:00 → **Fixed:** 2025-08-19 06:28:00  
+**Priority:** HIGH (User Experience & Performance)  
+**Status:** ✅ **RESOLVED**
+
+**Problem:** Multi-model commands like KG were not caching responses because caching was hardcoded to only work for `isTranslation` commands (RUSSIAN, ENGLISH, etc.). Custom commands bypassed caching entirely, leading to poor user experience.
+
+**Root Cause:** 
+```javascript
+// AIProcessor.js - Cache only worked for translation commands
+if (command.isTranslation && multiResult && multiResult.results) {
+  await cache.set(cacheKey, formattedResponse) // ❌ KG never cached
+}
+
+// isTranslation determined by hardcoded array
+const TRANSLATION_KEYS = ['RUSSIAN', 'ENGLISH', 'CHINESE', 'PINYIN', 'TRANSCRIPTION', 'HSK', 'HSK_SS']
+const isTranslation = TRANSLATION_KEYS.includes(foundCommand.id) // ❌ KG not included
+```
+
+**Solution Applied:**
+1. **Added `cache_enabled` field to commands database schema** - allows per-command cache control
+2. **Modified caching logic** - replaced `isTranslation` checks with `command.cache_enabled` 
+3. **Updated CommandEditor** - added Cache enabled/disabled option in field selection menu
+4. **Enhanced database layer** - DatabaseManager and CommandRepository support cache_enabled field
+5. **Default behavior** - new commands have cache enabled by default, existing commands migrated with cache enabled
+
+**Technical Changes:**
+```javascript
+// Before: Translation-only caching
+if (command.isTranslation && multiResult && multiResult.results) {
+
+// After: Flexible per-command caching  
+if (command.cache_enabled && multiResult && multiResult.results) {
+
+// Database schema update
+ALTER TABLE commands ADD COLUMN cache_enabled INTEGER DEFAULT 1
+
+// CommandEditor enhancement
+case 5: // Cache enabled
+  const cacheOptions = ['Enable cache', 'Disable cache']
+  // Interactive menu for cache control
+```
+
+**Impact:**
+- ✅ **KG command now caches properly** - multi-model responses cached for performance
+- ✅ **User control over caching** - can enable/disable cache per command via CMD menu
+- ✅ **Better flexibility** - no more hardcoded translation-only caching logic
+- ✅ **Backward compatibility** - existing commands default to cache enabled
+- ✅ **Performance improvement** - custom commands benefit from caching
+
+**Testing:**
+- Database migration: ✅ All existing commands have cache_enabled=true
+- Command editing: ✅ Can toggle cache via CMD → Edit → Cache enabled field
+- Caching logic: ✅ Multi-model and single-model commands respect cache_enabled flag
+- Default behavior: ✅ New commands created with cache enabled by default
 
 ---
 

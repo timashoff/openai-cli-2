@@ -445,8 +445,8 @@ export class StreamHandler extends BaseRequestHandler {
   async handleSingleStreamResponse(context, response, messages) {
     const instruction = context.instructionInfo
     
-    if (instruction?.isTranslation) {
-      // Cache translation if cache info available
+    if (instruction?.cache_enabled) {
+      // Cache response if caching enabled and cache info available
       if (context.cacheInfo?.shouldCache && this.cache) {
         await this.cacheSingleResponse(context, response)
       }

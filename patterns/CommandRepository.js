@@ -254,7 +254,7 @@ export class CommandRepository {
    * @returns {Promise<boolean>} Success status
    */
   async save(id, commandData) {
-    const { name, key, description, instruction, models = null } = commandData
+    const { name, key, description, instruction, models = null, cache_enabled = true } = commandData
     
     // Validate required fields
     if (!id || !name || !key || !description || !instruction) {
@@ -266,7 +266,7 @@ export class CommandRepository {
     }
     
     try {
-      this.db.saveCommand(id, name, key, description, instruction, models)
+      this.db.saveCommand(id, name, key, description, instruction, models, cache_enabled)
       
       // Invalidate cache for hot-reload
       this.clearCache()
@@ -408,7 +408,8 @@ export class CommandRepository {
       key: Array.isArray(command.key) ? command.key : [command.key],
       description: command.description || '',
       instruction: command.instruction || '',
-      models: command.models || null
+      models: command.models || null,
+      cache_enabled: command.cache_enabled !== undefined ? command.cache_enabled : true
     }
   }
 

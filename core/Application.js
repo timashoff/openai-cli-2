@@ -399,8 +399,8 @@ export class Application {
         this.stateManager.addToContext('assistant', response)
       }
       
-      // Cache translation results
-      if (command && command.isTranslation && this.cache) {
+      // Cache results for commands with caching enabled
+      if (command && command.cache_enabled && this.cache) {
         const cacheKey = command.hasUrl ? command.originalInput : command.fullInstruction
         this.cache.set(cacheKey, response)
       }
