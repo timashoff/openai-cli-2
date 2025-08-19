@@ -375,6 +375,155 @@ export class AIProcessor {
       })
     }
 
+    // Handle single-model commands with specific provider/model
+    if (command && command.models && Array.isArray(command.models) && command.models.length === 1) {
+      const modelData = command.models[0]
+      let modelString, providerKey, modelName
+      
+      // Handle different data formats for command.models[0]
+      if (typeof modelData === 'string') {
+        // Format: "deepseek-chat"
+        modelString = modelData
+      } else if (typeof modelData === 'object' && modelData !== null) {
+        // Format: {provider: "deepseek", model: "deepseek-chat"} or {model: "deepseek-chat"}
+        if (modelData.model) {
+          modelString = modelData.model
+          if (modelData.provider) {
+            providerKey = modelData.provider
+          }
+        } else {
+          throw new Error(`Invalid model object format: ${JSON.stringify(modelData)}`)
+        }
+      } else {
+        throw new Error(`Invalid model format: ${JSON.stringify(modelData)} (type: ${typeof modelData})`)
+      }
+      
+      // Parse provider and model from model string if provider not already set
+      if (!providerKey) {
+        if (modelString.includes('gpt-')) {
+          providerKey = 'openai'
+        } else if (modelString.includes('deepseek')) {
+          providerKey = 'deepseek'
+        } else if (modelString.includes('claude')) {
+          providerKey = 'anthropic'
+        } else {
+          // Fallback: try to extract provider from model name prefix
+          const parts = modelString.split('-')
+          providerKey = parts[0]
+        }
+      }
+      
+      modelName = modelString
+      
+      try {
+        // Import provider factory for single command execution
+        const { createProvider } = await import('../utils/provider-factory.js')
+        const { API_PROVIDERS } = await import('../config/api_providers.js')
+        
+        const providerConfig = API_PROVIDERS[providerKey]
+        if (!providerConfig) {
+          throw new Error(`Provider config not found for: ${providerKey}`)
+        }
+        
+        // Check if provider has API key
+        if (!process.env[providerConfig.apiKeyEnv]) {
+          throw new Error(`API key not found for ${providerKey}. Set ${providerConfig.apiKeyEnv} environment variable.`)
+        }
+        
+        // Create temporary provider instance
+        const providerInstance = createProvider(providerKey, providerConfig)
+        await providerInstance.initializeClient()
+        
+        let messages = []
+        if (command.isTranslation) {
+          messages = [{ role: 'user', content: finalInput }]
+        } else {
+          messages = this.app.state.contextHistory.map(({ role, content }) => ({ role, content }))
+          messages.push({ role: 'user', content: finalInput })
+        }
+        
+        console.log(`[Handler: ${command.commandKey}] → ${providerKey}/${modelName}\n`)
+        
+        startTime = Date.now()
+        
+        let i = 0
+        process.stdout.write('\x1B[?25l')
+        const spinnerInterval = setInterval(() => {
+          clearTerminalLine()
+          const elapsedTime = getElapsedTime(startTime)
+          process.stdout.write(
+            `${color.reset}${UI_SYMBOLS.SPINNER[i++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s${color.reset}`,
+          )
+        }, configManager.get('spinnerInterval'))
+        cliManager.setSpinnerInterval(spinnerInterval)
+        interval = spinnerInterval
+        
+        // Use specific provider and model (like multi-command-processor)
+        const stream = await providerInstance.createChatCompletion(modelName, messages, {
+          stream: true,
+          signal: controller.signal
+        })
+
+        const streamProcessor = new StreamProcessor(providerKey)
+        cliManager.setProcessingRequest(true, controller, streamProcessor)
+        let response = []
+        let firstChunk = true
+
+        const chunks = await streamProcessor.processStream(stream, controller.signal, (chunk) => {
+          if (firstChunk) {
+            clearInterval(interval)
+            clearTerminalLine()
+            process.stdout.write('\x1B[?25h')
+            cliManager.setProcessingRequest(false)
+            cliManager.setTypingResponse(true)
+            firstChunk = false
+          }
+          process.stdout.write(chunk)
+        })
+
+        response = chunks
+
+        // Cache handling for single-model commands
+        if (command.isTranslation && response.length > 0) {
+          const responseText = response.join('')
+          if (responseText.trim()) {
+            await cache.set(cacheKey, responseText)
+            
+            commandObserver.emit(COMMAND_EVENTS.CACHE_STORED, {
+              cacheKey: cacheKey.substring(0, 50),
+              cacheType: 'single-model',
+              responseLength: responseText.length,
+              commandKey: command.commandKey
+            })
+          }
+        }
+        
+        // Add to context history if not translation
+        if (!command.isTranslation && response.length > 0) {
+          this.app.state.contextHistory.push({ role: 'user', content: finalInput })
+          this.app.state.contextHistory.push({ role: 'assistant', content: response.join('') })
+        }
+        
+        cliManager.setTypingResponse(false)
+        return
+        
+      } catch (error) {
+        if (interval) {
+          clearInterval(interval)
+          clearTerminalLine()
+          process.stdout.write('\x1B[?25h')
+        }
+        cliManager.setProcessingRequest(false)
+        cliManager.setTypingResponse(false)
+        
+        // Handle provider errors gracefully
+        console.log(`\n${color.red}❌ Provider not working: ${providerKey}${color.reset}`)
+        console.log(`${color.yellow}Falling back to current provider...${color.reset}\n`)
+        
+        // Fall through to default provider logic below
+      }
+    }
+
     try {
       let messages = []
       if (command && command.isTranslation) {

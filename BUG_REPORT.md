@@ -99,6 +99,59 @@ Current provider: openai
 
 ---
 
+### Bug #20250819-0037: Command Hot-Reload Not Working  
+**Date:** 2025-08-19 00:37:00  
+**Priority:** HIGH (Development Workflow)
+
+#### Issue:
+Commands are cached for 5 minutes in CommandRepository, causing stale data to persist even after database modifications.
+
+#### Current Behavior:
+```
+1. Command `kg` has 3 models in database
+2. User deletes 2 models from database via cmd editor
+3. Command `kg` still executes with 3 models (cached data)
+4. `cmd -> list commands` shows outdated information (3 models)
+5. Changes only become visible after 5-minute cache TTL expires
+```
+
+#### Problem Analysis:
+- **CommandRepository** has 5-minute TTL cache without proper invalidation
+- **No cache invalidation** on database changes
+- **Development workflow broken** - database modifications not immediately visible
+- **TTL too long** for development environment where commands change frequently
+
+#### Expected Behavior:
+```
+1. User modifies command in database
+2. Next command execution uses fresh data from database
+3. Changes immediately visible in system
+4. Hot-reload works for development workflow
+```
+
+#### Impact:
+- **Development workflow disruption** - changes invisible for 5 minutes
+- **User confusion** - system appears to ignore database modifications  
+- **Potential connection** to model selection issues (if models are also cached)
+
+#### Technical Architecture Needed:
+1. **Cache Invalidation** - clear cache on database modifications
+2. **Shorter TTL** for development environment
+3. **Force Refresh** option for immediate cache bypass
+4. **Event-based invalidation** when commands are modified
+
+#### Root Cause Location:
+- `patterns/CommandRepository.js` - 5-minute TTL cache implementation
+- Cache invalidation missing on database write operations
+- No development vs production cache TTL differentiation
+
+#### Potential Connection:
+This bug may be related to Anthropic model selection issues - if model lists use similar caching mechanisms, stale model data could cause selection problems.
+
+#### Status: ACTIVE (Needs Investigation & Fix)
+
+---
+
 ### Bug #20250816-2100: Delayed Spinner Start
 **Date:** 2025-08-16 21:00:00  
 **Priority:** UX Improvement

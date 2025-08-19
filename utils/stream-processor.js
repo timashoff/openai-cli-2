@@ -1,3 +1,5 @@
+import { streamingObserver, STREAMING_EVENTS } from '../patterns/StreamingObserver.js'
+
 /**
  * Processes streaming responses from different AI providers
  */
@@ -49,6 +51,13 @@ export class StreamProcessor {
     }
     
     const response = []
+    const startTime = Date.now()
+
+    // Emit stream started event
+    streamingObserver.emit(STREAMING_EVENTS.STREAM_STARTED, {
+      provider: this.providerKey,
+      startTime: startTime
+    })
 
     try {
       if (this.isClaudeProvider) {
@@ -56,6 +65,23 @@ export class StreamProcessor {
       } else {
         await this.processOpenAIStream(stream, response, signal, onChunk)
       }
+      
+      // Emit stream finished event
+      streamingObserver.emit(STREAMING_EVENTS.STREAM_FINISHED, {
+        provider: this.providerKey,
+        duration: Date.now() - startTime,
+        totalTokens: response.length
+      })
+      
+    } catch (error) {
+      // Emit stream cancelled/error event
+      if (error.message === 'AbortError') {
+        streamingObserver.emit(STREAMING_EVENTS.STREAM_CANCELLED, {
+          provider: this.providerKey,
+          duration: Date.now() - startTime
+        })
+      }
+      throw error
     } finally {
       this.currentStream = null
       this.currentReader = null

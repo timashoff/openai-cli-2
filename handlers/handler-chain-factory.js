@@ -35,27 +35,26 @@ export class HandlerChainFactory {
       console.warn(`Handler chain: Optional dependencies missing: ${missingOptional.join(', ')} - some features may be limited`)
     }
 
-    // Essential handler chain - includes CommandHandler for translation commands
+    // Full handler chain - ACTIVATED for Phase 4.2
     const handlers = [
       // 1. Process clipboard markers first (modifies input)
       new ClipboardHandler(dependencies),
       
-      // 2. Process commands - CRITICAL for translation functionality (aa, rr, etc.)
+      // 2. Process flags (force, etc.)
+      new FlagHandler(dependencies), 
+      
+      // 3. Process commands - CRITICAL for translation functionality (aa, rr, etc.)
       new CommandHandler(dependencies),
       
-      // 3. Final AI streaming (always handles remaining requests) 
+      // 4. Handle MCP (web content, search, etc.)
+      new MCPHandler(dependencies),
+      
+      // 5. Check cache for responses
+      new CacheHandler(dependencies),
+      
+      // 6. Final AI streaming (always handles remaining requests) 
       new StreamHandler(dependencies)
     ]
-    
-    // Full handler chain - will be activated later
-    // const handlers = [
-    //   new ClipboardHandler(dependencies),
-    //   new FlagHandler(dependencies), 
-    //   new CommandHandler(dependencies),
-    //   new MCPHandler(dependencies),
-    //   new CacheHandler(dependencies),
-    //   new StreamHandler(dependencies)
-    // ]
 
     // Link handlers in chain
     for (let i = 0; i < handlers.length - 1; i++) {
