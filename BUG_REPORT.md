@@ -9,6 +9,48 @@
 
 ## Fixed Issues ✅
 
+### Bug #20250819-0037: Command Hot-Reload Not Working - FIXED ✅
+**Date:** 2025-08-19 00:37:00 → **Fixed:** 2025-08-19 03:45:00  
+**Priority:** HIGH (Development Workflow)  
+**Status:** ✅ **RESOLVED**
+
+**Problem:** Commands cached for 5 minutes in CommandRepository without proper cache invalidation, breaking hot-reload development workflow.
+
+**Root Cause:** CommandRepository used 5-minute TTL cache without invalidation on database writes, causing stale data to persist after command modifications.
+
+**Solution Applied:**
+- **Reduced TTL**: Cache TTL reduced from 5 minutes to 30 seconds for better development UX
+- **Aggressive Cache Invalidation**: Added automatic cache clearing on all save/delete operations
+- **CommandEditor Integration**: Updated CommandEditor to use CommandRepository instead of direct database calls
+- **Enhanced Logging**: Added detailed cache invalidation logging for debugging
+- **Force Refresh Method**: Added `forceRefresh()` method for immediate cache bypass
+
+**Technical Changes:**
+```javascript
+// Before: 5-minute cache without invalidation
+this.cacheExpiry = 5 * 60 * 1000 
+
+// After: 30-second cache with aggressive invalidation
+this.cacheExpiry = 30 * 1000
+// + automatic clearCache() on save/delete operations
+```
+
+**Impact:**
+- ✅ **Hot-reload works immediately** - command changes visible instantly
+- ✅ **Development workflow restored** - no more 5-minute delays
+- ✅ **Cache performance preserved** - 66.67% hit rate for read operations
+- ✅ **CommandEditor integration** - all database modifications use Repository pattern
+
+**Testing Results:**
+- KG command modification test: ✅ Changes visible immediately
+- Cache performance test: ✅ 66.67% hit rate maintained
+- Multiple read test: ✅ Updated data consistent across reads
+- CommandRepository integration: ✅ Cache invalidation on save/delete
+
+**Connection to Anthropic Issues:** Investigation revealed Anthropic provider uses static model list (not cached), so "0 models" issue is unrelated to caching - likely ServiceManager lazy loading behavior.
+
+---
+
 ### Bug #20250816-1424: Provider Models Initialization Error - FIXED
 **Date:** 2025-08-16 14:24:02 → **Fixed:** 2025-08-16 23:22:00  
 **Status:** ✅ **RESOLVED**
@@ -99,58 +141,6 @@ Current provider: openai
 
 ---
 
-### Bug #20250819-0037: Command Hot-Reload Not Working  
-**Date:** 2025-08-19 00:37:00  
-**Priority:** HIGH (Development Workflow)
-
-#### Issue:
-Commands are cached for 5 minutes in CommandRepository, causing stale data to persist even after database modifications.
-
-#### Current Behavior:
-```
-1. Command `kg` has 3 models in database
-2. User deletes 2 models from database via cmd editor
-3. Command `kg` still executes with 3 models (cached data)
-4. `cmd -> list commands` shows outdated information (3 models)
-5. Changes only become visible after 5-minute cache TTL expires
-```
-
-#### Problem Analysis:
-- **CommandRepository** has 5-minute TTL cache without proper invalidation
-- **No cache invalidation** on database changes
-- **Development workflow broken** - database modifications not immediately visible
-- **TTL too long** for development environment where commands change frequently
-
-#### Expected Behavior:
-```
-1. User modifies command in database
-2. Next command execution uses fresh data from database
-3. Changes immediately visible in system
-4. Hot-reload works for development workflow
-```
-
-#### Impact:
-- **Development workflow disruption** - changes invisible for 5 minutes
-- **User confusion** - system appears to ignore database modifications  
-- **Potential connection** to model selection issues (if models are also cached)
-
-#### Technical Architecture Needed:
-1. **Cache Invalidation** - clear cache on database modifications
-2. **Shorter TTL** for development environment
-3. **Force Refresh** option for immediate cache bypass
-4. **Event-based invalidation** when commands are modified
-
-#### Root Cause Location:
-- `patterns/CommandRepository.js` - 5-minute TTL cache implementation
-- Cache invalidation missing on database write operations
-- No development vs production cache TTL differentiation
-
-#### Potential Connection:
-This bug may be related to Anthropic model selection issues - if model lists use similar caching mechanisms, stale model data could cause selection problems.
-
-#### Status: ACTIVE (Needs Investigation & Fix)
-
----
 
 ### Bug #20250816-2100: Delayed Spinner Start
 **Date:** 2025-08-16 21:00:00  

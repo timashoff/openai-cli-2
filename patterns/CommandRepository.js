@@ -35,7 +35,7 @@ export class CommandRepository {
     this.db = getDatabase()
     this.cache = new Map()
     this.cacheEnabled = true
-    this.cacheExpiry = 5 * 60 * 1000 // 5 minutes
+    this.cacheExpiry = 30 * 1000 // 30 seconds for better development workflow
     this.stats = {
       totalQueries: 0,
       cacheHits: 0,
@@ -268,10 +268,10 @@ export class CommandRepository {
     try {
       this.db.saveCommand(id, name, key, description, instruction, models)
       
-      // Invalidate cache
+      // Invalidate cache for hot-reload
       this.clearCache()
       
-      logger.info(`CommandRepository: Saved command: ${id}`)
+      logger.info(`CommandRepository: Saved command: ${id} - cache invalidated for hot-reload`)
       return true
       
     } catch (error) {
@@ -294,10 +294,10 @@ export class CommandRepository {
     try {
       this.db.deleteCommand(id)
       
-      // Invalidate cache
+      // Invalidate cache for hot-reload
       this.clearCache()
       
-      logger.info(`CommandRepository: Deleted command: ${id}`)
+      logger.info(`CommandRepository: Deleted command: ${id} - cache invalidated for hot-reload`)
       return true
       
     } catch (error) {
@@ -358,8 +358,18 @@ export class CommandRepository {
    * Clear repository cache
    */
   clearCache() {
+    const cacheSize = this.cache.size
     this.cache.clear()
-    logger.debug('CommandRepository: Cache cleared')
+    logger.info(`CommandRepository: Cache cleared (${cacheSize} entries removed) - ensuring hot-reload`)
+  }
+
+  /**
+   * Force refresh all commands from database (bypass cache)
+   * @returns {Promise<Object>} Fresh commands from database
+   */
+  async forceRefresh() {
+    logger.info('CommandRepository: Force refresh - bypassing cache completely')
+    return await this.getAllCommands({ useCache: false })
   }
 
   /**

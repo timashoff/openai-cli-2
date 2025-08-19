@@ -280,8 +280,10 @@ export class CommandEditor {
 
   async saveCommand(id, name, key, description, instruction, models = null) {
     try {
-      const db = getDatabase()
-      db.saveCommand(id, name, key, description, instruction, models)
+      // Use CommandRepository for automatic cache invalidation and hot-reload
+      const repository = getCommandRepository()
+      await repository.save(id, { name, key, description, instruction, models })
+      console.log(color.grey + '🔄 Cache invalidated for hot-reload' + color.reset)
     } catch (error) {
       throw new Error(`Failed to save command: ${error.message}`)
     }
@@ -289,8 +291,10 @@ export class CommandEditor {
 
   async removeCommand(name) {
     try {
-      const db = getDatabase()
-      db.deleteCommand(name)
+      // Use CommandRepository for automatic cache invalidation and hot-reload
+      const repository = getCommandRepository()
+      await repository.delete(name)
+      console.log(color.grey + '🔄 Cache invalidated for hot-reload' + color.reset)
     } catch (error) {
       throw new Error(`Failed to remove command: ${error.message}`)
     }
