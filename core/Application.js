@@ -8,6 +8,7 @@ import { createRequestRouter } from './RequestRouter.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
+import cacheManager from '../core/CacheManager.js'
 
 export class Application {
   constructor(dependencies = {}) {
@@ -399,10 +400,16 @@ export class Application {
         this.stateManager.addToContext('assistant', response)
       }
       
-      // Cache results for commands with caching enabled
-      if (command && command.cache_enabled && this.cache) {
-        const cacheKey = command.hasUrl ? command.originalInput : command.fullInstruction
-        this.cache.set(cacheKey, response)
+      // Cache results using CacheManager
+      if (command) {
+        const cacheDecision = cacheManager.shouldCache(command, null, false)
+        if (cacheDecision.shouldStore) {
+          const cacheKey = cacheManager.generateCacheKey(
+            command.hasUrl ? command.originalInput : command.fullInstruction, 
+            command
+          )
+          await cacheManager.setCache(cacheKey, response, cacheDecision)
+        }
       }
       
     } finally {

@@ -9,6 +9,7 @@ import { configManager } from '../config/config-manager.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
 import { getCommandRepository } from '../patterns/CommandRepository.js'
 import cache from '../utils/cache.js'
+import cacheManager from '../core/CacheManager.js'
 import { errorHandler } from '../utils/error-handler.js'
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
@@ -281,11 +282,15 @@ export class AIProcessor {
 
     // Handle multi-model commands (modern architecture)
     if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
-      // Check cache for multi-model commands (using clean user input as key)
-      if (command.cache_enabled && !forceRequest && cache.has(cacheKey)) {
-        const cachedResponse = cache.get(cacheKey)
+      // Use CacheManager for cache decisions
+      const cacheDecision = cacheManager.shouldCache(command, null, forceRequest)
+      const actualCacheKey = cacheManager.generateCacheKey(cacheKey, command)
+      
+      // Check cache for multi-model commands
+      if (cacheDecision.shouldUse && await cacheManager.hasCache(actualCacheKey)) {
+        const cachedResponse = await cacheManager.getCache(actualCacheKey)
         commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
-          cacheKey: cacheKey.substring(0, 50),
+          cacheKey: actualCacheKey.substring(0, 50),
           cacheType: 'multi-model',
           responseLength: cachedResponse.length,
           commandKey: command.commandKey
@@ -294,9 +299,9 @@ export class AIProcessor {
         console.log(`${color.yellow}[from cache]${color.reset}`)
         process.stdout.write(cachedResponse + '\n')
         return
-      } else if (command.cache_enabled && !forceRequest) {
+      } else if (cacheDecision.shouldUse) {
         commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
-          cacheKey: cacheKey.substring(0, 50),
+          cacheKey: actualCacheKey.substring(0, 50),
           cacheType: 'multi-model',
           commandKey: command.commandKey
         })
@@ -334,13 +339,13 @@ export class AIProcessor {
           responseLength: multiResult?.results?.reduce((total, r) => total + (r.response?.length || 0), 0) || 0
         })
         
-        // Cache the formatted multi-model response for commands with caching enabled
-        if (command.cache_enabled && multiResult && multiResult.results) {
+        // Cache the formatted multi-model response using CacheManager
+        if (cacheDecision.shouldStore && multiResult && multiResult.results) {
           const formattedResponse = multiCommandProcessor.formatMultiResponse(multiResult, command.commandKey)
-          await cache.set(cacheKey, formattedResponse)
+          await cacheManager.setCache(actualCacheKey, formattedResponse, cacheDecision)
           
           commandObserver.emit(COMMAND_EVENTS.CACHE_STORED, {
-            cacheKey: cacheKey.substring(0, 50),
+            cacheKey: actualCacheKey.substring(0, 50),
             cacheType: 'multi-model',
             responseLength: formattedResponse.length,
             commandKey: command.commandKey
@@ -354,25 +359,34 @@ export class AIProcessor {
       }
     }
 
-    // Standard single-provider cache check for commands with caching enabled
-    if (command && command.cache_enabled && !forceRequest && cache.has(cacheKey)) {
-      const cachedResponse = cache.get(cacheKey)
-      commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
-        cacheKey: cacheKey.substring(0, 50),
-        cacheType: 'single-model',
-        responseLength: cachedResponse.length,
-        commandKey: command.commandKey
-      })
+    // Standard single-provider cache check using CacheManager
+    if (command) {
+      const cacheDecision = cacheManager.shouldCache(command, null, forceRequest)
+      const actualCacheKey = cacheManager.generateCacheKey(cacheKey, command)
       
-      console.log(`${color.yellow}[from cache]${color.reset}`)
-      process.stdout.write(cachedResponse + '\\n')
-      return
-    } else if (command && command.cache_enabled && !forceRequest) {
-      commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
-        cacheKey: cacheKey.substring(0, 50),
-        cacheType: 'single-model',
-        commandKey: command.commandKey
-      })
+      if (cacheDecision.shouldUse && await cacheManager.hasCache(actualCacheKey)) {
+        const cachedResponse = await cacheManager.getCache(actualCacheKey)
+        commandObserver.emit(COMMAND_EVENTS.CACHE_HIT, {
+          cacheKey: actualCacheKey.substring(0, 50),
+          cacheType: 'single-model',
+          responseLength: cachedResponse.length,
+          commandKey: command.commandKey
+        })
+        
+        console.log(`${color.yellow}[from cache]${color.reset}`)
+        process.stdout.write(cachedResponse + '\n')
+        return
+      } else if (cacheDecision.shouldUse) {
+        commandObserver.emit(COMMAND_EVENTS.CACHE_MISS, {
+          cacheKey: actualCacheKey.substring(0, 50),
+          cacheType: 'single-model',
+          commandKey: command.commandKey
+        })
+      }
+      
+      // Store cache decision for later use
+      command._cacheDecision = cacheDecision
+      command._actualCacheKey = actualCacheKey
     }
 
     // Handle single-model commands with specific provider/model
@@ -483,14 +497,14 @@ export class AIProcessor {
 
         response = chunks
 
-        // Cache handling for single-model commands with caching enabled
-        if (command.cache_enabled && response.length > 0) {
+        // Cache handling for single-model commands using CacheManager
+        if (command._cacheDecision?.shouldStore && response.length > 0) {
           const responseText = response.join('')
           if (responseText.trim()) {
-            await cache.set(cacheKey, responseText)
+            await cacheManager.setCache(command._actualCacheKey, responseText, command._cacheDecision)
             
             commandObserver.emit(COMMAND_EVENTS.CACHE_STORED, {
-              cacheKey: cacheKey.substring(0, 50),
+              cacheKey: command._actualCacheKey.substring(0, 50),
               cacheType: 'single-model',
               responseLength: responseText.length,
               commandKey: command.commandKey
@@ -657,8 +671,8 @@ export class AIProcessor {
         }
 
         const fullResponse = response.join('')
-        if (command && command.cache_enabled) {
-          await cache.set(cacheKey, fullResponse)
+        if (command && command._cacheDecision?.shouldStore) {
+          await cacheManager.setCache(command._actualCacheKey, fullResponse, command._cacheDecision)
         } else {
           this.app.addToContext('user', finalInput)
           this.app.addToContext('assistant', fullResponse)

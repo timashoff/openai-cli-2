@@ -137,8 +137,8 @@ const defaultModel = models.find(...) || models[0] || 'gpt-5-mini'
 
 ## Recent Fixes ✅
 
-### Bug #20250819-0628: Multi-Model Caching Not Working for Custom Commands - FIXED ✅
-**Date:** 2025-08-19 06:28:00 → **Fixed:** 2025-08-19 06:28:00  
+### Bug #20250819-0628: Per-Command Cache Control Implementation - FIXED ✅
+**Date:** 2025-08-19 06:28:00 → **Fixed:** 2025-08-19 12:30:00  
 **Priority:** HIGH (User Experience & Performance)  
 **Status:** ✅ **RESOLVED**
 
@@ -161,7 +161,23 @@ const isTranslation = TRANSLATION_KEYS.includes(foundCommand.id) // ❌ KG not i
 2. **Modified caching logic** - replaced `isTranslation` checks with `command.cache_enabled` 
 3. **Updated CommandEditor** - added Cache enabled/disabled option in field selection menu
 4. **Enhanced database layer** - DatabaseManager and CommandRepository support cache_enabled field
-5. **Default behavior** - new commands have cache enabled by default, existing commands migrated with cache enabled
+5. **Fixed transformCommand()** - CommandRepository was missing cache_enabled field causing it to be lost
+6. **Default behavior** - new commands have cache enabled by default, existing commands migrated with cache enabled
+
+**Critical Bug Fix:**
+```javascript
+// CRITICAL: CommandRepository.transformCommand() was missing cache_enabled field
+transformCommand(command, id) {
+  return {
+    name: command.name || id,
+    key: Array.isArray(command.key) ? command.key : [command.key],
+    description: command.description || '',
+    instruction: command.instruction || '',
+    models: command.models || null,
+    cache_enabled: command.cache_enabled !== undefined ? command.cache_enabled : true // ← FIXED
+  }
+}
+```
 
 **Technical Changes:**
 ```javascript
@@ -192,6 +208,17 @@ case 5: // Cache enabled
 - Command editing: ✅ Can toggle cache via CMD → Edit → Cache enabled field
 - Caching logic: ✅ Multi-model and single-model commands respect cache_enabled flag
 - Default behavior: ✅ New commands created with cache enabled by default
+- **Root cause fix**: ✅ CommandRepository.transformCommand() includes cache_enabled field
+
+**⚠️ ARCHITECTURAL ISSUE IDENTIFIED:**
+**Problem**: Cache logic scattered across **5 different files** violating Single Source of Truth:
+1. `cache-handler.js` - determines if caching is needed
+2. `AIProcessor.js` - checks cache_enabled and calls cache.set()
+3. `RequestRouter.js` - has own cache logic with 30s TTL  
+4. `Application.js` - checks cache_enabled in different context
+5. `stream-handler.js` - additional cache_enabled checks
+
+**Next Steps**: Requires architectural refactoring to centralize cache logic in unified `CacheManager` class.
 
 ---
 

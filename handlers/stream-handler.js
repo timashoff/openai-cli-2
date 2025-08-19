@@ -2,6 +2,7 @@ import { BaseRequestHandler } from './base-handler.js'
 import { AppError } from '../utils/error-handler.js'
 import { color } from '../config/color.js'
 import { getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
+import cacheManager from '../core/CacheManager.js'
 
 /**
  * Handler for AI streaming operations and final request processing
@@ -445,11 +446,11 @@ export class StreamHandler extends BaseRequestHandler {
   async handleSingleStreamResponse(context, response, messages) {
     const instruction = context.instructionInfo
     
-    if (instruction?.cache_enabled) {
-      // Cache response if caching enabled and cache info available
-      if (context.cacheInfo?.shouldCache && this.cache) {
-        await this.cacheSingleResponse(context, response)
-      }
+    // Use CacheManager for caching decision
+    const cacheDecision = cacheManager.shouldCache(context.command, instruction, false)
+    
+    if (cacheDecision.shouldStore && context.cacheInfo?.shouldCache) {
+      await this.cacheSingleResponse(context, response, cacheDecision)
     } else {
       // Add to context history for chat
       if (context.services.addToContext) {
@@ -468,36 +469,30 @@ export class StreamHandler extends BaseRequestHandler {
    * Cache single response
    * @private
    */
-  async cacheSingleResponse(context, response) {
-    if (this.cache?.set) {
-      await this.cache.set(context.cacheInfo.key, response)
-    }
+  async cacheSingleResponse(context, response, cacheDecision) {
+    await cacheManager.setCache(context.cacheInfo.key, response, cacheDecision)
   }
 
   /**
    * Cache multi-provider response
    * @private
    */
-  async cacheMultiProviderResponse(context, responses) {
-    if (this.cache?.setMultipleResponses) {
-      await this.cache.setMultipleResponses(context.cacheInfo.key, responses)
-    }
+  async cacheMultiProviderResponse(context, responses, cacheDecision) {
+    await cacheManager.setMultipleResponses(context.cacheInfo.key, responses, cacheDecision)
   }
 
   /**
    * Cache multi-command response
    * @private
    */
-  async cacheMultiCommandResponse(context, responses) {
-    if (this.cache?.setMultipleResponses) {
-      const formattedResponses = responses.map(r => ({
-        provider: r.provider,
-        model: r.model,
-        response: r.response,
-        error: r.error
-      }))
-      await this.cache.setMultipleResponses(context.cacheInfo.key, formattedResponses)
-    }
+  async cacheMultiCommandResponse(context, responses, cacheDecision) {
+    const formattedResponses = responses.map(r => ({
+      provider: r.provider,
+      model: r.model,
+      response: r.response,
+      error: r.error
+    }))
+    await cacheManager.setMultipleResponses(context.cacheInfo.key, formattedResponses, cacheDecision)
   }
 
   /**

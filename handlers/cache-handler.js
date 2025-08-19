@@ -1,6 +1,7 @@
 import { BaseRequestHandler } from './base-handler.js'
 import { AppError } from '../utils/error-handler.js'
 import { color } from '../config/color.js'
+import cacheManager from '../core/CacheManager.js'
 
 /**
  * Handler for cache operations (checking and bypassing cache)
@@ -38,72 +39,71 @@ export class CacheHandler extends BaseRequestHandler {
    * @override
    */
   async process(context) {
-    // Skip cache if force flag is set
-    if (context.flags?.force) {
-      this.log('info', 'Cache bypassed due to force flag')
-      return this.createPassThrough(context.processedInput, {
-        cacheChecked: false,
-        cacheBypassed: true,
-        reason: 'force_flag'
-      })
-    }
-    
     try {
-      // Check different cache types based on context
-      const cacheResult = await this.checkCache(context)
+      const command = context.command
+      const instruction = context.instructionInfo
+      const forceRequest = context.flags?.force || false
       
-      if (cacheResult.found) {
-        this.log('info', `Cache hit: ${cacheResult.type}`)
-        
-        // Update statistics
-        this.updateCacheStats('hit', cacheResult.type)
-        this.lastCacheOperation = new Date()
+      // Use CacheManager to determine if we should cache
+      const cacheDecision = cacheManager.shouldCache(command, instruction, forceRequest)
+      
+      if (!cacheDecision.shouldUse) {
+        this.log('info', `Cache bypassed: ${cacheDecision.reason}`)
+        return this.createPassThrough(context.processedInput, {
+          cacheChecked: false,
+          cacheBypassed: true,
+          reason: cacheDecision.reason
+        })
+      }
+      
+      // Generate cache key using CacheManager
+      const cacheKey = cacheManager.generateCacheKey(context.processedInput, command)
+      cacheDecision.cacheKey = cacheKey
+      
+      // Check if we have cached response
+      const hasCached = await this.checkCachedResponse(cacheKey, command)
+      
+      if (hasCached.found) {
+        this.log('info', `Cache hit: ${hasCached.type}`)
         
         // Show cached response
-        this.showCachedResponse(cacheResult)
+        this.showCachedResponse(hasCached)
         
         // Emit cache hit event
         this.emitEvent('cache:hit', {
-          type: cacheResult.type,
-          key: cacheResult.key,
-          size: cacheResult.data ? cacheResult.data.length : 0
+          type: hasCached.type,
+          key: cacheKey,
+          size: hasCached.data ? String(hasCached.data).length : 0
         })
         
         // Stop chain - request fulfilled from cache
-        return this.createResult(cacheResult.data, { 
+        return this.createResult(hasCached.data, { 
           stopChain: true,
           metadata: {
             fromCache: true,
-            cacheType: cacheResult.type,
-            cacheKey: cacheResult.key
+            cacheType: hasCached.type,
+            cacheKey: cacheKey
           }
         })
       } else {
-        this.log('debug', `Cache miss: ${cacheResult.type}`)
-        
-        // Update statistics
-        this.updateCacheStats('miss', cacheResult.type || 'unknown')
+        this.log('debug', `Cache miss: ${hasCached.type || 'general'}`)
         
         // Continue chain but mark cache info for later storage
         context.cacheInfo = {
-          type: cacheResult.type,
-          key: cacheResult.key,
-          shouldCache: cacheResult.type !== 'disabled' && !!cacheResult.key
+          cacheDecision: cacheDecision,
+          key: cacheKey,
+          shouldCache: cacheDecision.shouldStore
         }
         
         return this.createPassThrough(context.processedInput, {
           cacheChecked: true,
           cacheFound: false,
-          cacheType: cacheResult.type,
-          cacheKey: cacheResult.key
+          cacheKey: cacheKey
         })
       }
       
     } catch (error) {
       this.log('error', `Cache operation failed: ${error.message}`)
-      
-      // Update error statistics
-      this.updateCacheStats('error', 'unknown', error.message)
       
       // Emit error event
       this.emitEvent('cache:error', {
@@ -120,205 +120,61 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * Check cache for different request types
+   * Check if we have cached response using CacheManager
    * @private
-   * @param {Object} context - Processing context
+   * @param {string} cacheKey - Cache key
+   * @param {Object} command - Command object
    * @returns {Promise<Object>} Cache check result
    */
-  async checkCache(context) {
-    // Determine cache type and key
-    const cacheInfo = this.determineCacheInfo(context)
-    
-    if (!cacheInfo.key) {
+  async checkCachedResponse(cacheKey, command) {
+    if (!cacheKey) {
       return {
         found: false,
-        type: cacheInfo.type,
-        key: null,
+        type: 'general',
+        key: cacheKey,
         data: null
       }
     }
     
-    this.log('debug', `Checking ${cacheInfo.type} cache: ${cacheInfo.key.substring(0, 50)}...`)
+    this.log('debug', `Checking cache: ${cacheKey.substring(0, 50)}...`)
     
-    // Check appropriate cache type
-    switch (cacheInfo.type) {
-      case 'translation':
-        return await this.checkTranslationCache(cacheInfo.key)
-        
-      case 'multi-provider':
-        return await this.checkMultiProviderCache(cacheInfo.key)
-        
-      case 'document':
-        return await this.checkDocumentCache(cacheInfo.key)
-        
-      case 'multi-command':
-        return await this.checkMultiCommandCache(cacheInfo.key)
-        
-      default:
-        return await this.checkGeneralCache(cacheInfo.key)
-    }
-  }
-
-  /**
-   * Determine cache type and key from context
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Object} Cache info
-   */
-  determineCacheInfo(context) {
-    const instruction = context.instructionInfo
-    const command = context.command
+    // Check if it's a multi-model command
+    const isMultiModel = command?.models && Array.isArray(command.models) && command.models.length > 1
     
-    // Check if caching is enabled for this command/instruction
-    const cacheEnabled = command?.cache_enabled !== false && instruction?.cache_enabled !== false
-    
-    if (!cacheEnabled) {
-      return {
-        type: 'disabled',
-        key: null
+    if (isMultiModel) {
+      // Check multi-provider cache
+      const hasCache = await cacheManager.hasMultipleResponses(cacheKey)
+      if (hasCache) {
+        const cachedData = await cacheManager.getMultipleResponses(cacheKey)
+        return {
+          found: true,
+          type: 'multi-command',
+          key: cacheKey,
+          data: cachedData
+        }
+      }
+    } else {
+      // Check regular cache
+      const hasCache = await cacheManager.hasCache(cacheKey)
+      if (hasCache) {
+        const cachedData = await cacheManager.getCache(cacheKey)
+        return {
+          found: true,
+          type: 'general',
+          key: cacheKey,
+          data: cachedData
+        }
       }
     }
-    
-    // Multi-command cache (multiple models)
-    if (command?.models && Array.isArray(command.models) && command.models.length > 1) {
-      return {
-        type: 'multi-command',
-        key: this.generateCacheKey(context.processedInput)
-      }
-    }
-    
-    // Multi-provider translation cache
-    if (instruction?.isMultiProvider && !instruction?.models?.length) {
-      return {
-        type: 'multi-provider',
-        key: this.generateCacheKey(context.processedInput)
-      }
-    }
-    
-    // Document translation cache
-    if (instruction?.isDocCommand) {
-      return {
-        type: 'document',
-        key: this.generateCacheKey(context.processedInput)
-      }
-    }
-    
-    // Regular translation cache
-    if (instruction?.isTranslation) {
-      const cacheKey = instruction.hasUrl ? instruction.originalInput : instruction.fullInstruction
-      return {
-        type: 'translation',
-        key: this.generateCacheKey(cacheKey)
-      }
-    }
-    
-    // General cache for other requests
-    return {
-      type: 'general',
-      key: this.generateCacheKey(context.processedInput)
-    }
-  }
-
-  /**
-   * Generate cache key from input
-   * @private
-   * @param {string} input - Input string
-   * @returns {string} Cache key
-   */
-  generateCacheKey(input) {
-    if (!input || typeof input !== 'string') {
-      return null
-    }
-    
-    // Simple cache key generation - in production, might use hash
-    return input.trim().toLowerCase()
-  }
-
-  /**
-   * Check translation cache
-   * @private
-   * @param {string} key - Cache key
-   * @returns {Promise<Object>} Cache result
-   */
-  async checkTranslationCache(key) {
-    if (!this.cache.has) {
-      return { found: false, type: 'translation', key, data: null }
-    }
-    
-    const cached = this.cache.has(key) ? this.cache.get(key) : null
     
     return {
-      found: !!cached,
-      type: 'translation',
-      key,
-      data: cached
+      found: false,
+      type: isMultiModel ? 'multi-command' : 'general',
+      key: cacheKey,
+      data: null
     }
   }
 
-  /**
-   * Check multi-provider cache
-   * @private
-   * @param {string} key - Cache key
-   * @returns {Promise<Object>} Cache result
-   */
-  async checkMultiProviderCache(key) {
-    if (!this.cache.hasMultipleResponses) {
-      return { found: false, type: 'multi-provider', key, data: null }
-    }
-    
-    const cached = this.cache.hasMultipleResponses(key) ? 
-      this.cache.getMultipleResponses(key) : null
-    
-    return {
-      found: !!cached,
-      type: 'multi-provider',
-      key,
-      data: cached
-    }
-  }
-
-  /**
-   * Check document cache
-   * @private
-   * @param {string} key - Cache key
-   * @returns {Promise<Object>} Cache result
-   */
-  async checkDocumentCache(key) {
-    if (!this.cache.getDocumentFile) {
-      return { found: false, type: 'document', key, data: null }
-    }
-    
-    const cached = this.cache.getDocumentFile(key)
-    
-    return {
-      found: !!cached,
-      type: 'document',
-      key,
-      data: cached
-    }
-  }
-
-  /**
-   * Check multi-command cache
-   * @private
-   * @param {string} key - Cache key
-   * @returns {Promise<Object>} Cache result
-   */
-  async checkMultiCommandCache(key) {
-    // Use multi-provider cache infrastructure for multi-command
-    return await this.checkMultiProviderCache(key)
-  }
-
-  /**
-   * Check general cache
-   * @private
-   * @param {string} key - Cache key
-   * @returns {Promise<Object>} Cache result
-   */
-  async checkGeneralCache(key) {
-    // Use translation cache infrastructure for general caching
-    return await this.checkTranslationCache(key)
-  }
 
   /**
    * Show cached response to user
@@ -404,73 +260,6 @@ export class CacheHandler extends BaseRequestHandler {
     return cacheablePatterns.some(pattern => pattern.test(input))
   }
 
-  /**
-   * Update cache statistics
-   * @private
-   * @param {string} operation - Operation type (hit, miss, error)
-   * @param {string} cacheType - Cache type
-   * @param {string} error - Error message if operation failed
-   */
-  updateCacheStats(operation, cacheType, error = null) {
-    const key = `${operation}:${cacheType}`
-    const current = this.cacheStats.get(key) || {
-      count: 0,
-      lastOperation: null,
-      errors: []
-    }
-    
-    current.count++
-    current.lastOperation = new Date()
-    
-    if (operation === 'error' && error && current.errors.length < 3) {
-      current.errors.push({
-        error,
-        timestamp: new Date()
-      })
-    }
-    
-    this.cacheStats.set(key, current)
-  }
-
-  /**
-   * Get cache operation statistics
-   * @returns {Object} Cache statistics
-   */
-  getCacheStats() {
-    const stats = {
-      totalOperations: 0,
-      hits: 0,
-      misses: 0,
-      errors: 0,
-      lastOperation: this.lastCacheOperation,
-      breakdown: {}
-    }
-    
-    for (const [key, data] of this.cacheStats) {
-      const [operation, type] = key.split(':')
-      
-      stats.totalOperations += data.count
-      
-      switch (operation) {
-        case 'hit':
-          stats.hits += data.count
-          break
-        case 'miss':
-          stats.misses += data.count
-          break
-        case 'error':
-          stats.errors += data.count
-          break
-      }
-      
-      stats.breakdown[key] = { ...data }
-    }
-    
-    stats.hitRate = (stats.hits + stats.misses) > 0 ? 
-      (stats.hits / (stats.hits + stats.misses)) * 100 : 0
-    
-    return stats
-  }
 
   /**
    * Get cache service status
@@ -530,12 +319,12 @@ export class CacheHandler extends BaseRequestHandler {
    */
   getStats() {
     const baseStats = super.getStats()
-    const cacheStats = this.getCacheStats()
+    const cacheManagerStats = cacheManager.getStats()
     const serviceStatus = this.getCacheServiceStatus()
     
     return {
       ...baseStats,
-      cacheOperations: cacheStats,
+      cacheOperations: cacheManagerStats,
       cacheService: serviceStatus
     }
   }
@@ -545,7 +334,7 @@ export class CacheHandler extends BaseRequestHandler {
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
-    const cacheStats = this.getCacheStats()
+    const cacheManagerStats = cacheManager.getStats()
     const serviceStatus = this.getCacheServiceStatus()
     
     return {
@@ -553,12 +342,9 @@ export class CacheHandler extends BaseRequestHandler {
       cacheHealth: {
         hasCacheService: !!this.cache,
         isServiceAvailable: serviceStatus.available,
-        totalOperations: cacheStats.totalOperations,
-        hitRate: cacheStats.hitRate,
-        recentErrors: cacheStats.errors,
-        lastOperation: this.lastCacheOperation,
+        cacheManagerStats: cacheManagerStats,
         supportedTypes: serviceStatus.supportedTypes?.length || 0,
-        isHealthy: serviceStatus.available && cacheStats.hitRate > 20 // Healthy if >20% hit rate
+        isHealthy: serviceStatus.available // CacheManager handles health internally
       }
     }
   }
@@ -567,8 +353,7 @@ export class CacheHandler extends BaseRequestHandler {
    * Clear cache statistics
    */
   clearStats() {
-    this.cacheStats.clear()
-    this.lastCacheOperation = null
+    cacheManager.resetStats()
     this.log('info', 'Cache statistics cleared')
   }
 
@@ -577,7 +362,6 @@ export class CacheHandler extends BaseRequestHandler {
    */
   dispose() {
     super.dispose()
-    this.cacheStats.clear()
-    this.lastCacheOperation = null
+    // CacheManager is singleton, no need to dispose
   }
 }

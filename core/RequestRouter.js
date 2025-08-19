@@ -8,6 +8,7 @@ import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
 import { getCommandsFromDB } from '../utils/database-manager.js'
 import { color } from '../config/color.js'
+import cacheManager from '../core/CacheManager.js'
 
 export class RequestRouter {
   constructor(stateManager, cliInterface, dependencies = {}) {
@@ -406,12 +407,17 @@ export class RequestRouter {
   async routeTranslationCommand(routingContext) {
     const { command, forceRequest } = routingContext
     
-    // Check cache first (unless forced)
-    if (!forceRequest && this.cache) {
-      const cacheKey = command.hasUrl ? command.originalInput : command.fullInstruction
-      const cached = this.cache.get(cacheKey)
+    // Check cache first using CacheManager
+    const cacheDecision = cacheManager.shouldCache(command, null, forceRequest)
+    
+    if (cacheDecision.shouldUse) {
+      const cacheKey = cacheManager.generateCacheKey(
+        command.hasUrl ? command.originalInput : command.fullInstruction, 
+        command
+      )
       
-      if (cached) {
+      if (await cacheManager.hasCache(cacheKey)) {
+        const cached = await cacheManager.getCache(cacheKey)
         this.cliInterface.writeWarning('[from cache]')
         return {
           action: 'return_cached_result',
@@ -446,11 +452,14 @@ export class RequestRouter {
       throw new Error('Multi-provider translator not available')
     }
     
-    // Check cache
-    if (!forceRequest && this.cache) {
-      const cacheKey = command.originalInput
-      if (this.cache.hasMultipleResponses(cacheKey)) {
-        const cachedResponses = this.cache.getMultipleResponses(cacheKey)
+    // Check cache using CacheManager
+    const cacheDecision = cacheManager.shouldCache(command, null, forceRequest)
+    
+    if (cacheDecision.shouldUse) {
+      const cacheKey = cacheManager.generateCacheKey(command.originalInput, command)
+      
+      if (await cacheManager.hasMultipleResponses(cacheKey)) {
+        const cachedResponses = await cacheManager.getMultipleResponses(cacheKey)
         const formattedResponse = this.multiProviderTranslator.formatMultiProviderResponse({
           translations: cachedResponses.map(r => ({ ...r, emoji: undefined })),
           elapsed: 0,
@@ -691,13 +700,15 @@ export class RequestRouter {
       const { input: processedInput, command } = routingResult
       const finalInput = processedInput || input
       
-      // Create cache key
-      const cacheKey = command?.originalInput || finalInput
+      // Use CacheManager for cache decisions and key generation
+      const cacheDecision = cacheManager.shouldCache(command, null, routingResult.context.forceRequest)
+      const cacheKey = cacheManager.generateCacheKey(command?.originalInput || finalInput, command)
       
-      // Check cache for commands with caching enabled
-      if (command?.cache_enabled && !routingResult.context.forceRequest && cache.has(cacheKey)) {
+      // Check cache using CacheManager
+      if (cacheDecision.shouldUse && await cacheManager.hasCache(cacheKey)) {
+        const cachedResponse = await cacheManager.getCache(cacheKey)
         cliInterface.writeWarning('[from cache]')
-        cliInterface.writeOutput(cache.get(cacheKey))
+        cliInterface.writeOutput(cachedResponse)
         return
       }
       
@@ -705,7 +716,8 @@ export class RequestRouter {
       await this.executeAIProcessing(finalInput, command, {
         ...dependencies,
         currentRequestController,
-        cacheKey
+        cacheKey,
+        cacheDecision
       })
       
     } catch (error) {
@@ -780,9 +792,9 @@ export class RequestRouter {
       if (!currentRequestController.signal.aborted && !this.stateManager.shouldReturnToPrompt()) {
         const fullResponse = response.join('')
         
-        if (command?.cache_enabled) {
-          // Cache response for commands with caching enabled
-          await cache.set(cacheKey, fullResponse)
+        if (dependencies.cacheDecision?.shouldStore) {
+          // Cache response using CacheManager
+          await cacheManager.setCache(cacheKey, fullResponse, dependencies.cacheDecision)
         } else {
           // Add to context history
           this.stateManager.addToContext('user', input)
@@ -842,9 +854,10 @@ export class RequestRouter {
       const formattedResponse = multiProviderTranslator.formatMultiProviderResponse(result)
       dependencies.cliInterface.writeOutput(formattedResponse)
       
-      // Cache result
-      if (dependencies.cache) {
-        await dependencies.cache.setMultipleResponses(command.originalInput, result.translations)
+      // Cache result using CacheManager
+      if (dependencies.cacheDecision?.shouldStore) {
+        const cacheKey = cacheManager.generateCacheKey(command.originalInput, command)
+        await cacheManager.setMultipleResponses(cacheKey, result.translations, dependencies.cacheDecision)
       }
       
     } catch (error) {
