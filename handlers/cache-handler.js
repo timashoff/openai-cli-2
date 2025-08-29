@@ -20,7 +20,6 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async canHandle(context) {
     if (!this.cache) {
@@ -36,29 +35,61 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async process(context) {
     try {
       const command = context.command
-      const instruction = context.instructionInfo
-      const forceRequest = context.flags?.force || false
+      
+      // Check if RequestRouter provided cached models (Mixed режим)
+      // Look for cachedModels in routing result or context
+      const cachedModels = context.cachedModels || context.routingResult?.cachedModels
+      const uncachedModels = context.uncachedModels || context.routingResult?.uncachedModels
+      
+      if (cachedModels && cachedModels.length > 0) {
+        this.log('info', `Showing ${cachedModels.length} cached responses instantly`)
+        
+        // Show cached responses instantly
+        await this.showCachedModelsResponses(cachedModels)
+        
+        // If no uncached models, stop processing here
+        if (!uncachedModels || uncachedModels.length === 0) {
+          return this.createResult('', {
+            stopChain: true,
+            metadata: {
+              allFromCache: true,
+              totalModels: cachedModels.length,
+              cachedModels: cachedModels.length
+            }
+          })
+        }
+        
+        // Continue with uncached models - update context for next handler
+        context.processedForCache = true
+        context.uncachedModels = uncachedModels
+        context.cachedCount = cachedModels.length
+        
+        return this.createPassThrough(context.processedInput, {
+          cacheChecked: true,
+          hasUncachedModels: true,
+          uncachedModels: uncachedModels,
+          cachedCount: cachedModels.length
+        })
+      }
       
       // Use CacheManager to determine if we should cache
-      const cacheDecision = cacheManager.shouldCache(command, instruction, forceRequest)
+      // RequestRouter already handled force flags
+      const shouldCache = cacheManager.shouldCache(command)
       
-      if (!cacheDecision.shouldUse) {
-        this.log('info', `Cache bypassed: ${cacheDecision.reason}`)
+      if (!shouldCache) {
+        this.log('info', 'Cache bypassed')
         return this.createPassThrough(context.processedInput, {
           cacheChecked: false,
-          cacheBypassed: true,
-          reason: cacheDecision.reason
+          cacheBypassed: true
         })
       }
       
       // Generate cache key using CacheManager
       const cacheKey = cacheManager.generateCacheKey(context.processedInput, command)
-      cacheDecision.cacheKey = cacheKey
       
       // Check if we have cached response
       const hasCached = await this.checkCachedResponse(cacheKey, command)
@@ -90,9 +121,8 @@ export class CacheHandler extends BaseRequestHandler {
         
         // Continue chain but mark cache info for later storage
         context.cacheInfo = {
-          cacheDecision: cacheDecision,
           key: cacheKey,
-          shouldCache: cacheDecision.shouldStore
+          shouldCache: true
         }
         
         return this.createPassThrough(context.processedInput, {
@@ -121,10 +151,9 @@ export class CacheHandler extends BaseRequestHandler {
 
   /**
    * Check if we have cached response using CacheManager
-   * @private
-   * @param {string} cacheKey - Cache key
-   * @param {Object} command - Command object
-   * @returns {Promise<Object>} Cache check result
+
+
+
    */
   async checkCachedResponse(cacheKey, command) {
     if (!cacheKey) {
@@ -138,38 +167,36 @@ export class CacheHandler extends BaseRequestHandler {
     
     this.log('debug', `Checking cache: ${cacheKey.substring(0, 50)}...`)
     
-    // Check if it's a multi-model command
-    const isMultiModel = command?.models && Array.isArray(command.models) && command.models.length > 1
+    // Try multi-provider cache first, then regular cache
+    // RequestRouter already determined the command type - we just check both
     
-    if (isMultiModel) {
-      // Check multi-provider cache
-      const hasCache = await cacheManager.hasMultipleResponses(cacheKey)
-      if (hasCache) {
-        const cachedData = await cacheManager.getMultipleResponses(cacheKey)
-        return {
-          found: true,
-          type: 'multi-command',
-          key: cacheKey,
-          data: cachedData
-        }
+    // Check multi-provider cache
+    const hasMultiCache = await cacheManager.hasMultipleResponses(cacheKey)
+    if (hasMultiCache) {
+      const cachedData = await cacheManager.getMultipleResponses(cacheKey)
+      return {
+        found: true,
+        type: 'multi-command',
+        key: cacheKey,
+        data: cachedData
       }
-    } else {
-      // Check regular cache
-      const hasCache = await cacheManager.hasCache(cacheKey)
-      if (hasCache) {
-        const cachedData = await cacheManager.getCache(cacheKey)
-        return {
-          found: true,
-          type: 'general',
-          key: cacheKey,
-          data: cachedData
-        }
+    }
+    
+    // Check regular cache
+    const hasCache = await cacheManager.hasCache(cacheKey)
+    if (hasCache) {
+      const cachedData = await cacheManager.getCache(cacheKey)
+      return {
+        found: true,
+        type: 'general',
+        key: cacheKey,
+        data: cachedData
       }
     }
     
     return {
       found: false,
-      type: isMultiModel ? 'multi-command' : 'general',
+      type: 'general',
       key: cacheKey,
       data: null
     }
@@ -178,8 +205,7 @@ export class CacheHandler extends BaseRequestHandler {
 
   /**
    * Show cached response to user
-   * @private
-   * @param {Object} cacheResult - Cache result
+
    */
   showCachedResponse(cacheResult) {
     console.log(`${color.yellow}[from cache]${color.reset}`)
@@ -214,9 +240,49 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
+   * Show cached responses for multiple models instantly
+
+   */
+  async showCachedModelsResponses(cachedModels) {
+    console.log(`${color.yellow}<from cache>${color.reset}`)
+    
+    for (const cachedModel of cachedModels) {
+      // Show model header
+      const modelInfo = this.getModelProviderInfo(cachedModel.model)
+      console.log(`\n${color.cyan}${modelInfo.provider} (${cachedModel.model}):${color.reset}`)
+      
+      // Show cached response
+      if (typeof cachedModel.response === 'string') {
+        process.stdout.write(cachedModel.response)
+        console.log() // New line
+      }
+      
+      // Show cache indicator
+      console.log(`${color.green}✓ cached${color.reset}`)
+    }
+  }
+
+  /**
+   * Get provider info for a model name
+
+
+   */
+  getModelProviderInfo(model) {
+    // Simple mapping based on model names
+    if (model.includes('deepseek')) {
+      return { provider: 'DeepSeek' }
+    } else if (model.includes('gpt') || model.includes('o1')) {
+      return { provider: 'OpenAI' }
+    } else if (model.includes('claude')) {
+      return { provider: 'Anthropic' }
+    } else {
+      return { provider: 'Unknown' }
+    }
+  }
+
+  /**
    * Show multi-provider cached response
-   * @private
-   * @param {Array} responses - Cached responses
+
    */
   showMultiProviderCachedResponse(responses) {
     // This would format the multi-provider response similar to the original
@@ -242,9 +308,8 @@ export class CacheHandler extends BaseRequestHandler {
 
   /**
    * Check if input is potentially cacheable
-   * @private
-   * @param {string} input - Input string
-   * @returns {boolean} True if potentially cacheable
+
+
    */
   isPotentiallyCacheable(input) {
     // Simple heuristics for cacheable content
@@ -263,7 +328,7 @@ export class CacheHandler extends BaseRequestHandler {
 
   /**
    * Get cache service status
-   * @returns {Object} Cache service status
+
    */
   getCacheServiceStatus() {
     if (!this.cache) {
@@ -293,8 +358,7 @@ export class CacheHandler extends BaseRequestHandler {
 
   /**
    * Get supported cache types
-   * @private
-   * @returns {string[]} Supported cache types
+
    */
   getSupportedCacheTypes() {
     const types = ['general']
@@ -315,7 +379,6 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -330,7 +393,6 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
@@ -358,7 +420,6 @@ export class CacheHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   dispose() {
     super.dispose()

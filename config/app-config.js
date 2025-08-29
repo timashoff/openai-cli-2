@@ -85,6 +85,25 @@ export const APP_CONFIG = {
     PROGRESS_UPDATE_INTERVAL: 500, // Progress update interval
     MIN_DISPLAY_TIME: 1000,     // Minimum display time for messages
     ANIMATION_DURATION: 300,    // UI animation duration
+
+    // Help Command Table Layout
+    HELP_TABLE: {
+      COLUMN_WIDTHS: {
+        KEYS: 14,
+        DESCRIPTION: 36,
+        CACHE: 5,
+        MODELS: 6
+      },
+      SEPARATORS: {
+        COLUMN: '│',
+        ROW: '─'
+      },
+      FORMATTING: {
+        ROW_INDENT: 0,        // отступ строк данных
+        SEPARATOR_SPACES: 0,  // пробелов после каждого разделителя
+        SEPARATOR_COUNT: 0,    // количество разделителей между колонками
+      }
+    }
   },
 
   // Security Configuration
@@ -150,13 +169,13 @@ export const APP_CONFIG = {
 
 /**
  * Get configuration value with environment override
- * @param {string} path - Configuration path (e.g., 'TIMEOUTS.API_REQUEST')
- * @param {string} environment - Environment name (development, production, test)
- * @returns {any} Configuration value
+
+
+
  */
 export function getConfig(path, environment = process.env.NODE_ENV || 'development') {
   const pathParts = path.split('.')
-  
+
   // Get base value
   let value = APP_CONFIG
   for (const part of pathParts) {
@@ -166,7 +185,7 @@ export function getConfig(path, environment = process.env.NODE_ENV || 'developme
       throw new Error(`Configuration path '${path}' not found`)
     }
   }
-  
+
   // Apply environment override if exists
   if (APP_CONFIG.ENVIRONMENTS[environment]) {
     let envOverride = APP_CONFIG.ENVIRONMENTS[environment]
@@ -178,23 +197,23 @@ export function getConfig(path, environment = process.env.NODE_ENV || 'developme
         break
       }
     }
-    
+
     if (envOverride !== null && envOverride !== undefined) {
       return envOverride
     }
   }
-  
+
   return value
 }
 
 /**
  * Validate configuration values
- * @param {Object} config - Configuration object to validate
- * @returns {Array} Array of validation errors
+
+
  */
 export function validateConfig(config = APP_CONFIG) {
   const errors = []
-  
+
   try {
     // Validate timeouts are positive numbers
     for (const [key, value] of Object.entries(config.TIMEOUTS)) {
@@ -202,47 +221,47 @@ export function validateConfig(config = APP_CONFIG) {
         errors.push(`TIMEOUTS.${key} must be a positive number, got: ${value}`)
       }
     }
-    
+
     // Validate limits are positive numbers
     for (const [key, value] of Object.entries(config.LIMITS)) {
       if (typeof value !== 'number' || value <= 0) {
         errors.push(`LIMITS.${key} must be a positive number, got: ${value}`)
       }
     }
-    
+
     // Validate retry configuration
     if (config.RETRY.BACKOFF_MULTIPLIER <= 1) {
       errors.push('RETRY.BACKOFF_MULTIPLIER must be greater than 1')
     }
-    
+
     if (config.RETRY.JITTER_FACTOR < 0 || config.RETRY.JITTER_FACTOR > 1) {
       errors.push('RETRY.JITTER_FACTOR must be between 0 and 1')
     }
-    
+
     // Validate performance thresholds
     if (config.PERFORMANCE.MEMORY_USAGE_THRESHOLD <= 0 || config.PERFORMANCE.MEMORY_USAGE_THRESHOLD > 1) {
       errors.push('PERFORMANCE.MEMORY_USAGE_THRESHOLD must be between 0 and 1')
     }
-    
+
   } catch (error) {
     errors.push(`Configuration validation error: ${error.message}`)
   }
-  
+
   return errors
 }
 
 /**
  * Get all configuration as a flattened object
- * @param {string} environment - Environment name
- * @returns {Object} Flattened configuration
+
+
  */
 export function getFlatConfig(environment = process.env.NODE_ENV || 'development') {
   const flattened = {}
-  
+
   function flatten(obj, prefix = '') {
     for (const [key, value] of Object.entries(obj)) {
       const newKey = prefix ? `${prefix}.${key}` : key
-      
+
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         flatten(value, newKey)
       } else {
@@ -250,14 +269,14 @@ export function getFlatConfig(environment = process.env.NODE_ENV || 'development
       }
     }
   }
-  
+
   // Apply environment overrides
   const config = { ...APP_CONFIG }
   if (config.ENVIRONMENTS[environment]) {
     // Merge environment overrides (deep merge would be better)
     Object.assign(config, config.ENVIRONMENTS[environment])
   }
-  
+
   flatten(config)
   return flattened
 }

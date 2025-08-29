@@ -321,7 +321,7 @@ export default {
   
   /**
    * Clear all cache entries for a specific command
-   * @param {string} commandKey - Command key to clear cache for (e.g., 'KG', 'kg')
+
    */
   async clearCommandCache(commandKey) {
     const keysToDelete = []

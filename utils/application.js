@@ -237,22 +237,14 @@ export class Application {
         }
       }
       
-      // Process as regular AI input
-      return await this.processAIInput(sanitizedInput)
+      // Process as regular input (to be handled by subclass if needed)
+      return `Unhandled input: ${sanitizedInput}`
     } catch (error) {
       errorHandler.handleError(error)
       throw error
     }
   }
 
-  /**
-   * Process AI input (placeholder for actual AI processing)
-   */
-  async processAIInput(input) {
-    // This would integrate with the existing AI processing logic
-    // For now, just return a placeholder
-    return `AI response to: ${input}`
-  }
 
   /**
    * Add message to context history

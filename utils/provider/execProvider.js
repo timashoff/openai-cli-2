@@ -3,14 +3,6 @@ import { createInteractiveMenu } from '../interactive_menu.js'
 import { createSelectionTitle } from '../menu-helpers.js'
 
 export const execProvider = async (currentProviderKey, providers, rl) => {
-  console.log(
-    color.reset +
-      'Current provider: ' +
-      color.cyan +
-      currentProviderKey +
-      color.reset + '\n'
-  )
-
   // Create clean provider options
   const providerOptions = providers.map(provider => {
     const status = provider.isCurrent ? ' (current)' : ''

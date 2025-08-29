@@ -32,6 +32,8 @@ export class MultiCommandProcessor {
           await provider.initializeClient()
           this.providers.set(providerKey, provider)
           logger.debug(`Multi-command processor: ${providerKey} initialized`)
+        } else {
+          logger.debug(`Multi-command processor: ${providerKey} skipped (no API key)`)
         }
       }
       
@@ -152,8 +154,14 @@ export class MultiCommandProcessor {
 
   /**
    * Execute command with multiple models in parallel (sequential display)
+
+
+
+
+
+
    */
-  async executeMultiple(instruction, signal, customModels, defaultModel = null, onProviderComplete = null) {
+  async executeMultiple({ instruction, signal, models = null, defaultModel = null, onComplete = null }) {
     let providers = []
 
     // Start streaming observer for event tracking
@@ -168,17 +176,19 @@ export class MultiCommandProcessor {
       throw new Error('MultiCommandProcessor not initialized. Call initialize() first.')
     }
 
+    logger.debug(`MultiCommandProcessor status: initialized=${this.isInitialized}, providers=${this.providers.size}`)
     if (this.providers.size === 0) {
       logger.error(`🚨 CRITICAL: No providers available in MultiCommandProcessor!`)
+      logger.debug(`Provider initialization failed - check API key configuration`)
       throw new Error('No providers initialized in MultiCommandProcessor.')
     }
 
-    if (customModels && customModels.length > 0) {
+    if (models && models.length > 0) {
       // Use custom models from database
-      providers = customModels.map(modelConfig => ({
+      providers = models.map(modelConfig => ({
         key: modelConfig.provider,
         model: modelConfig.model,
-        name: API_PROVIDERS[modelConfig.provider]?.name || modelConfig.provider
+        name: (API_PROVIDERS[modelConfig.provider] && API_PROVIDERS[modelConfig.provider].name) ? API_PROVIDERS[modelConfig.provider].name : modelConfig.provider
       })).filter(provider => this.providers.has(provider.key))
     } else if (defaultModel) {
       // Use single default model
@@ -217,7 +227,7 @@ export class MultiCommandProcessor {
     logger.debug(`Starting multi-command execution with ${providers.length} providers`)
 
     try {
-      return await this.executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete)
+      return await this.executeSequentialDisplay(providers, instruction, signal, startTime, onComplete)
     } catch (error) {
       // Ensure observer is stopped even on error
       streamingObserver.stopObserving()
@@ -228,7 +238,7 @@ export class MultiCommandProcessor {
   /**
    * Execute multiple providers with real-time streaming - event-driven approach
    */
-  async executeSequentialDisplay(providers, instruction, signal, startTime, onProviderComplete) {
+  async executeSequentialDisplay(providers, instruction, signal, startTime, onComplete) {
     const results = new Array(providers.length)
     const completedCount = { value: 0 }
     
@@ -482,7 +492,7 @@ export class MultiCommandProcessor {
           }
           
           // Stream content ONLY if this is the currently streaming model
-          if (currentlyStreaming?.index === index) {
+          if (currentlyStreaming && currentlyStreaming.index === index) {
             process.stdout.write(content)
           }
           
@@ -493,7 +503,7 @@ export class MultiCommandProcessor {
             content: content,
             chunkSize: content.length,
             totalSize: accumulatedResponse.length,
-            isCurrentlyStreaming: currentlyStreaming?.index === index
+            isCurrentlyStreaming: currentlyStreaming && currentlyStreaming.index === index
           })
         }
         
@@ -524,7 +534,7 @@ export class MultiCommandProcessor {
         updateModelStatus(index, 'done', accumulatedResponse)
         
         // If this was the streaming model, add newline and timer, then prepare for next
-        if (currentlyStreaming?.index === index) {
+        if (currentlyStreaming && currentlyStreaming.index === index) {
           const modelElapsed = getElapsedTime(startTime)
           process.stdout.write(`\n${color.green}✓ ${modelElapsed}s${color.reset}\n\n`)
           currentlyStreaming = null
@@ -557,7 +567,7 @@ export class MultiCommandProcessor {
         updateModelStatus(index, 'done', null)
         
         // If this was the streaming model, add newline and error indicator, then prepare for next
-        if (currentlyStreaming?.index === index) {
+        if (currentlyStreaming && currentlyStreaming.index === index) {
           const modelElapsed = getElapsedTime(startTime)
           process.stdout.write(`\n${color.red}✗ ${modelElapsed}s (error)${color.reset}\n\n`)
           currentlyStreaming = null
@@ -584,8 +594,8 @@ export class MultiCommandProcessor {
       const undisplayedModel = leaderboard.find(m => !m.displayed)
       if (undisplayedModel) {
         logger.debug(`🛠️ Processing remaining model: ${undisplayedModel.provider.name} (${undisplayedModel.index}) [${undisplayedModel.status}][displayed:${undisplayedModel.displayed}]`)
-        logger.debug(`📝 fullResponse length: ${undisplayedModel.fullResponse?.length || 0}`)
-        logger.debug(`📝 results[${undisplayedModel.index}] response length: ${results[undisplayedModel.index]?.response?.length || 0}`)
+        logger.debug(`📝 fullResponse length: ${undisplayedModel.fullResponse ? undisplayedModel.fullResponse.length : 0}`)
+        logger.debug(`📝 results[${undisplayedModel.index}] response length: ${(results[undisplayedModel.index] && results[undisplayedModel.index].response) ? results[undisplayedModel.index].response.length : 0}`)
         
         // Reset currentlyStreaming to null for final cleanup
         currentlyStreaming = null
@@ -629,7 +639,7 @@ export class MultiCommandProcessor {
       leaderboard: leaderboard.map(m => ({
         provider: m.provider.name,
         status: m.status,
-        responseLength: m.fullResponse?.length || 0,
+        responseLength: m.fullResponse ? m.fullResponse.length : 0,
         latency: m.firstChunkTime - startTime
       }))
     })
@@ -710,8 +720,8 @@ export class MultiCommandProcessor {
   /**
    * Determine if command should use multiple models
    */
-  shouldUseMultipleModels(customModels) {
-    return customModels && Array.isArray(customModels) && customModels.length > 1
+  shouldUseMultipleModels(models) {
+    return models && Array.isArray(models) && models.length > 1
   }
   
   /**

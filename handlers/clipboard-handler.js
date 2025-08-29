@@ -30,14 +30,12 @@ export class ClipboardHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async canHandle(context) {
     return context.processedInput.includes(this.clipboardMarker)
   }
 
   /**
-   * @override
    */
   async process(context) {
     const input = context.processedInput
@@ -92,8 +90,7 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Get clipboard content with timeout protection
-   * @private
-   * @returns {Promise<string>} Clipboard content
+
    */
   async getClipboardWithTimeout() {
     return Promise.race([
@@ -108,9 +105,8 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Count clipboard markers in input
-   * @private
-   * @param {string} input - Input text
-   * @returns {number} Number of markers
+
+
    */
   countClipboardMarkers(input) {
     const regex = new RegExp(this.clipboardMarker.replace(/\$/g, '\\$'), 'g')
@@ -120,9 +116,8 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Sanitize clipboard content
-   * @private
-   * @param {string} content - Raw clipboard content
-   * @returns {string} Sanitized content
+
+
    */
   sanitizeClipboardContent(content) {
     if (typeof content !== 'string') {
@@ -134,8 +129,7 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Validate clipboard content
-   * @private
-   * @param {string} content - Sanitized clipboard content
+
    */
   validateClipboardContent(content) {
     // Validate basic string requirements
@@ -158,9 +152,8 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Check for suspicious content in clipboard
-   * @private
-   * @param {string} content - Content to check
-   * @returns {boolean} True if suspicious
+
+
    */
   hasSuspiciousContent(content) {
     // Check for potential security risks
@@ -179,10 +172,9 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Replace clipboard markers with actual content
-   * @private
-   * @param {string} input - Original input
-   * @param {string} clipboardContent - Content to insert
-   * @returns {string} Input with markers replaced
+
+
+
    */
   replaceClipboardMarkers(input, clipboardContent) {
     // Escape special regex characters in marker
@@ -194,9 +186,8 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Convert technical errors to user-friendly messages
-   * @private
-   * @param {Error} error - Technical error
-   * @returns {string} User-friendly error message
+
+
    */
   getUserFriendlyError(error) {
     if (error.message.includes('timeout')) {
@@ -220,7 +211,6 @@ export class ClipboardHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -242,8 +232,7 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Get average clipboard content length from metadata
-   * @private
-   * @returns {number} Average content length
+
    */
   getAverageContentLength() {
     // This would need to be tracked if we want precise averages
@@ -252,7 +241,6 @@ export class ClipboardHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
@@ -272,8 +260,7 @@ export class ClipboardHandler extends BaseRequestHandler {
 
   /**
    * Quick check if clipboard access is available
-   * @private
-   * @returns {boolean} True if clipboard access appears available
+
    */
   checkClipboardAccess() {
     // This is a simplified check - actual implementation would test clipboard access

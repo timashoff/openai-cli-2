@@ -53,7 +53,7 @@ export class ApplicationInitializer {
     // Commands are now handled through database only
     // await this.registerAICommands() // DISABLED - all commands in DB
     
-    logger.debug('✅ AI initialization completed')
+    logger.debug('✓ AI initialization completed')
   }
 
   /**
@@ -143,7 +143,7 @@ export class ApplicationInitializer {
         logger.debug('No external MCP servers configured or config file missing')
       }
       
-      logger.debug('✅ MCP servers initialized')
+      logger.debug('✓ MCP servers initialized')
     } catch (error) {
       logger.warn(`MCP initialization failed: ${error.message}`)
     }

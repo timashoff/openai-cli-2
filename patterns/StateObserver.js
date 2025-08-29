@@ -59,7 +59,13 @@ export const STATE_EVENTS = {
   // Special states
   ESCAPE_KEY_PRESSED: 'state:escape_key_pressed',
   ABORT_REQUESTED: 'state:abort_requested',
-  FORCE_FLAG_DETECTED: 'state:force_flag_detected'
+  FORCE_FLAG_DETECTED: 'state:force_flag_detected',
+  
+  // Database events
+  DATABASE_COMMAND_ADDED: 'database:command_added',
+  DATABASE_COMMAND_UPDATED: 'database:command_updated', 
+  DATABASE_COMMAND_DELETED: 'database:command_deleted',
+  DATABASE_COMMANDS_CHANGED: 'database:commands_changed'
 }
 
 /**
@@ -101,10 +107,10 @@ export class StateObserver {
 
   /**
    * Start observing state events
-   * @param {Object} options - Observer options
-   * @param {boolean} options.trackMetrics - Track state transition metrics
-   * @param {boolean} options.trackHistory - Keep state history
-   * @param {boolean} options.debug - Enable debug logging
+
+
+
+
    */
   startObserving(options = {}) {
     if (this.isActive) {
@@ -301,7 +307,7 @@ export class StateObserver {
 
   handleRequestProcessingStopped(payload, debug) {
     if (debug) {
-      console.log(`${color.green}✅ REQUEST PROCESSING:${color.reset} Stopped`)
+      console.log(`${color.green}✓ Request processing:${color.reset} stopped`)
     }
     this.changeState(CLI_STATES.IDLE, { reason: 'request_stopped' })
   }
@@ -349,7 +355,7 @@ export class StateObserver {
 
   handleAppReady(payload, debug) {
     if (debug) {
-      console.log(`${color.green}✅ APP:${color.reset} Ready`)
+      console.log(`${color.green}✓ App:${color.reset} ready`)
     }
     this.changeState(CLI_STATES.IDLE, { reason: 'app_ready' })
   }
@@ -365,7 +371,7 @@ export class StateObserver {
   handleProviderSwitched(payload, debug) {
     const { provider } = payload.data || {}
     if (debug) {
-      console.log(`${color.green}✅ PROVIDER:${color.reset} Switched to ${provider}`)
+      console.log(`${color.green}✓ Provider:${color.reset} switched to ${provider}`)
     }
     this.changeState(CLI_STATES.IDLE, { reason: 'provider_switched' })
   }
@@ -373,7 +379,7 @@ export class StateObserver {
   handleErrorStateEntered(payload, debug) {
     const { error, context } = payload.data || {}
     if (debug) {
-      console.log(`${color.red}❌ ERROR STATE:${color.reset} ${error} (${context})`)
+      console.log(`${color.red}✗ Error state:${color.reset} ${error} (${context})`)
     }
     this.changeState(CLI_STATES.ERROR, { reason: 'error_occurred', error, context })
   }
@@ -400,8 +406,8 @@ export class StateObserver {
 
   /**
    * Change application state
-   * @param {string} newState - New state from CLI_STATES
-   * @param {Object} context - State change context
+
+
    */
   changeState(newState, context = {}) {
     if (newState === this.currentState) {
@@ -441,8 +447,8 @@ export class StateObserver {
 
   /**
    * Record state timing metric
-   * @param {string} state - State name
-   * @param {number} duration - Time spent in state (ms)
+
+
    */
   recordStateMetric(state, duration) {
     if (!this.stateMetrics.has(state)) {
@@ -484,9 +490,9 @@ export class StateObserver {
 
   /**
    * Emit a state event
-   * @param {string} eventType - Event type from STATE_EVENTS
-   * @param {any} data - Event data
-   * @param {Object} options - Additional options
+
+
+
    */
   emit(eventType, data, options = {}) {
     if (!this.isActive && !eventType.includes('app_initializing')) {
@@ -501,7 +507,7 @@ export class StateObserver {
 
   /**
    * Get current state
-   * @returns {string} Current state
+
    */
   getCurrentState() {
     return this.currentState
@@ -509,7 +515,7 @@ export class StateObserver {
 
   /**
    * Get state history
-   * @returns {Array} State transition history
+
    */
   getStateHistory() {
     return [...this.stateHistory]
@@ -517,7 +523,7 @@ export class StateObserver {
 
   /**
    * Get session statistics
-   * @returns {Object} Session stats
+
    */
   getSessionStats() {
     return {
@@ -532,7 +538,7 @@ export class StateObserver {
 
   /**
    * Check if observer is active
-   * @returns {boolean} Active status
+
    */
   get active() {
     return this.isActive
@@ -544,8 +550,8 @@ export const stateObserver = new StateObserver()
 
 /**
  * Convenience function to start observing with common options
- * @param {Object} options - Observer options
- * @returns {StateObserver} Observer instance
+
+
  */
 export function startStateObserver(options = {}) {
   stateObserver.startObserving(options)
@@ -554,7 +560,7 @@ export function startStateObserver(options = {}) {
 
 /**
  * Convenience function to stop observing
- * @returns {Object} Final session stats
+
  */
 export function stopStateObserver() {
   const stats = stateObserver.getSessionStats()
@@ -564,7 +570,7 @@ export function stopStateObserver() {
 
 /**
  * Convenience function to get current state
- * @returns {string} Current state
+
  */
 export function getCurrentState() {
   return stateObserver.getCurrentState()
@@ -572,8 +578,8 @@ export function getCurrentState() {
 
 /**
  * Convenience function to emit state events
- * @param {string} eventType - Event type
- * @param {any} data - Event data
+
+
  */
 export function emitStateEvent(eventType, data = {}) {
   stateObserver.emit(eventType, data)

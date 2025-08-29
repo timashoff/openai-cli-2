@@ -32,6 +32,8 @@ export const APP_CONSTANTS = {
   // UI Configuration
   MENU_PAGE_SIZE: 10, // Number of options to display on one page in interactive menu
   MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
+  FIELD_VALUE_MAX_LENGTH: 30, // Max length for field values display
+  MENU_FIELD_NAME_WIDTH: 12, // Fixed width for field names (longest is "Description": 11 chars)
   
   // Default provider
   DEFAULT_PROVIDER: 'openai',

@@ -30,7 +30,6 @@ export class EnhancedProviderFactory {
 
   /**
    * Initialize built-in providers with enhanced configuration
-   * @private
    */
   initializeBuiltinProviders() {
     // Register provider factories with enhanced features using API_PROVIDERS config
@@ -78,8 +77,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Register a provider factory with metadata
-   * @param {string} type - Provider type
-   * @param {Object} factory - Provider factory configuration
+
+
    */
   registerProviderFactory(type, factory) {
     if (!factory.class || typeof factory.class !== 'function') {
@@ -103,8 +102,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Create provider with Builder pattern and middleware
-   * @param {string} type - Provider type
-   * @returns {ProviderBuilder} Builder instance
+
+
    */
   createProvider(type) {
     return new ProviderBuilder(this, type)
@@ -112,11 +111,10 @@ export class EnhancedProviderFactory {
 
   /**
    * Create provider instance with middleware pipeline
-   * @private
-   * @param {string} type - Provider type
-   * @param {Object} config - Provider configuration
-   * @param {Object} options - Creation options
-   * @returns {Object} Provider instance
+
+
+
+
    */
   async _createProviderInstance(type, config, options = {}) {
     const factory = this.providerRegistry.get(type)
@@ -190,8 +188,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Add middleware to the creation pipeline
-   * @param {string} phase - Middleware phase (before-create, after-create, etc.)
-   * @param {Function} middleware - Middleware function
+
+
    */
   addMiddleware(phase, middleware) {
     if (typeof middleware !== 'function') {
@@ -204,8 +202,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Add plugin for extending functionality
-   * @param {string} name - Plugin name
-   * @param {Object} plugin - Plugin configuration
+
+
    */
   addPlugin(name, plugin) {
     if (typeof plugin.initialize !== 'function') {
@@ -219,8 +217,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Get provider instance by ID
-   * @param {string} instanceId - Instance ID
-   * @returns {Object|null} Provider instance data
+
+
    */
   getInstance(instanceId) {
     const instanceData = this.instanceRegistry.get(instanceId)
@@ -232,8 +230,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Get all instances of a specific type
-   * @param {string} type - Provider type
-   * @returns {Array} Array of instances
+
+
    */
   getInstancesByType(type) {
     const instances = []
@@ -247,9 +245,9 @@ export class EnhancedProviderFactory {
 
   /**
    * Get provider with load balancing
-   * @param {string} type - Provider type
-   * @param {Object} criteria - Selection criteria
-   * @returns {Object|null} Best provider instance
+
+
+
    */
   getBestProvider(type, criteria = {}) {
     const instances = this.getInstancesByType(type)
@@ -264,8 +262,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Destroy provider instance
-   * @param {string} instanceId - Instance ID
-   * @returns {boolean} Success status
+
+
    */
   async destroyInstance(instanceId) {
     const instanceData = this.instanceRegistry.get(instanceId)
@@ -303,7 +301,7 @@ export class EnhancedProviderFactory {
 
   /**
    * Get comprehensive factory statistics
-   * @returns {Object} Factory statistics
+
    */
   getFactoryStats() {
     const providerStats = {}

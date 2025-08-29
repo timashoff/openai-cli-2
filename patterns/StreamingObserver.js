@@ -60,9 +60,9 @@ export class StreamingObserver {
 
   /**
    * Start observing streaming events
-   * @param {Object} options - Observer options
-   * @param {boolean} options.trackMetrics - Track performance metrics
-   * @param {boolean} options.debug - Enable debug logging
+
+
+
    */
   startObserving(options = {}) {
     if (this.isActive) {
@@ -288,7 +288,7 @@ export class StreamingObserver {
     const { modelIndex, provider, success, error } = payload.data
     
     if (debug) {
-      const status = success ? '✅ COMPLETED' : '❌ FAILED'
+      const status = success ? '✓ completed' : '✗ failed'
       console.log(`${color.green}${status}:${color.reset} ${provider}`)
     }
     
@@ -345,9 +345,9 @@ export class StreamingObserver {
 
   /**
    * Emit a streaming event
-   * @param {string} eventType - Event type from STREAMING_EVENTS
-   * @param {any} data - Event data
-   * @param {Object} options - Additional options
+
+
+
    */
   emit(eventType, data, options = {}) {
     if (!this.isActive && !eventType.includes('stream_started')) {
@@ -362,7 +362,7 @@ export class StreamingObserver {
 
   /**
    * Get collected metrics
-   * @returns {Object} Metrics data
+
    */
   getMetrics() {
     return {
@@ -377,7 +377,7 @@ export class StreamingObserver {
 
   /**
    * Check if observer is active
-   * @returns {boolean} Active status
+
    */
   get active() {
     return this.isActive
@@ -389,8 +389,8 @@ export const streamingObserver = new StreamingObserver()
 
 /**
  * Convenience function to start observing with common options
- * @param {Object} options - Observer options
- * @returns {StreamingObserver} Observer instance
+
+
  */
 export function startStreamingObserver(options = {}) {
   streamingObserver.startObserving(options)
@@ -399,7 +399,7 @@ export function startStreamingObserver(options = {}) {
 
 /**
  * Convenience function to stop observing
- * @returns {Object} Final metrics
+
  */
 export function stopStreamingObserver() {
   const metrics = streamingObserver.getMetrics()

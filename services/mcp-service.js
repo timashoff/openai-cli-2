@@ -3,8 +3,6 @@ import { AppError } from '../utils/error-handler.js'
 
 /**
  * MCP operation types
- * @readonly
- * @enum {string}
  */
 export const MCPOperationType = {
   /** Extract content from webpage */
@@ -19,14 +17,6 @@ export const MCPOperationType = {
 
 /**
  * MCP processing result
- * @typedef {Object} MCPResult
- * @property {boolean} success - Whether operation succeeded
- * @property {string} type - Operation type
- * @property {any} data - Result data
- * @property {string} enhancedInput - Enhanced input for AI
- * @property {boolean} showMCPData - Whether to show MCP data to user
- * @property {string} directResponse - Direct response (skip AI processing)
- * @property {Object} metadata - Additional metadata
  */
 
 /**
@@ -59,14 +49,12 @@ export class MCPService extends BaseService {
   }
 
   /**
-   * @override
    */
   getRequiredDependencies() {
     return ['eventBus', 'logger', 'mcpManager', 'intentDetector']
   }
 
   /**
-   * @override
    */
   async onInitialize() {
     await this.initializeMCPServers()
@@ -74,7 +62,6 @@ export class MCPService extends BaseService {
   }
 
   /**
-   * @override
    */
   async onDispose() {
     await this.shutdownMCPServers()
@@ -83,9 +70,9 @@ export class MCPService extends BaseService {
 
   /**
    * Process input through MCP if applicable
-   * @param {string} input - User input
-   * @param {Object} command - Parsed command (optional)
-   * @returns {Promise<MCPResult|null>} MCP processing result or null
+
+
+
    */
   async processMCPInput(input, command = null) {
     this.ensureReady()
@@ -157,9 +144,9 @@ export class MCPService extends BaseService {
 
   /**
    * Extract content from webpage
-   * @param {string} url - URL to extract from
-   * @param {Object} options - Extraction options
-   * @returns {Promise<Object>} Extracted content
+
+
+
    */
   async extractWebpage(url, options = {}) {
     this.ensureReady()
@@ -182,9 +169,9 @@ export class MCPService extends BaseService {
 
   /**
    * Search the web
-   * @param {string} query - Search query
-   * @param {Object} options - Search options
-   * @returns {Promise<Object>} Search results
+
+
+
    */
   async searchWeb(query, options = {}) {
     this.ensureReady()
@@ -207,9 +194,9 @@ export class MCPService extends BaseService {
 
   /**
    * Follow a link from previous extraction
-   * @param {number} linkNumber - Link number to follow
-   * @param {Object} options - Follow options
-   * @returns {Promise<Object>} Link content
+
+
+
    */
   async followLink(linkNumber, options = {}) {
     this.ensureReady()
@@ -232,8 +219,8 @@ export class MCPService extends BaseService {
 
   /**
    * Get MCP server status
-   * @param {string} serverName - Server name (optional)
-   * @returns {Object} Server status information
+
+
    */
   getMCPServerStatus(serverName = null) {
     if (serverName) {
@@ -257,7 +244,7 @@ export class MCPService extends BaseService {
 
   /**
    * Get MCP operation statistics
-   * @returns {Object} Operation statistics
+
    */
   getMCPStats() {
     const stats = {
@@ -297,11 +284,10 @@ export class MCPService extends BaseService {
 
   /**
    * Call MCP server with error handling
-   * @private
-   * @param {string} serverName - Server name
-   * @param {string} toolName - Tool name
-   * @param {Object} args - Tool arguments
-   * @returns {Promise<any>} Tool result
+
+
+
+
    */
   async callMCPServer(serverName, toolName, args) {
     this.log('debug', `Calling MCP: ${serverName}/${toolName}`, { args })
@@ -334,12 +320,11 @@ export class MCPService extends BaseService {
 
   /**
    * Format MCP result for AI consumption
-   * @private
-   * @param {Object} mcpData - Raw MCP data
-   * @param {Object} intent - Detected intent
-   * @param {Object} command - Command context
-   * @param {string} originalInput - Original user input
-   * @returns {Promise<MCPResult>} Formatted result
+
+
+
+
+
    */
   async formatMCPResult(mcpData, intent, command, originalInput) {
     const result = {
@@ -372,7 +357,6 @@ export class MCPService extends BaseService {
 
   /**
    * Format webpage extraction result
-   * @private
    */
   formatWebpageResult(mcpData, intent, command, originalInput, result) {
     // Detect language preferences
@@ -428,7 +412,6 @@ export class MCPService extends BaseService {
 
   /**
    * Format search result
-   * @private
    */
   formatSearchResult(mcpData, intent, command, originalInput, result) {
     const searchResults = mcpData.results || []
@@ -445,7 +428,6 @@ export class MCPService extends BaseService {
 
   /**
    * Initialize MCP servers
-   * @private
    */
   async initializeMCPServers() {
     try {
@@ -475,7 +457,6 @@ export class MCPService extends BaseService {
 
   /**
    * Shutdown MCP servers
-   * @private
    */
   async shutdownMCPServers() {
     for (const [name, server] of this.serverInstances) {
@@ -494,9 +475,8 @@ export class MCPService extends BaseService {
 
   /**
    * Record operation for statistics
-   * @private
-   * @param {string} serverName - Server name
-   * @param {string} toolName - Tool name
+
+
    */
   recordOperation(serverName, toolName) {
     const key = `${serverName}:${toolName}`
@@ -507,11 +487,10 @@ export class MCPService extends BaseService {
 
   /**
    * Update operation statistics
-   * @private
-   * @param {string} serverName - Server name
-   * @param {string} toolName - Tool name
-   * @param {boolean} success - Whether operation succeeded
-   * @param {string} error - Error message if failed
+
+
+
+
    */
   updateOperationStats(serverName, toolName, success, error = null) {
     const key = success ? `${serverName}:${toolName}` : `${serverName}:${toolName}:error`
@@ -526,9 +505,8 @@ export class MCPService extends BaseService {
 
   /**
    * Emit MCP-related event
-   * @private
-   * @param {string} eventName - Event name
-   * @param {Object} data - Event data
+
+
    */
   emitMCPEvent(eventName, data = {}) {
     this.emitEvent(`mcp:${eventName}`, {
@@ -538,7 +516,6 @@ export class MCPService extends BaseService {
   }
 
   /**
-   * @override
    */
   getCustomMetrics() {
     const stats = this.getMCPStats()

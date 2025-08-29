@@ -116,8 +116,8 @@ function completer(line) {
 
 /**
  * Calculate elapsed time in seconds from start time
- * @param {number} startTime - Start time in milliseconds (from Date.now())
- * @returns {string} - Elapsed time in seconds with 1 decimal place, or 'N/A' if no start time
+
+
  */
 const getElapsedTime = (startTime) => {
   if (!startTime) return 'N/A'
@@ -133,9 +133,9 @@ const clearTerminalLine = () => {
 
 /**
  * Show status message with icon and elapsed time
- * @param {string} type - Status type: 'success' or 'error'
- * @param {string} time - Elapsed time string (e.g. '1.2s')
- * @param {string} message - Optional additional message
+
+
+
  */
 const showStatus = (type, time, message = '') => {
   const icon = type === 'success' ? '✓' : '☓'

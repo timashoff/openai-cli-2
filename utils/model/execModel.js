@@ -3,21 +3,18 @@ import { createInteractiveMenu } from '../interactive_menu.js'
 import { createSelectionTitle } from '../menu-helpers.js'
 
 export const execModel = async (currentModel, models, rl) => {
-  console.log(
-    color.reset +
-      'Current model: ' +
-      color.cyan +
-      currentModel +
-      color.reset + '\n'
-  )
-
   // Handle both string arrays and object arrays for backward compatibility
   const modelOptions = models.map(model => typeof model === 'string' ? model : model.id)
   const currentModelIndex = modelOptions.findIndex(modelId => modelId === currentModel)
   
+  // Add (current) marker to current model in the display list
+  const displayOptions = modelOptions.map((model, index) => 
+    index === currentModelIndex ? `${model} (current)` : model
+  )
+  
   const selectedIndex = await createInteractiveMenu(
     createSelectionTitle('model', models.length),
-    modelOptions,
+    displayOptions,
     currentModelIndex >= 0 ? currentModelIndex : 0
   )
   
@@ -29,16 +26,9 @@ export const execModel = async (currentModel, models, rl) => {
         currentModel +
         color.reset + '\n'
     )
-    return currentModel
+    return { model: currentModel, cancelled: true }
   }
   
   const newModel = modelOptions[selectedIndex]
-  console.log(
-    color.reset +
-      'Your model is now: ' +
-      color.cyan +
-      newModel +
-      color.reset
-  )
-  return newModel
+  return { model: newModel, cancelled: false }
 }

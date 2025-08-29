@@ -1,289 +1,180 @@
-import { getClipboardContent } from '../utils/index.js'
-import { sanitizeString, validateString } from '../utils/validation.js'
-import { configManager } from '../config/config-manager.js'
-import { APP_CONSTANTS } from '../config/constants.js'
-import { color } from '../config/color.js'
+import { databaseCommandService } from './DatabaseCommandService.js'
 import { logger } from '../utils/logger.js'
 
 /**
- * Service for processing and sanitizing user input
- * Handles clipboard integration, flag parsing, and input validation
+ * Service for input processing - handles ALL user input processing
+ * Single Source of Truth for: clipboard, flags, command detection, content creation
  */
 export class InputProcessingService {
   constructor(dependencies = {}) {
     this.logger = dependencies.logger || logger
+    this.app = dependencies.app
     this.initialized = false
-    this.stats = {
-      inputsProcessed: 0,
-      clipboardInsertions: 0,
-      flagsExtracted: 0,
-      validationErrors: 0
-    }
+    this.databaseCommandService = databaseCommandService
   }
 
   async initialize() {
     if (this.initialized) return
     
-    this.initialized = true
-    this.logger.debug('InputProcessingService initialized')
-  }
-
-  /**
-   * Process user input with clipboard, flags, and validation
-   * @param {string} rawInput - Raw user input
-   * @returns {Object} Processed input data
-   */
-  async processInput(rawInput) {
-    this.stats.inputsProcessed++
-    
-    const result = {
-      originalInput: rawInput,
-      processedInput: rawInput,
-      flags: {
-        force: false,
-        verbose: false,
-        quiet: false
-      },
-      metadata: {
-        hasClipboard: false,
-        clipboardLength: 0,
-        extractedFlags: []
-      },
-      errors: []
-    }
-
     try {
-      // Step 1: Process clipboard markers
-      result.processedInput = await this.processClipboardMarkers(result.processedInput, result)
-      
-      // Step 2: Extract flags
-      result.processedInput = this.extractFlags(result.processedInput, result)
-      
-      // Step 3: Validate processed input
-      this.validateProcessedInput(result.processedInput, result)
-      
-      // Step 4: Sanitize input
-      result.processedInput = this.sanitizeInput(result.processedInput)
-      
-      return result
+      // DatabaseCommandService is already initialized as singleton
+      this.initialized = true
+      this.logger.debug('CommandProcessingService initialized')
     } catch (error) {
-      result.errors.push(error.message)
-      this.stats.validationErrors++
-      this.logger.error('Input processing failed:', error)
-      return result
-    }
-  }
-
-  /**
-   * Process clipboard markers in input
-   * @private
-   */
-  async processClipboardMarkers(input, result) {
-    if (!input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
-      return input
-    }
-
-    try {
-      const clipboardContent = await getClipboardContent()
-      const sanitizedContent = sanitizeString(clipboardContent)
-      
-      // Validate clipboard content length
-      const maxLength = configManager.get('maxInputLength')
-      if (sanitizedContent.length > maxLength) {
-        throw new Error(`Clipboard content too large (${sanitizedContent.length} chars, max ${maxLength})`)
-      }
-      
-      // Replace clipboard markers
-      const processedInput = input.replace(
-        new RegExp(APP_CONSTANTS.CLIPBOARD_MARKER.replace(/\$/g, '\\$'), 'g'),
-        sanitizedContent
-      )
-      
-      // Update metadata
-      result.metadata.hasClipboard = true
-      result.metadata.clipboardLength = sanitizedContent.length
-      this.stats.clipboardInsertions++
-      
-      this.logger.debug(`Clipboard content inserted: ${sanitizedContent.length} chars`)
-      console.log(`${color.grey}[Clipboard content inserted (${sanitizedContent.length} chars)]${color.reset}`)
-      
-      return processedInput
-    } catch (error) {
-      throw new Error(`Clipboard processing failed: ${error.message}`)
-    }
-  }
-
-  /**
-   * Extract flags from input
-   * @private
-   */
-  extractFlags(input, result) {
-    let processedInput = input
-    
-    // Check for force flags (SIMPLE STRING VERSION)
-    const forceFlags = ['-f', '--force']
-    for (const baseFlag of forceFlags) {
-      if (input.endsWith(' ' + baseFlag) || input.endsWith(baseFlag)) {
-        result.flags.force = true
-        result.metadata.extractedFlags.push(baseFlag)
-        processedInput = processedInput.replace(' ' + baseFlag, '').replace(baseFlag, '').trim()
-        this.stats.flagsExtracted++
-        break
-      }
-    }
-    
-    // Check for other common flags
-    const flagPatterns = [
-      { pattern: /\s+--verbose\b/g, flag: 'verbose' },
-      { pattern: /\s+-v\b/g, flag: 'verbose' },
-      { pattern: /\s+--quiet\b/g, flag: 'quiet' },
-      { pattern: /\s+-q\b/g, flag: 'quiet' },
-      { pattern: /\s+--debug\b/g, flag: 'debug' }
-    ]
-    
-    for (const { pattern, flag } of flagPatterns) {
-      if (pattern.test(processedInput)) {
-        result.flags[flag] = true
-        result.metadata.extractedFlags.push(`--${flag}`)
-        processedInput = processedInput.replace(pattern, '')
-        this.stats.flagsExtracted++
-      }
-    }
-    
-    return processedInput.trim()
-  }
-
-  /**
-   * Validate processed input
-   * @private
-   */
-  validateProcessedInput(input, result) {
-    try {
-      validateString(input, 'processed input', false)
-      
-      const maxLength = configManager.get('maxInputLength')
-      if (input.length > maxLength) {
-        throw new Error(`Input too long: ${input.length} chars (max ${maxLength})`)
-      }
-      
-      if (input.trim().length === 0) {
-        throw new Error('Input is empty after processing')
-      }
-    } catch (error) {
+      this.logger.error('Failed to initialize CommandProcessingService:', error)
       throw error
     }
   }
 
-  /**
-   * Sanitize input for safe processing
-   * @private
-   */
-  sanitizeInput(input) {
-    try {
-      return sanitizeString(input)
-    } catch (error) {
-      this.logger.warn('Input sanitization failed:', error)
-      return input // Return original if sanitization fails
+  async findInstructionCommand(prompt) {
+    const commands = this.databaseCommandService.getCommands()
+
+    if (!commands) return null
+
+    const trimmedInput = prompt.trim()
+    
+    // Check if input is just a command key without content (e.g., "aa" alone)
+    if (this.databaseCommandService.hasCommand(trimmedInput)) {
+      return {
+        error: `Command "${trimmedInput}" requires additional input.`,
+        isInvalid: true
+      }
     }
-  }
 
-  /**
-   * Check if input contains URLs
-   * @param {string} input - Input to check
-   * @returns {Array} Array of found URLs
-   */
-  extractUrls(input) {
-    const urlRegex = /https?:\/\/[^\s]+/gi
-    return input.match(urlRegex) || []
-  }
-
-  /**
-   * Check if input looks like a file path
-   * @param {string} input - Input to check
-   * @returns {boolean} Whether input looks like a file path
-   */
-  looksLikeFilePath(input) {
-    // Simple heuristics for file path detection
-    const filePatterns = [
-      /^[\.\/~]/,  // Starts with ., /, or ~
-      /\.[a-zA-Z0-9]{1,4}$/,  // Ends with file extension
-      /^[a-zA-Z]:[\\\/]/  // Windows path
-    ]
-    
-    return filePatterns.some(pattern => pattern.test(input.trim()))
-  }
-
-  /**
-   * Detect input language (simple heuristics)
-   * @param {string} input - Input to analyze
-   * @returns {string} Detected language code
-   */
-  detectInputLanguage(input) {
-    const text = input.toLowerCase()
-    
-    // Cyrillic characters (Russian)
-    if (/[а-я]/.test(text)) {
-      return 'ru'
+    for (const [id, command] of Object.entries(commands)) {
+      for (const key of command.key) {
+        if (prompt.startsWith(key + ' ')) {
+          const userInput = prompt.substring(key.length + 1).trim()
+          if (userInput) {
+            return {
+              id,
+              commandKey: key,
+              instruction: command.instruction,
+              content: `${command.instruction}: ${userInput}`,
+              userInput,
+              models: command.models,
+              hasUrl: this.hasUrl(userInput),
+              description: command.description,
+              isCached: command.isCached // CRITICAL FIX - was missing!
+            }
+          }
+        }
+      }
     }
-    
-    // Chinese characters
-    if (/[\u4e00-\u9fff]/.test(text)) {
-      return 'zh'
-    }
-    
-    // Default to English
-    return 'en'
+
+    return null
   }
 
   /**
-   * Get input processing statistics
-   * @returns {Object} Processing statistics
+   * Find system command from input
    */
-  getProcessingStats() {
+  findSystemCommand(input) {
+    const words = input.trim().split(' ')
+    const firstWord = words[0].toLowerCase()
+
+    for (const [id, sysCommand] of Object.entries(SYS_INSTRUCTIONS)) {
+      if (sysCommand.key.includes(firstWord)) {
+        return {
+          id,
+          name: firstWord,
+          args: words.slice(1),
+          description: sysCommand.description,
+          type: 'system'
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Universal command finder that checks both instruction and system commands
+   */
+  async findCommand(input) {
+    // First check for instruction commands
+    const instructionCommand = await this.findInstructionCommand(input)
+    if (instructionCommand) {
+      return { ...instructionCommand, type: 'instruction' }
+    }
+
+    // Then check for system commands
+    const systemCommand = this.findSystemCommand(input)
+    if (systemCommand) {
+      return systemCommand
+    }
+
+    return null
+  }
+
+  /**
+   * Check if string contains URL
+   */
+  hasUrl(str) {
+    return str
+      .split(' ')
+      .filter(Boolean)
+      .some((word) => {
+        try {
+          new URL(word)
+          return true
+        } catch {
+          return false
+        }
+      })
+  }
+
+  /**
+   * Get all available instruction commands
+   */
+  async getAllInstructionCommands() {
+    if (Date.now() - this.lastCacheUpdate > this.cacheTimeout) {
+      await this.refreshInstructionsCache()
+    }
+    return this.instructionsCache || {}
+  }
+
+  /**
+   * Get all available system commands
+   */
+  getAllSystemCommands() {
+    return SYS_INSTRUCTIONS
+  }
+
+  /**
+   * Get statistics about commands
+   */
+  getCommandStats() {
+    const instructionCommands = Object.keys(this.instructionsCache || {}).length
+    const systemCommands = Object.keys(SYS_INSTRUCTIONS).length
+    
     return {
-      ...this.stats,
-      averageClipboardSize: this.stats.clipboardInsertions > 0 ? 
-        Math.round(this.stats.clipboardLength / this.stats.clipboardInsertions) : 0,
-      successRate: this.stats.inputsProcessed > 0 ? 
-        ((this.stats.inputsProcessed - this.stats.validationErrors) / this.stats.inputsProcessed) * 100 : 100
+      instructionCommands,
+      systemCommands,
+      totalCommands: instructionCommands + systemCommands,
+      cacheLastUpdated: new Date(this.lastCacheUpdate),
+      cacheAge: Date.now() - this.lastCacheUpdate
     }
   }
 
   /**
    * Get service health status
-   * @returns {Object} Health status
    */
   getHealthStatus() {
-    const stats = this.getProcessingStats()
-    
     return {
       initialized: this.initialized,
-      inputsProcessed: stats.inputsProcessed,
-      successRate: stats.successRate,
-      recentErrors: stats.validationErrors,
-      isHealthy: this.initialized && stats.successRate > 90
+      hasInstructionsCache: !!this.instructionsCache,
+      cacheAge: Date.now() - this.lastCacheUpdate,
+      cacheValid: (Date.now() - this.lastCacheUpdate) < this.cacheTimeout,
+      isHealthy: this.initialized && !!this.instructionsCache
     }
-  }
-
-  /**
-   * Reset statistics
-   */
-  resetStats() {
-    this.stats = {
-      inputsProcessed: 0,
-      clipboardInsertions: 0,
-      flagsExtracted: 0,
-      validationErrors: 0
-    }
-    this.logger.debug('Input processing stats reset')
   }
 
   /**
    * Dispose of service resources
    */
   dispose() {
-    this.resetStats()
+    this.instructionsCache = null
     this.initialized = false
-    this.logger.debug('InputProcessingService disposed')
+    this.logger.debug('CommandProcessingService disposed')
   }
 }

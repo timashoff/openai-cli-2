@@ -84,10 +84,10 @@ export class CommandObserver {
 
   /**
    * Start observing command events
-   * @param {Object} options - Observer options
-   * @param {boolean} options.trackMetrics - Track performance metrics
-   * @param {boolean} options.trackCache - Track cache operations
-   * @param {boolean} options.debug - Enable debug logging
+
+
+
+
    */
   startObserving(options = {}) {
     if (this.isActive) {
@@ -289,7 +289,7 @@ export class CommandObserver {
     const { isValid, errors } = payload.data
     
     if (debug && !isValid) {
-      console.log(`${color.red}❌ INPUT VALIDATION FAILED:${color.reset} ${errors.join(', ')}`)
+      console.log(`${color.red}✗ Input validation failed:${color.reset} ${errors.join(', ')}`)
     }
   }
 
@@ -351,7 +351,7 @@ export class CommandObserver {
     const { commandKey, duration, success, responseLength } = payload.data
     
     if (debug) {
-      console.log(`${color.green}✅ COMMAND COMPLETED:${color.reset} ${commandKey} (${duration}ms, ${responseLength} chars)`)
+      console.log(`${color.green}✓ Command completed:${color.reset} ${commandKey} (${duration}ms, ${responseLength} chars)`)
     }
     
     if (success) {
@@ -373,7 +373,7 @@ export class CommandObserver {
     const { commandKey, error, duration } = payload.data
     
     if (debug) {
-      console.log(`${color.red}❌ COMMAND FAILED:${color.reset} ${commandKey} - ${error} (${duration}ms)`)
+      console.log(`${color.red}✗ Command failed:${color.reset} ${commandKey} - ${error} (${duration}ms)`)
     }
     
     this.sessionStats.failedCommands++
@@ -430,9 +430,9 @@ export class CommandObserver {
 
   /**
    * Emit a command event
-   * @param {string} eventType - Event type from COMMAND_EVENTS
-   * @param {any} data - Event data
-   * @param {Object} options - Additional options
+
+
+
    */
   emit(eventType, data, options = {}) {
     if (!this.isActive && !eventType.includes('input_received')) {
@@ -447,7 +447,7 @@ export class CommandObserver {
 
   /**
    * Get session statistics
-   * @returns {Object} Session stats
+
    */
   getSessionStats() {
     return {
@@ -465,7 +465,7 @@ export class CommandObserver {
 
   /**
    * Get collected metrics
-   * @returns {Object} Metrics data
+
    */
   getMetrics() {
     return {
@@ -477,7 +477,7 @@ export class CommandObserver {
 
   /**
    * Check if observer is active
-   * @returns {boolean} Active status
+
    */
   get active() {
     return this.isActive
@@ -489,8 +489,8 @@ export const commandObserver = new CommandObserver()
 
 /**
  * Convenience function to start observing with common options
- * @param {Object} options - Observer options
- * @returns {CommandObserver} Observer instance
+
+
  */
 export function startCommandObserver(options = {}) {
   commandObserver.startObserving(options)
@@ -499,7 +499,7 @@ export function startCommandObserver(options = {}) {
 
 /**
  * Convenience function to stop observing
- * @returns {Object} Final session stats
+
  */
 export function stopCommandObserver() {
   const stats = commandObserver.getSessionStats()

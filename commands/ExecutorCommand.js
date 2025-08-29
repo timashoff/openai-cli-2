@@ -1,11 +1,13 @@
 /**
  * CommandExecutor - Central command execution engine
- * Orchestrates execution of all command types: system, AI, and instruction commands
+ * Orchestrates execution of all command types through UnifiedCommandManager
+ * Integrated with unified routing system for consistent command handling
  */
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { configManager } from '../config/config-manager.js'
+import { databaseCommandService } from '../services/DatabaseCommandService.js'
 
 export class CommandExecutor {
   constructor(dependencies = {}) {
@@ -14,6 +16,7 @@ export class CommandExecutor {
     this.cliInterface = dependencies.cliInterface
     this.serviceManager = dependencies.serviceManager
     this.requestRouter = dependencies.requestRouter
+    this.app = dependencies.app // Reference to main application instance
     
     // Command handlers
     this.systemCommands = dependencies.systemCommands
@@ -25,6 +28,7 @@ export class CommandExecutor {
     this.mcpManager = dependencies.mcpManager
     this.intentDetector = dependencies.intentDetector
     this.multiProviderTranslator = dependencies.multiProviderTranslator
+    this.multiCommandProcessor = dependencies.multiCommandProcessor
     
     // Execution statistics
     this.stats = {
@@ -58,7 +62,6 @@ export class CommandExecutor {
   
   /**
    * Setup command detection patterns
-   * @private
    */
   setupCommandPatterns() {
     // System commands patterns
@@ -73,27 +76,42 @@ export class CommandExecutor {
   
   /**
    * Execute user input - main entry point used by app.js
-   * @param {string} userInput - Raw user input
-   * @returns {Promise<void>}
    */
   async executeUserInput(userInput) {
     const result = await this.execute(userInput)
     
     // Display result if needed
-    if (result.success && result.result && result.result.displayResult) {
-      this.cliInterface.writeOutput(result.result.displayResult)
+    if (result.success && result.result) {
+      // Handle different result formats
+      if (result.result.displayResult) {
+        // Legacy format with displayResult
+        this.cliInterface.writeOutput(result.result.displayResult)
+      } else if (typeof result.result === 'string') {
+        // Direct string result (e.g., from UnifiedCommandManager)
+        this.cliInterface.writeOutput(result.result)
+      } else if (result.result.result && typeof result.result.result === 'string') {
+        // Unified command result format
+        this.cliInterface.writeOutput(result.result.result)
+      }
     }
     
-    // If execution failed, throw error for app error handling
+    // If execution failed, show user-friendly error message
     if (!result.success) {
-      throw new Error(result.error)
+      // Check if it's a user input error that should show helpful message
+      if (result.error && result.error.includes('Command') && result.error.includes('requires additional input')) {
+        this.cliInterface.writeError(result.error)
+        return // Don't throw for user guidance errors
+      }
+      
+      // For other errors, provide user-friendly message instead of stack trace
+      const userFriendlyMessage = this.getUserFriendlyErrorMessage(result.error)
+      this.cliInterface.writeError(userFriendlyMessage)
+      return
     }
   }
 
   /**
    * Execute user input through appropriate command pipeline
-   * @param {string} userInput - Raw user input
-   * @returns {Promise<Object>} Execution result
    */
   async execute(userInput) {
     const executionId = this.generateExecutionId()
@@ -105,10 +123,23 @@ export class CommandExecutor {
       // Validate and sanitize input
       const cleanInput = await this.validateAndSanitizeInput(userInput)
       
-      // Classify and route the command
-      const classification = await this.classifyInput(cleanInput)
+      // Try unified command system first
+      const unifiedResult = await this.tryUnifiedCommand(cleanInput)
+      if (unifiedResult) {
+        this.recordExecution(executionId, startTime, unifiedResult.success)
+        
+        return {
+          success: unifiedResult.success,
+          executionId,
+          classification: 'unified',
+          result: unifiedResult.result,
+          executionTime: Date.now() - startTime,
+          source: 'UnifiedCommandManager'
+        }
+      }
       
-      // Execute based on classification
+      // Fallback: Use legacy classification and routing
+      const classification = await this.classifyInput(cleanInput)
       const result = await this.executeClassifiedCommand(classification, cleanInput)
       
       // Record successful execution
@@ -119,7 +150,8 @@ export class CommandExecutor {
         executionId,
         classification: classification.type,
         result,
-        executionTime: Date.now() - startTime
+        executionTime: Date.now() - startTime,
+        source: 'legacy'
       }
       
     } catch (error) {
@@ -138,10 +170,14 @@ export class CommandExecutor {
   }
   
   /**
+   * Legacy method - no longer used after architecture refactor
+   */
+  async tryUnifiedCommand(input) {
+    return null // UnifiedCommandManager replaced by config-based system
+  }
+  
+  /**
    * Validate and sanitize user input
-   * @private
-   * @param {string} input - Raw user input
-   * @returns {Promise<string>} Clean input
    */
   async validateAndSanitizeInput(input) {
     // Sanitize the input
@@ -161,9 +197,6 @@ export class CommandExecutor {
   
   /**
    * Classify user input to determine command type
-   * @private
-   * @param {string} input - Clean user input
-   * @returns {Promise<Object>} Classification result
    */
   async classifyInput(input) {
     const words = input.trim().split(' ')
@@ -203,36 +236,69 @@ export class CommandExecutor {
       }
     }
     
-    // Check if this is an instruction command using RequestRouter
-    if (this.requestRouter) {
-      const routingResult = await this.requestRouter.routeRequest(input)
+    // CRITICAL FIX: Check SQLite database BEFORE defaulting to CHAT
+    // Business Logic: Only real database commands should be classified as INSTRUCTION
+    const command = databaseCommandService.findByKey(commandName)
+    
+    if (command) {
+      console.log(`[DEBUG] Found command "${commandName}" in SQLite database (ID: ${command.id})`)
       
-      if (routingResult.success && routingResult.context.command) {
-        return {
-          type: this.COMMAND_TYPES.INSTRUCTION,
-          commandName: routingResult.context.command.commandKey,
-          command: routingResult.context.command,
-          routingResult,
-          originalInput: input
+      // CRITICAL FIX: Check for missing arguments for template commands
+      if (args.length === 0) {
+        // This is a template command without content - show helpful message
+        console.log(`[DEBUG] Command "${commandName}" is a template and requires arguments.`)
+        
+        // Instead of throwing error, provide helpful guidance
+        const usage = this.getCommandUsage(command)
+        const errorMessage = `${color.yellow}Command "${commandName}" requires additional input.${color.reset}\n\n${usage}\n\nPlease try again with the required arguments.`
+        
+        // Create a user-friendly operational error instead of throwing
+        const userError = new Error(errorMessage)
+        userError.isOperational = true
+        userError.isUserInputError = true
+        userError.requiresPrompt = true
+        
+        throw userError
+      }
+
+      // Use RequestRouter for full command processing
+      if (this.requestRouter) {
+        const routingResult = await this.requestRouter.routeRequest(input)
+        
+        if (routingResult.success && routingResult.context.command) {
+          return {
+            type: this.COMMAND_TYPES.INSTRUCTION,
+            commandName: routingResult.context.command.commandKey,
+            command: routingResult.context.command,
+            routingResult,
+            originalInput: input
+          }
         }
+      }
+      
+      // Fallback: Simple instruction classification
+      return {
+        type: this.COMMAND_TYPES.INSTRUCTION,
+        commandName,
+        args,
+        originalInput: input,
+        isCommand: true,
+        databaseCommand: command
       }
     }
     
-    // Default to instruction processing
+    // BUSINESS LOGIC: If command NOT found in SQLite DB → it's CHAT, not a command!
+    console.log(`[DEBUG] Command "${commandName}" NOT found in SQLite DB → Classified as CHAT`)
     return {
       type: this.COMMAND_TYPES.INSTRUCTION,
       commandName: null,
       originalInput: input,
-      isChat: true
+      isChat: true // This will be processed as chat, not cached as command
     }
   }
   
   /**
    * Execute command based on classification
-   * @private
-   * @param {Object} classification - Command classification
-   * @param {string} input - Clean input
-   * @returns {Promise<any>} Execution result
    */
   async executeClassifiedCommand(classification, input) {
     switch (classification.type) {
@@ -255,8 +321,6 @@ export class CommandExecutor {
   
   /**
    * Execute system command
-   * @private
-   * @param {Object} classification - Command classification
    */
   async executeSystemCommand(classification) {
     const { commandName, args } = classification
@@ -301,8 +365,6 @@ export class CommandExecutor {
   
   /**
    * Execute AI command (provider, model)
-   * @private
-   * @param {Object} classification - Command classification
    */
   async executeAICommand(classification) {
     const { commandName, args } = classification
@@ -328,8 +390,6 @@ export class CommandExecutor {
   
   /**
    * Execute custom command (cmd)
-   * @private
-   * @param {Object} classification - Command classification
    */
   async executeCustomCommand(classification) {
     const { commandName } = classification
@@ -355,9 +415,6 @@ export class CommandExecutor {
   
   /**
    * Execute instruction command (translation, chat, etc.)
-   * @private
-   * @param {Object} classification - Command classification
-   * @param {string} input - Clean input
    */
   async executeInstructionCommand(classification, input) {
     logger.debug(`Executing instruction command: ${classification.commandName || 'chat'}`)
@@ -373,8 +430,7 @@ export class CommandExecutor {
   
   /**
    * Execute routed instruction via RequestRouter
-   * @private
-   * @param {Object} routingResult - Result from RequestRouter
+
    */
   async executeRoutedInstruction(routingResult) {
     const { action, result, input, command, metadata } = routingResult
@@ -411,8 +467,7 @@ export class CommandExecutor {
   
   /**
    * Execute chat instruction (direct AI processing)
-   * @private
-   * @param {string} input - User input
+
    */
   async executeChatInstruction(input) {
     return await this.processAIRequest(input, null, {})
@@ -420,10 +475,9 @@ export class CommandExecutor {
   
   /**
    * Process AI request using RequestRouter
-   * @private
-   * @param {string} input - Processed input
-   * @param {Object} command - Command object (if any)
-   * @param {Object} metadata - Request metadata
+
+
+
    */
   async processAIRequest(input, command = null, metadata = {}) {
     // Use RequestRouter for complete business logic
@@ -435,6 +489,12 @@ export class CommandExecutor {
     const { StreamProcessor } = await import('../utils/stream-processor.js')
     const { configManager } = await import('../config/config-manager.js')
     
+    // CRITICAL FIX: Get the AbortController from the state manager
+    const controller = this.stateManager.getCurrentRequestController()
+    if (!controller) {
+      logger.warn('CommandExecutor: AbortController not found in state manager for AI request.')
+    }
+
     // Gather all dependencies needed by RequestRouter.processAIInput
     const dependencies = {
       serviceManager: this.serviceManager,
@@ -444,7 +504,8 @@ export class CommandExecutor {
       intentDetector: this.intentDetector,
       multiProviderTranslator: this.multiProviderTranslator,
       StreamProcessor,
-      configManager
+      configManager,
+      abortController: controller // Pass the controller
     }
     
     // Use RequestRouter's processAIInput for complete business logic
@@ -455,14 +516,13 @@ export class CommandExecutor {
       action: 'ai_processing_completed',
       result: 'Processing completed via RequestRouter',
       displayResult: null, // RequestRouter handles display
-      command: command?.commandKey || 'chat'
+      command: command && command.commandKey || 'chat'
     }
   }
   
   
   /**
    * Process multi-provider request
-   * @private
    */
   async processMultiProvider(command) {
     if (!this.multiProviderTranslator) {
@@ -474,7 +534,7 @@ export class CommandExecutor {
     const result = await this.multiProviderTranslator.translateMultiple(
       command.commandType,
       command.instruction,
-      command.targetContent,
+      command.userInput,
       controller.signal,
       command.models
     )
@@ -489,19 +549,39 @@ export class CommandExecutor {
   
   /**
    * Process multi-model request
-   * @private
    */
   async processMultiModel(command) {
-    // TODO: Integrate with multi-command processor when available
-    throw new Error('Multi-model processing not yet implemented in CommandExecutor')
+    if (!this.multiCommandProcessor) {
+      throw new Error('Multi-command processor not available')
+    }
+    
+    const controller = this.stateManager.getCurrentRequestController()
+    
+    try {
+      const result = await this.multiCommandProcessor.executeMultiple({
+        instruction: command.content,
+        signal: controller ? controller.signal : null,
+        models: command.models,
+        defaultModel: null,
+        onComplete: null
+      })
+      
+      return {
+        type: 'instruction',
+        action: 'multi_model_completed',
+        result,
+        displayResult: result
+      }
+    } catch (error) {
+      throw new Error(`Multi-model processing failed: ${error.message}`)
+    }
   }
   
   /**
    * Prepare messages for AI request
-   * @private
-   * @param {string} input - User input
-   * @param {Object} command - Command object
-   * @returns {Array} Messages array
+
+
+
    */
   prepareAIMessages(input, command) {
     const contextHistory = this.stateManager.getContextHistory()
@@ -519,9 +599,28 @@ export class CommandExecutor {
   }
   
   /**
+   * Get command usage information
+
+
+   */
+  getCommandUsage(command) {
+    const commandExamples = {
+      'kg': 'kg <word or phrase to translate>',
+      'aa': 'aa <text to translate to English>',
+      'rr': 'rr <text to translate to Russian>',
+      'cc': 'cc <text to translate to Chinese>',
+      'сс': 'сс <text to translate to Chinese>',
+      'hsk': 'hsk <Chinese text for HSK analysis>'
+    }
+    
+    const example = commandExamples[command.key] || `${command.key} <your input here>`
+    
+    return `${color.cyan}Usage:${color.reset} ${example}\n${color.cyan}Description:${color.reset} ${command.instruction || 'No description available'}`
+  }
+
+  /**
    * Generate unique execution ID
-   * @private
-   * @returns {string} Execution ID
+
    */
   generateExecutionId() {
     return `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -529,11 +628,10 @@ export class CommandExecutor {
   
   /**
    * Record execution statistics
-   * @private
-   * @param {string} executionId - Execution ID
-   * @param {number} startTime - Start timestamp
-   * @param {boolean} success - Whether execution succeeded
-   * @param {Error} error - Error object (if failed)
+
+
+
+
    */
   recordExecution(executionId, startTime, success, error = null) {
     const executionTime = Date.now() - startTime
@@ -557,7 +655,7 @@ export class CommandExecutor {
   
   /**
    * Get execution statistics
-   * @returns {Object} Execution statistics
+
    */
   getExecutionStats() {
     const avgExecutionTime = this.stats.executionTimes.length > 0 
@@ -588,8 +686,36 @@ export class CommandExecutor {
   }
   
   /**
+   * Get user-friendly error message
+
+
+   */
+  getUserFriendlyErrorMessage(error) {
+    // Common error patterns and their user-friendly equivalents
+    const errorMappings = {
+      'Network error': 'Connection failed. Please check your internet connection.',
+      'Invalid API key': 'API authentication failed. Please check your API key configuration.',
+      'Rate limit': 'Too many requests. Please wait a moment and try again.',
+      'Model not found': 'The selected AI model is not available. Try switching to a different model.',
+      'Input too long': 'Your input is too long. Please shorten it and try again.',
+      'Timeout': 'Request timed out. Please try again.',
+      'Permission denied': 'Access denied. Please check your permissions.'
+    }
+    
+    // Find matching pattern
+    for (const [pattern, friendlyMessage] of Object.entries(errorMappings)) {
+      if (error && error.toLowerCase().includes(pattern.toLowerCase())) {
+        return friendlyMessage
+      }
+    }
+    
+    // Default user-friendly message for unrecognized errors
+    return `Something went wrong: ${error || 'Unknown error'}. Please try again or contact support if the problem persists.`
+  }
+
+  /**
    * Get executor status and configuration
-   * @returns {Object} Executor status
+
    */
   getStatus() {
     return {
@@ -620,8 +746,8 @@ export class CommandExecutor {
 
 /**
  * Create CommandExecutor instance with dependencies
- * @param {Object} dependencies - Required dependencies
- * @returns {CommandExecutor} CommandExecutor instance
+
+
  */
 export function createCommandExecutor(dependencies = {}) {
   return new CommandExecutor(dependencies)

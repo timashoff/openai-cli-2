@@ -78,3 +78,6 @@ cache.json
 
 # Test files
 test-output/
+
+# Develop
+.dev

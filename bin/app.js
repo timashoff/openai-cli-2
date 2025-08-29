@@ -6,27 +6,17 @@
  */
 
 import { Application } from '../utils/application.js'
-import { CommandManager } from '../utils/command-manager.js'
 import { color } from '../config/color.js'
-import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
-import { getClipboardContent, openInBrowser, getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
-import { sanitizeString, validateString } from '../utils/validation.js'
-import { configManager } from '../config/config-manager.js'
-import { CommandEditor } from '../utils/command-editor.js'
-import cache from '../utils/cache.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from '../utils/error-handler.js'
-// Migration no longer needed - commands already in database  
-// import { migrateInstructionsToDatabase } from '../utils/migration.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
-import { ServiceManager, getServiceManager } from '../services/service-manager.js'
-import { CommandRouter } from '../commands/CommandRouter.js'
-import { CLIManager } from '../core/CLIManager.js'
-import { AIProcessor } from '../core/AIProcessor.js'
-import { ApplicationInitializer } from '../core/ApplicationInitializer.js'
-import { ProviderSwitcher } from '../core/ProviderSwitcher.js'
-import { commandObserver } from '../patterns/CommandObserver.js'
-import { stateObserver } from '../patterns/StateObserver.js'
+// ServiceManager removed - StateManager handles everything
+import { Router } from '../core/Router.js'
+import { ApplicationLoop } from '../core/ApplicationLoop.js'
+import { createChatRequest } from '../core/ChatRequest.js'
+import { createCommandHandler } from '../core/CommandHandler.js'
+import { systemCommandHandler } from '../core/system-command-handler.js'
+import { CacheManager } from '../core/CacheManager.js'
 import { getStateManager } from '../core/StateManager.js'
 
 /**
@@ -34,38 +24,36 @@ import { getStateManager } from '../core/StateManager.js'
  */
 class AIApplication extends Application {
   constructor() {
-    super()
+    // Call super with required dependencies for Application
+    super({})
     
     // Get StateManager instance (replaces direct aiState)
     this.stateManager = getStateManager()
     
-    // Command managers
-    this.aiCommands = new CommandManager()
     
-    // Modern command system - uses extracted components:
-    // - CommandRouter for command routing 
-    // - ProviderSwitcher for provider switching
-    // - AIProcessor for AI processing
-    // - CLIManager for CLI management
+    // Application Loop (extracted) - must be created before CommandEditor
+    this.applicationLoop = new ApplicationLoop(this)
     
-    // CLI Manager (extracted) - must be created before CommandEditor
-    this.cliManager = new CLIManager(this)
+    // Chat request handler for final processing
+    this.chatRequest = createChatRequest(this)
     
-    // Legacy systems
-    this.commandEditor = new CommandEditor(this, this.cliManager.rl)
-    this.serviceManager = getServiceManager(this)
+    // System command handler for system commands
+    this.systemCommandHandler = systemCommandHandler
     
-    // AI Processor (extracted)
-    this.aiProcessor = new AIProcessor(this)
+    // Cache manager for caching logic
+    this.cacheManager = new CacheManager()
     
-    // Command Router (extracted)
-    this.commandRouter = new CommandRouter(this)
+    // Command handler for database commands (functional approach)
+    this.commandHandler = createCommandHandler(this.chatRequest, this.cacheManager)
     
-    // Application Initializer (extracted)
-    this.applicationInitializer = new ApplicationInitializer(this)
+    // Router with all handler dependencies
+    this.router = new Router({
+      systemCommandHandler: this.systemCommandHandler,
+      commandHandler: this.commandHandler,
+      chatRequest: this.chatRequest
+    })
     
-    // Provider Switcher (extracted)
-    this.providerSwitcher = new ProviderSwitcher(this)
+    
   }
 
   /**
@@ -75,128 +63,65 @@ class AIApplication extends Application {
     return this.stateManager.getAIState()
   }
 
-  /**
-   * Process command (delegated to CommandRouter)
-   */
-  async processCommand(commandName, args, fullInput) {
-    await this.commandRouter.processCommand(commandName, args, fullInput)
-  }
 
 
 
   /**
-   * Initialize AI components (with original business logic)
-   */
-  async initializeAI() {
-    await cache.initialize()
-    await this.applicationInitializer.initializeAI()
-  }
-
-
-  /**
-   * Switch AI model (delegated to ProviderSwitcher)
-   */
-  async switchModel() {
-    await this.providerSwitcher.switchModel()
-  }
-
-  /**
-   * Switch AI provider (delegated to ProviderSwitcher)
-   */
-  async switchProvider() {
-    await this.providerSwitcher.switchProvider()
-  }
-
-  /**
-   * Process AI input (delegated to AIProcessor)
-   */
-  async processAIInput(input) {
-    return await this.aiProcessor.processAIInput(input, this.cliManager)
-  }
-
-  /**
-   * Find command in instructions (delegated to AIProcessor)
-   */
-  async findCommand(str) {
-    return await this.aiProcessor.findCommand(str)
-  }
-
-  /**
-   * Process MCP input (delegated to AIProcessor)
-   */
-  async processMCPInput(input, command = null) {
-    return await this.aiProcessor.processMCPInput(input, command)
-  }
-
-  /**
-   * Call MCP server (delegated to AIProcessor)
-   */
-  async callMCPServer(serverName, toolName, args) {
-    return await this.aiProcessor.callMCPServer(serverName, toolName, args)
-  }
-
-  /**
-   * Format MCP data (delegated to AIProcessor)
-   */
-  formatMCPData(mcpData, intent, command = null) {
-    return this.aiProcessor.formatMCPData(mcpData, intent, command)
-  }
-
-  /**
-   * Open link in browser (delegated to AIProcessor)
-   */
-  async openLinkInBrowser(linkNumber) {
-    return await this.aiProcessor.openLinkInBrowser(linkNumber)
-  }
-
-
-  /**
-   * Main application run loop (delegated to CLIManager)
+   * Main application run loop
    */
   async run() {
     // Migration no longer needed - commands already in database
     // await migrateInstructionsToDatabase()
     
-    // Start observers for comprehensive session tracking
-    stateObserver.startObserving({
-      trackMetrics: true,
-      trackHistory: true,
-      debug: logger.level === 'debug'
-    })
-    
-    commandObserver.startObserving({
-      trackMetrics: true,
-      trackCache: true,
-      debug: logger.level === 'debug'
-    })
-    
-    // Initialize providers with CLIManager spinner
+    // Initialize providers with ApplicationLoop spinner - StateManager handles everything
     try {
-      await this.cliManager.showInitializationSpinner(async () => {
-        await this.serviceManager.initialize()
+      await this.applicationLoop.showInitializationSpinner(async () => {
+        // Initialize default provider through StateManager
+        await this.initializeDefaultProvider()
+        // Initialize router if needed
+        await this.router.initialize()
       })
       
       // Show current model info after spinner cleanup
-      const aiService = this.serviceManager.getAIProviderService()
-      if (aiService) {
-        const currentProvider = aiService.getCurrentProvider()
-        if (currentProvider && currentProvider.key) {
-          const providerName = API_PROVIDERS[currentProvider.key]?.name || currentProvider.key
-          const modelName = currentProvider.model || 'unknown'
-          console.log(`current model is ${providerName} ${modelName}`)
-        }
+      const currentProvider = this.stateManager.getCurrentProvider()
+      const currentModel = this.stateManager.getCurrentModel()
+      if (currentProvider && currentModel) {
+        const providerKey = this.stateManager.getCurrentProviderKey()
+        const providerName = API_PROVIDERS[providerKey] && API_PROVIDERS[providerKey].name || providerKey
+        console.log(`current model is ${providerName} ${currentModel}`)
       }
       
-      
     } catch (error) {
-      console.error(`${color.red}Error: Service manager initialization failed: ${error.message}${color.reset}`)
+      console.error(`${color.red}Error: Provider initialization failed: ${error.message}${color.reset}`)
       throw error
     }
     
-    process.title = this.stateManager.getAIState().model
+    process.title = this.stateManager.getCurrentModel()
     
-    // Delegate main loop to CLIManager
-    await this.cliManager.startMainLoop()
+    // Delegate main loop to ApplicationLoop
+    await this.applicationLoop.startMainLoop()
+  }
+
+  /**
+   * Initialize default provider through StateManager
+   */
+  async initializeDefaultProvider() {
+    // Get available provider keys (with API keys set)
+    const availableProviderKeys = Object.entries(API_PROVIDERS)
+      .filter(([, config]) => process.env[config.apiKeyEnv])
+      .map(([key]) => key)
+    
+    if (availableProviderKeys.length === 0) {
+      throw new Error('No AI providers available - check your API keys')
+    }
+    
+    // Determine default provider (preference order: openai, deepseek, anthropic)
+    const preferredOrder = ['openai', 'deepseek', 'anthropic']
+    const defaultProviderKey = preferredOrder.find(key => availableProviderKeys.includes(key)) || availableProviderKeys[0]
+    
+    // Initialize default provider through StateManager
+    logger.debug(`Initializing default provider: ${defaultProviderKey}`)
+    await this.stateManager.switchProvider(defaultProviderKey)
   }
 }
 

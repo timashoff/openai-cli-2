@@ -1,7 +1,7 @@
 /**
  * CacheManager - Centralized cache logic following Single Source of Truth principle
  * Consolidates all caching decisions from 5 different files into one place
- * Replaces scattered cache_enabled checks across the codebase
+ * Uses simple boolean isCached field from DatabaseCommandService
  */
 import cache from '../utils/cache.js'
 import { logger } from '../utils/logger.js'
@@ -18,68 +18,23 @@ export class CacheManager {
   }
 
   /**
-   * Determine if request should be cached based on command and force flags
-   * Single source of truth for all cache decisions
-   * @param {Object} command - Command object with cache_enabled field
-   * @param {Object} instruction - Instruction object (optional)
-   * @param {boolean} forceRequest - Force flag to bypass cache
-   * @returns {Object} Cache decision and metadata
+   * Determine if request should be cached
+   * Simple boolean check - RequestRouter already handled force flags
    */
-  shouldCache(command, instruction = null, forceRequest = false) {
-    // Force flags always skip cache
-    if (forceRequest) {
-      this.stats.forceSkips++
-      this.logger.debug('CacheManager: Cache skipped due to force flag')
-      return {
-        shouldUse: false,
-        shouldStore: false,
-        reason: 'force_flag',
-        cacheKey: null
-      }
-    }
-
-    // Check cache_enabled on command first (primary source)
-    const commandCacheEnabled = command?.cache_enabled !== false
-    
-    // Check cache_enabled on instruction as fallback
-    const instructionCacheEnabled = instruction?.cache_enabled !== false
-    
-    // Cache is enabled if either command or instruction allows it
-    const cacheEnabled = commandCacheEnabled && instructionCacheEnabled
-    
-    if (!cacheEnabled) {
-      this.stats.cacheSkips++
-      this.logger.debug('CacheManager: Cache disabled by command/instruction cache_enabled=false')
-      return {
-        shouldUse: false,
-        shouldStore: false,
-        reason: 'cache_disabled',
-        cacheKey: null
-      }
-    }
-
-    this.logger.debug('CacheManager: Cache enabled for this request')
-    return {
-      shouldUse: true,
-      shouldStore: true, 
-      reason: 'cache_enabled',
-      cacheKey: null // Will be set by generateCacheKey()
-    }
+  shouldCache(command) {
+    return command && command.isCached
   }
 
   /**
    * Generate cache key from user input
    * Consistent cache key generation across all components
-   * @param {string} userInput - Clean user input without command prefix
-   * @param {Object} command - Command object for context
-   * @returns {string} Cache key
    */
   generateCacheKey(userInput, command = null) {
     // Use clean user input as cache key (without command prefix)
     const cleanInput = userInput.trim()
     
     // For multi-model commands, include command ID in key for uniqueness
-    if (command?.models && Array.isArray(command.models) && command.models.length > 1) {
+    if (command && command.models && Array.isArray(command.models) && command.models.length > 1) {
       const cacheKey = `${command.id || 'multi'}: ${cleanInput}`
       this.logger.debug(`CacheManager: Generated multi-model cache key: ${cacheKey}`)
       return cacheKey
@@ -90,9 +45,20 @@ export class CacheManager {
   }
 
   /**
+   * Generate per-model cache key
+   * Format: commandId:userInput:model
+   */
+  generateModelCacheKey(userInput, commandId, model) {
+    const cleanInput = userInput.trim()
+    const modelKey = `${commandId}:${cleanInput}:${model}`
+    this.logger.debug(`CacheManager: Generated per-model cache key: ${modelKey}`)
+    return modelKey
+  }
+
+  /**
    * Check if cache has entry for given key
-   * @param {string} cacheKey - Cache key to check
-   * @returns {boolean} True if cache has entry
+
+
    */
   async hasCache(cacheKey) {
     if (!cacheKey) return false
@@ -111,8 +77,8 @@ export class CacheManager {
 
   /**
    * Get cached response
-   * @param {string} cacheKey - Cache key to retrieve
-   * @returns {*} Cached value or undefined
+
+
    */
   async getCache(cacheKey) {
     if (!cacheKey) return undefined
@@ -127,19 +93,14 @@ export class CacheManager {
 
   /**
    * Store response in cache
-   * @param {string} cacheKey - Cache key to store under
-   * @param {*} response - Response to cache
-   * @param {Object} cacheDecision - Decision from shouldCache()
+
+
    */
-  async setCache(cacheKey, response, cacheDecision) {
-    if (!cacheDecision.shouldStore || !cacheKey) {
-      this.logger.debug(`CacheManager: Not storing cache - shouldStore: ${cacheDecision.shouldStore}, key: ${cacheKey}`)
-      return
-    }
+  async setCache(cacheKey, response) {
+    if (!cacheKey) return
 
     try {
       await cache.set(cacheKey, response)
-      this.logger.debug(`CacheManager: Stored response in cache with key: ${cacheKey}`)
     } catch (error) {
       this.logger.error(`CacheManager: Failed to store cache: ${error.message}`)
     }
@@ -147,19 +108,14 @@ export class CacheManager {
 
   /**
    * Store multiple responses for multi-model commands
-   * @param {string} cacheKey - Cache key
-   * @param {Object} responses - Multiple provider responses  
-   * @param {Object} cacheDecision - Decision from shouldCache()
+
+
    */
-  async setMultipleResponses(cacheKey, responses, cacheDecision) {
-    if (!cacheDecision.shouldStore || !cacheKey) {
-      this.logger.debug(`CacheManager: Not storing multi-provider cache - shouldStore: ${cacheDecision.shouldStore}, key: ${cacheKey}`)
-      return
-    }
+  async setMultipleResponses(cacheKey, responses) {
+    if (!cacheKey) return
 
     try {
       await cache.setMultipleResponses(cacheKey, responses)
-      this.logger.debug(`CacheManager: Stored multi-provider responses in cache with key: ${cacheKey}`)
     } catch (error) {
       this.logger.error(`CacheManager: Failed to store multi-provider cache: ${error.message}`)
     }
@@ -167,8 +123,8 @@ export class CacheManager {
 
   /**
    * Get multiple responses for multi-model commands
-   * @param {string} cacheKey - Cache key
-   * @returns {Object} Multiple provider responses or undefined
+
+
    */
   async getMultipleResponses(cacheKey) {
     if (!cacheKey) return undefined
@@ -184,8 +140,8 @@ export class CacheManager {
 
   /**
    * Check if key has multiple responses
-   * @param {string} cacheKey - Cache key to check
-   * @returns {boolean} True if has multi-provider cache
+
+
    */
   async hasMultipleResponses(cacheKey) {
     if (!cacheKey) return false
@@ -204,8 +160,8 @@ export class CacheManager {
 
   /**
    * Clear cache for specific command
-   * @param {string} commandKey - Command key to clear cache for
-   * @returns {Promise<number>} Number of entries cleared
+
+
    */
   async clearCommandCache(commandKey) {
     const clearedCount = await cache.clearCommandCache(commandKey)
@@ -215,7 +171,7 @@ export class CacheManager {
 
   /**
    * Get cache statistics
-   * @returns {Object} Cache statistics
+
    */
   getStats() {
     return {
@@ -239,6 +195,42 @@ export class CacheManager {
     }
     this.logger.debug('CacheManager: Statistics reset')
   }
+
+  /**
+   * Check if cache has entry for specific model
+
+
+
+
+   */
+  async hasCacheByModel(userInput, commandId, model) {
+    const cacheKey = this.generateModelCacheKey(userInput, commandId, model)
+    return await this.hasCache(cacheKey)
+  }
+
+  /**
+   * Get cached response for specific model
+
+
+
+
+   */
+  async getCacheByModel(userInput, commandId, model) {
+    const cacheKey = this.generateModelCacheKey(userInput, commandId, model)
+    return await this.getCache(cacheKey)
+  }
+
+  /**
+   * Store response in cache for specific model
+
+
+
+
+   */
+  async setCacheByModel(userInput, commandId, model, response) {
+    const cacheKey = this.generateModelCacheKey(userInput, commandId, model)
+    await this.setCache(cacheKey, response)
+  }
 }
 
 // Singleton instance
@@ -246,7 +238,7 @@ let cacheManagerInstance = null
 
 /**
  * Get singleton CacheManager instance
- * @returns {CacheManager} Cache manager instance
+
  */
 export function getCacheManager() {
   if (!cacheManagerInstance) {

@@ -3,8 +3,6 @@ import { sanitizeErrorMessage } from './security.js'
 
 /**
  * Error recovery strategy enumeration
- * @readonly
- * @enum {string}
  */
 export const ErrorRecoveryStrategy = {
   /** Try to recover and continue */
@@ -21,12 +19,6 @@ export const ErrorRecoveryStrategy = {
 
 /**
  * Error context information
- * @typedef {Object} ErrorContext
- * @property {string} operation - Operation that failed
- * @property {string} component - Component where error occurred
- * @property {Object} metadata - Additional error metadata
- * @property {number} retryCount - Number of retry attempts
- * @property {Date} timestamp - When error occurred
  */
 
 /**
@@ -35,10 +27,10 @@ export const ErrorRecoveryStrategy = {
  */
 export class ErrorBoundary {
   /**
-   * @param {Object} dependencies - Dependencies
-   * @param {Object} dependencies.eventBus - Event bus for error events
-   * @param {Object} dependencies.logger - Logger instance
-   * @param {Object} dependencies.config - Configuration manager
+
+
+
+
    */
   constructor(dependencies = {}) {
     this.eventBus = dependencies.eventBus
@@ -61,11 +53,10 @@ export class ErrorBoundary {
 
   /**
    * Execute operation with error boundary protection
-   * @param {Function} operation - Operation to execute
-   * @param {Object} context - Error context
-   * @param {ErrorRecoveryStrategy} strategy - Recovery strategy
-   * @returns {Promise<any>} Operation result
-   * @example
+
+
+
+
    * const result = await errorBoundary.execute(
    *   () => provider.createChatCompletion(model, messages),
    *   { operation: 'chat_completion', component: 'ProviderService' },
@@ -124,9 +115,8 @@ export class ErrorBoundary {
 
   /**
    * Add fallback handler for specific operation/component
-   * @param {string} pattern - Pattern to match (operation:component)
-   * @param {Function} handler - Fallback handler function
-   * @example
+
+
    * errorBoundary.addFallbackHandler('chat_completion:ProviderService', async (error, context) => {
    *   // Try alternative provider
    *   return await alternativeProvider.createChatCompletion(model, messages)
@@ -147,8 +137,8 @@ export class ErrorBoundary {
 
   /**
    * Add recovery handler for specific operation/component
-   * @param {string} pattern - Pattern to match (operation:component)
-   * @param {Function} handler - Recovery handler function
+
+
    */
   addRecoveryHandler(pattern, handler) {
     if (typeof handler !== 'function') {
@@ -165,7 +155,7 @@ export class ErrorBoundary {
 
   /**
    * Get error statistics for monitoring
-   * @returns {Object} Error statistics
+
    */
   getErrorStats() {
     const stats = {
@@ -207,7 +197,7 @@ export class ErrorBoundary {
 
   /**
    * Reset circuit breaker for specific context
-   * @param {string} contextId - Context identifier
+
    */
   resetCircuitBreaker(contextId) {
     const breaker = this.circuitBreakers.get(contextId)
@@ -226,10 +216,9 @@ export class ErrorBoundary {
 
   /**
    * Execute operation with timeout
-   * @private
-   * @param {Function} operation - Operation to execute
-   * @param {ErrorContext} context - Error context
-   * @returns {Promise<any>} Operation result
+
+
+
    */
   async executeWithTimeout(operation, context) {
     const timeout = this.getOperationTimeout(context)
@@ -246,12 +235,11 @@ export class ErrorBoundary {
 
   /**
    * Handle error according to recovery strategy
-   * @private
-   * @param {Error} error - The error that occurred
-   * @param {ErrorContext} context - Error context
-   * @param {ErrorRecoveryStrategy} strategy - Recovery strategy
-   * @param {string} contextId - Context identifier
-   * @returns {Promise<any>} Recovery result
+
+
+
+
+
    */
   async handleError(error, context, strategy, contextId) {
     this.log('error', `Handling error in ${context.operation}:${context.component}`, {
@@ -285,10 +273,9 @@ export class ErrorBoundary {
 
   /**
    * Attempt to recover from error
-   * @private
-   * @param {Error} error - The error
-   * @param {ErrorContext} context - Error context
-   * @returns {Promise<any>} Recovery result
+
+
+
    */
   async attemptRecovery(error, context) {
     const pattern = `${context.operation}:${context.component}`
@@ -315,10 +302,9 @@ export class ErrorBoundary {
 
   /**
    * Attempt fallback strategy
-   * @private
-   * @param {Error} error - The error
-   * @param {ErrorContext} context - Error context
-   * @returns {Promise<any>} Fallback result
+
+
+
    */
   async attemptFallback(error, context) {
     const pattern = `${context.operation}:${context.component}`
@@ -345,10 +331,9 @@ export class ErrorBoundary {
 
   /**
    * Fail gracefully by returning safe default
-   * @private
-   * @param {Error} error - The error
-   * @param {ErrorContext} context - Error context
-   * @returns {any} Safe default value
+
+
+
    */
   failGracefully(error, context) {
     this.log('warn', `Failing gracefully for ${context.operation}:${context.component}`)
@@ -367,9 +352,8 @@ export class ErrorBoundary {
 
   /**
    * Initiate graceful shutdown
-   * @private
-   * @param {Error} error - The error
-   * @param {ErrorContext} context - Error context
+
+
    */
   async initiateShutdown(error, context) {
     this.log('error', `Critical error - initiating shutdown`, {
@@ -389,9 +373,8 @@ export class ErrorBoundary {
 
   /**
    * Get or create circuit breaker for context
-   * @private
-   * @param {string} contextId - Context identifier
-   * @returns {CircuitBreakerState} Circuit breaker state
+
+
    */
   getCircuitBreaker(contextId) {
     if (!this.circuitBreakers.has(contextId)) {
@@ -408,9 +391,8 @@ export class ErrorBoundary {
 
   /**
    * Update circuit breaker on failure
-   * @private
-   * @param {string} contextId - Context identifier
-   * @param {Error} error - The error
+
+
    */
   updateCircuitBreaker(contextId, error) {
     const breaker = this.getCircuitBreaker(contextId)
@@ -430,7 +412,6 @@ export class ErrorBoundary {
 
   /**
    * Setup global error handlers
-   * @private
    */
   setupGlobalHandlers() {
     // Handle unhandled promise rejections
@@ -447,9 +428,8 @@ export class ErrorBoundary {
 
   /**
    * Handle unhandled errors
-   * @private
-   * @param {Error} error - The error
-   * @param {string} type - Error type
+
+
    */
   handleUnhandledError(error, type) {
     const sanitizedMessage = sanitizeErrorMessage(error.message)
@@ -469,9 +449,8 @@ export class ErrorBoundary {
 
   /**
    * Generate context ID
-   * @private
-   * @param {ErrorContext} context - Error context
-   * @returns {string} Context ID
+
+
    */
   generateContextId(context) {
     return `${context.operation}:${context.component}`
@@ -479,10 +458,9 @@ export class ErrorBoundary {
 
   /**
    * Record error occurrence
-   * @private
-   * @param {string} contextId - Context identifier
-   * @param {Error} error - The error
-   * @param {ErrorContext} context - Error context
+
+
+
    */
   recordError(contextId, error, context) {
     const count = this.errorCounts.get(contextId) || 0
@@ -494,10 +472,9 @@ export class ErrorBoundary {
 
   /**
    * Enhance error with context information
-   * @private
-   * @param {Error} error - Original error
-   * @param {ErrorContext} context - Error context
-   * @returns {AppError} Enhanced error
+
+
+
    */
   enhanceError(error, context) {
     const message = `${error.message} [${context.operation}:${context.component}]`
@@ -509,7 +486,6 @@ export class ErrorBoundary {
 
   /**
    * Emit success event
-   * @private
    */
   emitSuccessEvent(context, attempts) {
     this.eventBus?.emitSync('error-boundary:success', {
@@ -521,7 +497,6 @@ export class ErrorBoundary {
 
   /**
    * Emit error event
-   * @private
    */
   emitErrorEvent(error, context, strategy) {
     this.eventBus?.emitSync('error-boundary:error', {
@@ -534,7 +509,6 @@ export class ErrorBoundary {
 
   /**
    * Emit recovery event
-   * @private
    */
   emitRecoveryEvent(context, status) {
     this.eventBus?.emitSync('error-boundary:recovery', {
@@ -546,7 +520,6 @@ export class ErrorBoundary {
 
   /**
    * Emit fallback event
-   * @private
    */
   emitFallbackEvent(context, status) {
     this.eventBus?.emitSync('error-boundary:fallback', {
@@ -558,7 +531,6 @@ export class ErrorBoundary {
 
   /**
    * Emit circuit breaker event
-   * @private
    */
   emitCircuitBreakerEvent(contextId, action) {
     this.eventBus?.emitSync('error-boundary:circuit-breaker', {
@@ -570,7 +542,6 @@ export class ErrorBoundary {
 
   /**
    * Emit critical error event
-   * @private
    */
   emitCriticalErrorEvent(error, context) {
     this.eventBus?.emitSync('error-boundary:critical', {
@@ -582,7 +553,6 @@ export class ErrorBoundary {
 
   /**
    * Emit unhandled error event
-   * @private
    */
   emitUnhandledErrorEvent(error, type) {
     this.eventBus?.emitSync('error-boundary:unhandled', {
@@ -594,7 +564,6 @@ export class ErrorBoundary {
 
   /**
    * Utility methods with reasonable defaults
-   * @private
    */
   
   validateOperation(operation, context) {
@@ -672,8 +641,8 @@ export class ErrorBoundary {
 
 /**
  * Create global error boundary instance
- * @param {Object} dependencies - Dependencies
- * @returns {ErrorBoundary} Error boundary instance
+
+
  */
 export function createErrorBoundary(dependencies) {
   return new ErrorBoundary(dependencies)

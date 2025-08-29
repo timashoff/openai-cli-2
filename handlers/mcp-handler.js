@@ -19,7 +19,6 @@ export class MCPHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async canHandle(context) {
     if (!this.mcpService) {
@@ -44,7 +43,6 @@ export class MCPHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async process(context) {
     try {
@@ -98,10 +96,9 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Handle different types of MCP results
-   * @private
-   * @param {Object} mcpResult - MCP processing result
-   * @param {Object} context - Processing context
-   * @returns {Object} Handler result
+
+
+
    */
   handleMCPResult(mcpResult, context) {
     // Add MCP data to context for other handlers
@@ -156,8 +153,7 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Show MCP data summary to user
-   * @private
-   * @param {Object} mcpResult - MCP result
+
    */
   showMCPDataSummary(mcpResult) {
     console.log(`\n${color.cyan}[MCP Data]${color.reset}`)
@@ -201,10 +197,9 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Update MCP operation statistics
-   * @private
-   * @param {string} operationType - Type of MCP operation
-   * @param {boolean} success - Whether operation succeeded
-   * @param {string} error - Error message if failed
+
+
+
    */
   updateMCPStats(operationType, success, error = null) {
     const key = success ? operationType : `${operationType}:error`
@@ -229,9 +224,8 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Convert technical errors to user-friendly messages
-   * @private
-   * @param {Error} error - Technical error
-   * @returns {string} User-friendly error message
+
+
    */
   getUserFriendlyError(error) {
     if (error.message.includes('timeout')) {
@@ -260,7 +254,7 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Get MCP operation statistics
-   * @returns {Object} MCP statistics
+
    */
   getMCPStats() {
     const stats = {
@@ -292,7 +286,7 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Get MCP service status
-   * @returns {Object} MCP service status
+
    */
   getMCPServiceStatus() {
     if (!this.mcpService) {
@@ -322,7 +316,6 @@ export class MCPHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -337,7 +330,6 @@ export class MCPHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
@@ -360,7 +352,7 @@ export class MCPHandler extends BaseRequestHandler {
 
   /**
    * Test MCP service connectivity
-   * @returns {Promise<Object>} Test result
+
    */
   async testMCPConnectivity() {
     if (!this.mcpService) {
@@ -388,7 +380,6 @@ export class MCPHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   dispose() {
     super.dispose()

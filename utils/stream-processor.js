@@ -31,7 +31,9 @@ export class StreamProcessor {
     // Close stream if active
     if (this.currentStream) {
       try {
-        this.currentStream.destroy?.()
+        if (this.currentStream.destroy) {
+          this.currentStream.destroy()
+        }
       } catch (e) {
         // Ignore destruction errors
       }
@@ -157,8 +159,8 @@ export class StreamProcessor {
               
               // HANDLE ERROR EVENTS - БЛЯДЬ НАКОНЕЦ-ТО!
               if (currentEvent === 'error' || json.type === 'error') {
-                const errorMessage = json.error?.message || json.message || 'Unknown Anthropic API error'
-                const errorType = json.error?.type || json.type || 'unknown_error'
+                const errorMessage = (json.error && json.error.message) || json.message || 'Unknown Anthropic API error'
+                const errorType = (json.error && json.error.type) || json.type || 'unknown_error'
                 reader.cancel()
                 throw new Error(`Anthropic API Error (${errorType}): ${errorMessage}`)
               }
@@ -209,7 +211,7 @@ export class StreamProcessor {
           throw new Error('Stream processing aborted')
         }
         
-        const content = chunk.choices[0]?.delta?.content
+        const content = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) ? chunk.choices[0].delta.content : null
         if (content) {
           response.push(content)
           if (onChunk) onChunk(content)

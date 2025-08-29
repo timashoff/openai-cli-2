@@ -2,10 +2,10 @@ import { AppError } from './error-handler.js'
 
 /**
  * Validates string for emptiness and type
- * @param {any} value - value to check
- * @param {string} fieldName - field name for error
- * @param {boolean} required - whether field is required
- * @returns {string|null} validated string or null
+
+
+
+
  */
 export function validateString(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -29,10 +29,10 @@ export function validateString(value, fieldName = 'field', required = true) {
 
 /**
  * Validates number
- * @param {any} value - value to check
- * @param {string} fieldName - field name for error
- * @param {object} options - validation options
- * @returns {number} validated number
+
+
+
+
  */
 export function validateNumber(value, fieldName = 'field', options = {}) {
   const { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER, required = true } = options
@@ -64,10 +64,10 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
 
 /**
  * Validates object
- * @param {any} value - value to check
- * @param {string} fieldName - field name for error
- * @param {boolean} required - whether field is required
- * @returns {object|null} validated object
+
+
+
+
  */
 export function validateObject(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -86,11 +86,11 @@ export function validateObject(value, fieldName = 'field', required = true) {
 
 /**
  * Validates choice from list of possible values
- * @param {any} value - value to check
- * @param {Array} allowedValues - array of allowed values
- * @param {string} fieldName - field name for error
- * @param {boolean} required - whether field is required
- * @returns {any} validated value
+
+
+
+
+
  */
 export function validateChoice(value, allowedValues, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
@@ -114,8 +114,8 @@ export function validateChoice(value, allowedValues, fieldName = 'field', requir
 
 /**
  * Cleans string from potentially dangerous characters
- * @param {string} input - input string
- * @returns {string} cleaned string
+
+
  */
 export function sanitizeString(input) {
   if (typeof input !== 'string') {

@@ -1,6 +1,6 @@
-import { CommandProcessingService } from './command-processing-service.js'
-import { AIProviderService } from './ai-provider-service.js'
 import { InputProcessingService } from './input-processing-service.js'
+import { AIProviderService, createAIProviderService } from './ai-provider-service.js'
+import { databaseCommandService } from './DatabaseCommandService.js'
 import { multiCommandProcessor } from '../utils/multi-command-processor.js'
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
@@ -61,7 +61,6 @@ export class ServiceManager {
 
   /**
    * Initialize Input Processing Service
-   * @private
    */
   async initializeInputProcessingService() {
     const serviceName = 'inputProcessing'
@@ -81,12 +80,11 @@ export class ServiceManager {
 
   /**
    * Initialize Command Processing Service
-   * @private
    */
   async initializeCommandProcessingService() {
     const serviceName = 'commandProcessing'
     try {
-      const service = new CommandProcessingService({
+      const service = new InputProcessingService({
         logger: this.logger,
         app: this.app
       })
@@ -101,14 +99,14 @@ export class ServiceManager {
 
   /**
    * Initialize AI Provider Service
-   * @private
    */
   async initializeAIProviderService() {
     const serviceName = 'aiProvider'
     try {
-      const service = new AIProviderService({
-        logger: this.logger,
-        app: this.app
+      // Use functional factory instead of class constructor
+      const service = createAIProviderService({
+        stateManager: this.app.stateManager,
+        logger: this.logger
       })
       
       await service.initialize()
@@ -121,7 +119,6 @@ export class ServiceManager {
 
   /**
    * Register a service with the manager
-   * @private
    */
   registerService(name, service) {
     this.services.set(name, service)
@@ -131,8 +128,6 @@ export class ServiceManager {
 
   /**
    * Get a specific service
-   * @param {string} serviceName - Name of the service
-   * @returns {Object|null} Service instance or null
    */
   getService(serviceName) {
     return this.services.get(serviceName) || null
@@ -140,7 +135,6 @@ export class ServiceManager {
 
   /**
    * Get input processing service
-   * @returns {InputProcessingService}
    */
   getInputProcessingService() {
     return this.getService('inputProcessing')
@@ -148,7 +142,6 @@ export class ServiceManager {
 
   /**
    * Get command processing service
-   * @returns {CommandProcessingService}
    */
   getCommandProcessingService() {
     // DISABLED - using CommandRouter from DB instead
@@ -158,7 +151,6 @@ export class ServiceManager {
 
   /**
    * Get AI provider service
-   * @returns {AIProviderService}
    */
   getAIProviderService() {
     return this.getService('aiProvider')
@@ -166,8 +158,6 @@ export class ServiceManager {
 
   /**
    * Process user input through all services
-   * @param {string} rawInput - Raw user input
-   * @returns {Object} Processed input result
    */
   async processUserInput(rawInput) {
     const inputService = this.getInputProcessingService()
@@ -180,13 +170,10 @@ export class ServiceManager {
 
   /**
    * Find command using database directly
-   * @param {string} input - User input
-   * @returns {Object|null} Command information
    */
   async findCommand(input) {
-    // DISABLED - use database directly instead of CommandProcessingService
-    const { getCommandsFromDB } = await import('../utils/database-manager.js')
-    const commands = getCommandsFromDB()
+    // Use DatabaseCommandService instead of CommandProcessingService
+    const commands = databaseCommandService.getCommands()
     
     const words = input.trim().split(' ')
     const commandName = words[0].toLowerCase()
@@ -201,9 +188,6 @@ export class ServiceManager {
 
   /**
    * Create AI chat completion
-   * @param {Array} messages - Chat messages
-   * @param {Object} options - Completion options
-   * @returns {Promise} AI response
    */
   async createChatCompletion(messages, options = {}) {
     const aiService = this.getAIProviderService()
@@ -216,9 +200,6 @@ export class ServiceManager {
 
   /**
    * Switch AI provider
-   * @param {string} providerKey - Provider key
-   * @param {string} model - Model name (optional)
-   * @returns {Promise<Object>} Switch result
    */
   async switchProvider(providerKey, model = null) {
     const aiService = this.getAIProviderService()
@@ -231,7 +212,6 @@ export class ServiceManager {
 
   /**
    * Try alternative AI provider
-   * @returns {Promise<boolean>} Success status
    */
   async tryAlternativeProvider() {
     const aiService = this.getAIProviderService()
@@ -244,7 +224,6 @@ export class ServiceManager {
 
   /**
    * Get comprehensive service status
-   * @returns {Object} Service status information
    */
   getServiceStatus() {
     const status = {
@@ -265,7 +244,6 @@ export class ServiceManager {
 
   /**
    * Get aggregated service statistics
-   * @returns {Object} Service statistics
    */
   getServiceStats() {
     const aggregated = {
@@ -288,7 +266,6 @@ export class ServiceManager {
 
   /**
    * Log current service status
-   * @private
    */
   logServiceStatus() {
     const status = this.getServiceStatus()

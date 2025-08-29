@@ -1,4 +1,4 @@
-import { getCommandsFromDB } from '../database-manager.js'
+import { databaseCommandService } from '../../services/DatabaseCommandService.js'
 import { color } from '../../config/color.js'
 import { commandManager } from '../command-manager.js'
 
@@ -9,7 +9,7 @@ export const execHelp = () => {
   console.log(systemHelp)
   
   console.log(`${color.yellow}Available Commands:${color.reset}`)
-  const INSTRUCTIONS = getCommandsFromDB()
+  const INSTRUCTIONS = databaseCommandService.getCommands()
   help(INSTRUCTIONS)
 
   console.log(

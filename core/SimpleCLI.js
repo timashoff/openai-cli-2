@@ -30,7 +30,7 @@ export class SimpleCLI {
   
   /**
    * Start simple main loop
-   * @param {Function} inputHandler - Function to handle user input
+
    */
   async startMainLoop(inputHandler) {
     if (!this.isInitialized) {
@@ -66,8 +66,8 @@ export class SimpleCLI {
   
   /**
    * Simple question method
-   * @param {string} prompt - Prompt text
-   * @returns {Promise<string>} User input
+
+
    */
   question(prompt) {
     return new Promise((resolve) => {
@@ -79,8 +79,8 @@ export class SimpleCLI {
   
   /**
    * Write output to console
-   * @param {string} text - Text to output
-   * @param {string} colorName - Color name (optional)
+
+
    */
   writeOutput(text, colorName = null) {
     let output = text
@@ -94,7 +94,7 @@ export class SimpleCLI {
   
   /**
    * Write error message
-   * @param {string} message - Error message
+
    */
   writeError(message) {
     this.writeOutput(`Error: ${message}`, 'red')
@@ -102,7 +102,7 @@ export class SimpleCLI {
   
   /**
    * Write success message
-   * @param {string} message - Success message
+
    */
   writeSuccess(message) {
     this.writeOutput(message, 'green')
@@ -110,7 +110,7 @@ export class SimpleCLI {
   
   /**
    * Write warning message
-   * @param {string} message - Warning message
+
    */
   writeWarning(message) {
     this.writeOutput(message, 'yellow')
@@ -118,7 +118,7 @@ export class SimpleCLI {
   
   /**
    * Write info message
-   * @param {string} message - Info message
+
    */
   writeInfo(message) {
     this.writeOutput(message, 'cyan')
@@ -137,7 +137,7 @@ export class SimpleCLI {
   
   /**
    * Check if interface is initialized
-   * @returns {boolean} Initialization status
+
    */
   isReady() {
     return this.isInitialized

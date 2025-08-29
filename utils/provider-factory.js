@@ -151,9 +151,9 @@ export class OpenAIProvider extends BaseProvider {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
       
-      // Handle abortion gracefully - don't treat as error
-      if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        throw error // Re-throw as-is, don't wrap in AppError
+      // Check if user cancelled request
+      if (signal.aborted) {
+        throw error // User cancelled - not an error
       }
       
       throw new AppError(`Failed to create chat completion: ${error.message}`, true, 500)
@@ -252,9 +252,9 @@ export class AnthropicProvider extends BaseProvider {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
       
-      // Handle abortion gracefully - don't treat as error
-      if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        throw error // Re-throw as-is, don't wrap in AppError
+      // Check if user cancelled request
+      if (signal.aborted) {
+        throw error // User cancelled - not an error
       }
       
       throw new AppError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)

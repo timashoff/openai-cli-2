@@ -6,15 +6,15 @@
 export class ServicesAdapter {
   /**
    * Create a command service adapter from existing functionality
-   * @param {Object} app - AIApplication instance
-   * @returns {Object} Command service interface
+
+
    */
   static createCommandService(app) {
     return {
       /**
        * Parse command from input using existing findCommand logic
-       * @param {string} input - Input to parse
-       * @returns {Object} Parsed command
+
+
        */
       parseCommand(input) {
         const command = app.findCommand(input)
@@ -70,9 +70,9 @@ export class ServicesAdapter {
 
       /**
        * Execute command using existing command systems
-       * @param {Object} parsedCommand - Parsed command
-       * @param {Object} context - Execution context
-       * @returns {Promise<Object>} Execution result
+
+
+
        */
       async executeCommand(parsedCommand, context) {
         const startTime = Date.now()
@@ -106,7 +106,6 @@ export class ServicesAdapter {
 
       /**
        * Execute system command
-       * @private
        */
       async executeSystemCommand(parsedCommand, context) {
         const startTime = Date.now()
@@ -156,7 +155,6 @@ export class ServicesAdapter {
 
       /**
        * Execute AI command  
-       * @private
        */
       async executeAICommand(parsedCommand, context) {
         const startTime = Date.now()
@@ -207,7 +205,6 @@ export class ServicesAdapter {
 
       /**
        * Execute instruction command
-       * @private
        */
       async executeInstructionCommand(parsedCommand, context) {
         const startTime = Date.now()
@@ -241,15 +238,15 @@ export class ServicesAdapter {
 
   /**
    * Create a streaming service adapter
-   * @param {Object} app - AIApplication instance
-   * @returns {Object} Streaming service interface
+
+
    */
   static createStreamingService(app) {
     return {
       /**
        * Start streaming using existing logic
-       * @param {Object} options - Streaming options
-       * @returns {Promise<string[]>} Stream response
+
+
        */
       async startStream(options) {
         const { stream, onChunk, signal } = options
@@ -267,10 +264,10 @@ export class ServicesAdapter {
           if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
             try {
               for await (const chunk of stream) {
-                if (signal?.aborted) break
+                if (signal && signal.aborted) break
                 
                 // Simple chunk processing
-                const content = chunk.content || chunk.delta?.content || ''
+                const content = chunk.content || (chunk.delta && chunk.delta.content) || ''
                 if (content && onChunk) {
                   onChunk(content)
                 }
@@ -289,14 +286,14 @@ export class ServicesAdapter {
 
   /**
    * Create a provider service adapter
-   * @param {Object} app - AIApplication instance 
-   * @returns {Object} Provider service interface
+
+
    */
   static createProviderService(app) {
     return {
       /**
        * Get current provider
-       * @returns {Object} Current provider info
+
        */
       getCurrentProvider() {
         const currentAIState = app.stateManager.getAIState()
@@ -309,7 +306,7 @@ export class ServicesAdapter {
 
       /**
        * Try alternative provider (existing logic)
-       * @returns {Promise<boolean>} Success status
+
        */
       async tryAlternativeProvider() {
         if (typeof app.tryAlternativeProvider === 'function') {

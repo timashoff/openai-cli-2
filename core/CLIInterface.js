@@ -31,7 +31,7 @@ export class CLIInterface {
   
   /**
    * Initialize CLI interface
-   * @param {Object} options - Initialization options
+
    */
   async initialize(options = {}) {
     if (this.isInitialized) {
@@ -56,7 +56,6 @@ export class CLIInterface {
   
   /**
    * Setup terminal for interactive use
-   * @private
    */
   setupTerminal() {
     // НЕ включать keypress events - они вызывают задвоение символов!
@@ -67,7 +66,6 @@ export class CLIInterface {
   
   /**
    * Setup escape key handler (ОТКЛЮЧЕН для исправления задвоения)
-   * @private
    */
   setupEscapeKeyHandler() {
     // ОТКЛЮЧЕНО: keypress events вызывают задвоение символов
@@ -76,7 +74,6 @@ export class CLIInterface {
   
   /**
    * Enable raw mode for immediate key detection
-   * @private
    */
   enableRawMode() {
     if (process.stdin.isTTY && !this.terminalState.rawModeEnabled) {
@@ -87,7 +84,6 @@ export class CLIInterface {
   
   /**
    * Disable raw mode
-   * @private
    */
   disableRawMode() {
     if (process.stdin.isTTY && this.terminalState.rawModeEnabled) {
@@ -99,7 +95,6 @@ export class CLIInterface {
   
   /**
    * Handle escape key press
-   * @private
    */
   handleEscapeKey() {
     const operationState = this.stateManager.getOperationState()
@@ -125,7 +120,6 @@ export class CLIInterface {
   
   /**
    * Handle interrupt signal (Ctrl+C)
-   * @private
    */
   handleInterrupt() {
     this.writeOutput('\\n[Application terminated by user]', 'red')
@@ -135,8 +129,8 @@ export class CLIInterface {
   
   /**
    * Get user input with prompt
-   * @param {string} promptText - Custom prompt text (optional)
-   * @returns {Promise<string>} User input
+
+
    */
   async getUserInput(promptText = null) {
     if (!this.isInitialized) {
@@ -188,8 +182,7 @@ export class CLIInterface {
   
   /**
    * Generate prompt based on current state
-   * @private
-   * @returns {string} Formatted prompt
+
    */
   generatePrompt() {
     if (!this.config.enableColors) {
@@ -197,16 +190,16 @@ export class CLIInterface {
     }
     
     const aiState = this.stateManager.getAIState()
-    const promptColor = aiState.model?.includes('chat') ? color.green : color.yellow
+    const promptColor = (aiState.model && aiState.model.includes('chat')) ? color.green : color.yellow
     
     return `\\n${promptColor}${this.config.promptSymbol}${color.reset} `
   }
   
   /**
    * Write output to console
-   * @param {string} text - Text to output
-   * @param {string} colorName - Color name (optional)
-   * @param {boolean} newline - Add newline (default: true)
+
+
+
    */
   writeOutput(text, colorName = null, newline = true) {
     let output = text
@@ -224,7 +217,7 @@ export class CLIInterface {
   
   /**
    * Write error message
-   * @param {string} message - Error message
+
    */
   writeError(message) {
     this.writeOutput(`Error: ${message}`, 'red')
@@ -232,7 +225,7 @@ export class CLIInterface {
   
   /**
    * Write success message
-   * @param {string} message - Success message
+
    */
   writeSuccess(message) {
     this.writeOutput(message, 'green')
@@ -240,7 +233,7 @@ export class CLIInterface {
   
   /**
    * Write warning message
-   * @param {string} message - Warning message
+
    */
   writeWarning(message) {
     this.writeOutput(message, 'yellow')
@@ -248,7 +241,7 @@ export class CLIInterface {
   
   /**
    * Write info message
-   * @param {string} message - Info message
+
    */
   writeInfo(message) {
     this.writeOutput(message, 'cyan')
@@ -294,8 +287,8 @@ export class CLIInterface {
   
   /**
    * Show spinner with message
-   * @param {string} message - Spinner message
-   * @returns {number} Interval ID
+
+
    */
   showSpinner(message = 'Processing') {
     if (!process.stdout.isTTY) {
@@ -318,10 +311,10 @@ export class CLIInterface {
   
   /**
    * Hide spinner
-   * @param {number} interval - Interval ID to clear
+
    */
   hideSpinner(interval = null) {
-    const spinnerInterval = interval || this.stateManager.requestState?.currentSpinnerInterval
+    const spinnerInterval = interval || (this.stateManager.requestState ? this.stateManager.requestState.currentSpinnerInterval : null)
     
     if (spinnerInterval) {
       clearInterval(spinnerInterval)
@@ -333,7 +326,7 @@ export class CLIInterface {
   
   /**
    * Display context history dots
-   * @param {number} historyLength - Length of context history
+
    */
   showContextHistory(historyLength) {
     if (historyLength > 0) {
@@ -344,11 +337,11 @@ export class CLIInterface {
 
   /**
    * Process streaming response with escape key support
-   * @param {AsyncIterable} stream - Response stream
-   * @param {Object} streamProcessor - Stream processor instance
-   * @param {AbortController} abortController - Request controller
-   * @param {Function} onChunk - Chunk processing callback
-   * @returns {Promise<Array>} Response chunks
+
+
+
+
+
    */
   async processStreamingResponse(stream, streamProcessor, abortController, onChunk) {
     let response = []
@@ -360,7 +353,7 @@ export class CLIInterface {
     
     try {
       const chunkHandler = async (content) => {
-        if (abortController?.signal?.aborted || this.stateManager.shouldReturnToPrompt()) {
+        if ((abortController && abortController.signal && abortController.signal.aborted) || this.stateManager.shouldReturnToPrompt()) {
           return
         }
         
@@ -426,9 +419,9 @@ export class CLIInterface {
 
   /**
    * Show status with timing information
-   * @param {string} status - Status type (success, error)
-   * @param {number} elapsed - Elapsed time in seconds
-   * @param {string} message - Additional message
+
+
+
    */
   showStatus(status, elapsed, message = '') {
     const statusSymbol = status === 'success' ? '✓' : '✗'
@@ -446,8 +439,8 @@ export class CLIInterface {
   
   /**
    * Ask for confirmation
-   * @param {string} question - Confirmation question
-   * @returns {Promise<boolean>} User confirmation
+
+
    */
   async askConfirmation(question) {
     const response = await this.getUserInput(`${question} (y/N): `)
@@ -456,9 +449,9 @@ export class CLIInterface {
   
   /**
    * Display menu and get selection
-   * @param {string} title - Menu title
-   * @param {Array} options - Menu options
-   * @returns {Promise<number>} Selected option index
+
+
+
    */
   async showMenu(title, options) {
     this.writeOutput(`\\n${title}`)
@@ -481,7 +474,7 @@ export class CLIInterface {
   
   /**
    * Start main application loop (used by app-refactored.js)
-   * @param {Function} inputHandler - Function to handle user input
+
    */
   async startMainLoop(inputHandler) {
     if (!this.isInitialized) {
@@ -554,7 +547,7 @@ export class CLIInterface {
 
   /**
    * Start main interaction loop
-   * @param {Function} inputHandler - Function to handle user input
+
    */
   async startInteractionLoop(inputHandler) {
     // Delegate to startMainLoop for compatibility
@@ -588,7 +581,7 @@ export class CLIInterface {
   
   /**
    * Get readline interface
-   * @returns {Object} Readline interface
+
    */
   getReadlineInterface() {
     return this.rl
@@ -596,7 +589,7 @@ export class CLIInterface {
   
   /**
    * Check if interface is initialized
-   * @returns {boolean} Initialization status
+
    */
   isReady() {
     return this.isInitialized
@@ -604,7 +597,7 @@ export class CLIInterface {
   
   /**
    * Get terminal state information
-   * @returns {Object} Terminal state
+
    */
   getTerminalState() {
     return {

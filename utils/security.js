@@ -3,9 +3,9 @@ import { AppError } from './error-handler.js'
 
 /**
  * Validates API key format
- * @param {string} apiKey - API key to validate
- * @param {string} provider - provider name
- * @returns {boolean} true if valid
+
+
+
  */
 export function validateApiKey(apiKey, provider) {
   if (!apiKey || typeof apiKey !== 'string') {
@@ -38,8 +38,8 @@ export function validateApiKey(apiKey, provider) {
 
 /**
  * Sanitizes error messages to prevent key exposure
- * @param {string} errorMessage - original error message
- * @returns {string} sanitized error message
+
+
  */
 export function sanitizeErrorMessage(errorMessage) {
   if (!errorMessage || typeof errorMessage !== 'string') {

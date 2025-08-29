@@ -12,8 +12,8 @@ import { StreamHandler } from './stream-handler.js'
 export class HandlerChainFactory {
   /**
    * Create the standard request processing chain
-   * @param {Object} dependencies - Shared dependencies for all handlers
-   * @returns {Array} Array of configured handlers in processing order
+
+
    */
   static createRequestChain(dependencies) {
     // Verify required dependencies
@@ -66,9 +66,9 @@ export class HandlerChainFactory {
 
   /**
    * Create a minimal chain for testing or specific use cases
-   * @param {Object} dependencies - Shared dependencies
-   * @param {string[]} handlerTypes - Types of handlers to include
-   * @returns {Array} Array of configured handlers
+
+
+
    */
   static createCustomChain(dependencies, handlerTypes) {
     const handlerMap = {
@@ -98,8 +98,8 @@ export class HandlerChainFactory {
 
   /**
    * Validate handler chain configuration
-   * @param {Array} handlers - Array of handlers to validate
-   * @returns {Object} Validation result
+
+
    */
   static validateChain(handlers) {
     if (!Array.isArray(handlers) || handlers.length === 0) {
@@ -154,8 +154,8 @@ export class HandlerChainFactory {
 
   /**
    * Get handler statistics from chain
-   * @param {Array} handlers - Array of handlers
-   * @returns {Object} Combined statistics
+
+
    */
   static getChainStats(handlers) {
     const stats = {
@@ -178,8 +178,8 @@ export class HandlerChainFactory {
 
   /**
    * Get health status from chain
-   * @param {Array} handlers - Array of handlers
-   * @returns {Object} Combined health status
+
+
    */
   static getChainHealth(handlers) {
     const health = {
@@ -215,7 +215,7 @@ export class HandlerChainFactory {
 
   /**
    * Dispose of all handlers in chain
-   * @param {Array} handlers - Array of handlers to dispose
+
    */
   static disposeChain(handlers) {
     handlers.forEach(handler => {

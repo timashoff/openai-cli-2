@@ -2,8 +2,6 @@ import { AppError } from './error-handler.js'
 
 /**
  * Service lifetime enumeration
- * @readonly
- * @enum {string}
  */
 export const ServiceLifetime = {
   /** New instance created each time */
@@ -16,12 +14,6 @@ export const ServiceLifetime = {
 
 /**
  * Service registration descriptor
- * @typedef {Object} ServiceDescriptor
- * @property {string} name - Service name/interface
- * @property {Function} factory - Factory function to create service
- * @property {ServiceLifetime} lifetime - Service lifetime
- * @property {string[]} dependencies - Array of dependency names
- * @property {any} instance - Cached singleton instance
  */
 
 /**
@@ -44,12 +36,11 @@ export class DIContainer {
 
   /**
    * Register a service with the container
-   * @param {string} name - Service name/interface
-   * @param {Function} factory - Factory function or constructor
-   * @param {ServiceLifetime} lifetime - Service lifetime
-   * @param {string[]} dependencies - Array of dependency names
-   * @returns {DIContainer} For method chaining
-   * @example
+
+
+
+
+
    * container.register('ILogger', () => new ConsoleLogger(), ServiceLifetime.SINGLETON)
    * container.register('ICache', CacheService, ServiceLifetime.SINGLETON, ['ILogger'])
    */
@@ -69,10 +60,10 @@ export class DIContainer {
 
   /**
    * Register a singleton service
-   * @param {string} name - Service name/interface  
-   * @param {Function} factory - Factory function or constructor
-   * @param {string[]} dependencies - Array of dependency names
-   * @returns {DIContainer} For method chaining
+
+
+
+
    */
   registerSingleton(name, factory, dependencies = []) {
     return this.register(name, factory, ServiceLifetime.SINGLETON, dependencies)
@@ -80,10 +71,10 @@ export class DIContainer {
 
   /**
    * Register a transient service
-   * @param {string} name - Service name/interface
-   * @param {Function} factory - Factory function or constructor  
-   * @param {string[]} dependencies - Array of dependency names
-   * @returns {DIContainer} For method chaining
+
+
+
+
    */
   registerTransient(name, factory, dependencies = []) {
     return this.register(name, factory, ServiceLifetime.TRANSIENT, dependencies)
@@ -91,9 +82,9 @@ export class DIContainer {
 
   /**
    * Register an existing instance as singleton
-   * @param {string} name - Service name/interface
-   * @param {any} instance - Pre-created instance
-   * @returns {DIContainer} For method chaining
+
+
+
    */
   registerInstance(name, instance) {
     this.validateName(name)
@@ -116,9 +107,9 @@ export class DIContainer {
 
   /**
    * Resolve a service from the container
-   * @param {string} name - Service name/interface to resolve
-   * @returns {any} Service instance
-   * @throws {AppError} When service not found or circular dependency detected
+
+
+
    */
   resolve(name) {
     if (this.isDisposed) {
@@ -130,14 +121,14 @@ export class DIContainer {
 
   /**
    * Try to resolve a service, returning null if not found
-   * @param {string} name - Service name/interface to resolve
-   * @returns {any|null} Service instance or null
+
+
    */
   tryResolve(name) {
     try {
       return this.resolve(name)
     } catch (error) {
-      if (error.message?.includes('not registered')) {
+      if (error.message && error.message.includes('not registered')) {
         return null
       }
       throw error
@@ -146,8 +137,8 @@ export class DIContainer {
 
   /**
    * Check if a service is registered
-   * @param {string} name - Service name/interface
-   * @returns {boolean} True if service is registered
+
+
    */
   isRegistered(name) {
     return this.services.has(name)
@@ -155,7 +146,7 @@ export class DIContainer {
 
   /**
    * Get all registered service names
-   * @returns {string[]} Array of service names
+
    */
   getRegisteredServices() {
     return Array.from(this.services.keys())
@@ -163,7 +154,7 @@ export class DIContainer {
 
   /**
    * Create a new scope for scoped services
-   * @returns {DIContainer} New scoped container
+
    */
   createScope() {
     const scopedContainer = Object.create(this)
@@ -197,9 +188,8 @@ export class DIContainer {
 
   /**
    * Internal service resolution with circular dependency detection
-   * @private
-   * @param {string} name - Service name
-   * @returns {any} Service instance
+
+
    */
   resolveInternal(name) {
     // Check for circular dependency
@@ -249,10 +239,9 @@ export class DIContainer {
 
   /**
    * Create service instance using factory
-   * @private
-   * @param {ServiceDescriptor} descriptor - Service descriptor
-   * @param {any[]} dependencies - Resolved dependencies
-   * @returns {any} Service instance
+
+
+
    */
   createInstance(descriptor, dependencies) {
     try {
@@ -274,9 +263,8 @@ export class DIContainer {
 
   /**
    * Check if function is a constructor
-   * @private
-   * @param {Function} func - Function to check
-   * @returns {boolean} True if constructor function
+
+
    */
   isConstructorFunction(func) {
     // Check if function has prototype properties (typical for constructors)
@@ -285,7 +273,6 @@ export class DIContainer {
 
   /**
    * Validate service registration parameters
-   * @private
    */
   validateRegistration(name, factory, lifetime, dependencies) {
     this.validateName(name)
@@ -309,9 +296,8 @@ export class DIContainer {
 
   /**
    * Validate service name
-   * @private
-   * @param {string} name - Service name to validate
-   * @param {string} type - Type description for error message
+
+
    */
   validateName(name, type = 'service name') {
     if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -321,7 +307,7 @@ export class DIContainer {
 
   /**
    * Get container statistics for debugging
-   * @returns {Object} Container statistics
+
    */
   getStats() {
     return {
@@ -341,7 +327,7 @@ export class DIContainer {
 
 /**
  * Create a new DIContainer instance
- * @returns {DIContainer} New container instance
+
  */
 export function createContainer() {
   return new DIContainer()

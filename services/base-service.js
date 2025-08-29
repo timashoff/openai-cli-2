@@ -6,10 +6,10 @@ import { AppError } from '../utils/error-handler.js'
  */
 export class BaseService {
   /**
-   * @param {Object} dependencies - Service dependencies
-   * @param {import('../utils/event-bus.js').EventBus} dependencies.eventBus - Event bus instance
-   * @param {Object} dependencies.logger - Logger instance
-   * @param {Object} dependencies.config - Configuration manager
+
+
+
+
    */
   constructor(dependencies = {}) {
     this.eventBus = dependencies.eventBus
@@ -28,7 +28,7 @@ export class BaseService {
 
   /**
    * Initialize the service - must be implemented by subclasses
-   * @returns {Promise<void>}
+
    */
   async initialize() {
     if (this.isInitialized) {
@@ -53,8 +53,7 @@ export class BaseService {
 
   /**
    * Service-specific initialization logic - override in subclasses
-   * @protected
-   * @returns {Promise<void>}
+
    */
   async onInitialize() {
     // Override in subclasses
@@ -62,7 +61,7 @@ export class BaseService {
 
   /**
    * Dispose service and cleanup resources
-   * @returns {Promise<void>}
+
    */
   async dispose() {
     if (this.isDisposed) return
@@ -85,8 +84,7 @@ export class BaseService {
 
   /**
    * Service-specific cleanup logic - override in subclasses  
-   * @protected
-   * @returns {Promise<void>}
+
    */
   async onDispose() {
     // Override in subclasses
@@ -94,7 +92,7 @@ export class BaseService {
 
   /**
    * Check if service is ready for use
-   * @returns {boolean} True if service is initialized and not disposed
+
    */
   isReady() {
     return this.isInitialized && !this.isDisposed
@@ -102,8 +100,6 @@ export class BaseService {
 
   /**
    * Ensure service is ready before operation
-   * @protected
-   * @throws {AppError} If service is not ready
    */
   ensureReady() {
     if (!this.isReady()) {
@@ -117,7 +113,7 @@ export class BaseService {
 
   /**
    * Get service health status
-   * @returns {Object} Health status information
+
    */
   getHealthStatus() {
     return {
@@ -133,8 +129,7 @@ export class BaseService {
 
   /**
    * Validate required dependencies
-   * @private
-   * @param {Object} dependencies - Dependencies object
+
    */
   validateDependencies(dependencies) {
     const required = this.getRequiredDependencies()
@@ -151,8 +146,7 @@ export class BaseService {
 
   /**
    * Get list of required dependencies - override in subclasses
-   * @protected
-   * @returns {string[]} Array of required dependency names
+
    */
   getRequiredDependencies() {
     return [] // Base service has no required dependencies
@@ -160,7 +154,6 @@ export class BaseService {
 
   /**
    * Setup error handling for the service
-   * @private
    */
   setupErrorHandling() {
     // Catch unhandled promise rejections in service methods
@@ -176,10 +169,9 @@ export class BaseService {
 
   /**
    * Emit service event with context
-   * @protected
-   * @param {string} eventName - Event name (will be prefixed with service name)
-   * @param {any} data - Event data
-   * @param {Object} options - Event options
+
+
+
    */
   emitEvent(eventName, data = null, options = {}) {
     if (!this.eventBus) return
@@ -199,10 +191,9 @@ export class BaseService {
 
   /**
    * Log message with service context
-   * @protected
-   * @param {string} level - Log level (info, warn, error, debug)
-   * @param {string} message - Log message
-   * @param {Object} context - Additional context
+
+
+
    */
   log(level, message, context = {}) {
     if (!this.logger || !this.logger[level]) return
@@ -218,7 +209,7 @@ export class BaseService {
 
   /**
    * Get service metrics
-   * @returns {Object} Service metrics
+
    */
   getMetrics() {
     return {
@@ -232,8 +223,7 @@ export class BaseService {
 
   /**
    * Get custom service-specific metrics - override in subclasses
-   * @protected
-   * @returns {Object} Custom metrics
+
    */
   getCustomMetrics() {
     return {}
@@ -242,9 +232,9 @@ export class BaseService {
 
 /**
  * Service factory function with dependency validation
- * @param {Function} ServiceClass - Service constructor
- * @param {Object} dependencies - Service dependencies
- * @returns {BaseService} Service instance
+
+
+
  */
 export function createService(ServiceClass, dependencies) {
   if (!ServiceClass || typeof ServiceClass !== 'function') {

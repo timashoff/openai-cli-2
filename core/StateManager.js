@@ -1,65 +1,194 @@
 /**
- * StateManager - Centralized state management for AI application
- * Manages AI state, context history, operation state, and user session
+ * StateManager - Centralized state management and operations for AI application
+ * Functional object with closures (NO CLASSES per CLAUDE.md!)
+ * Single Source of Truth for state AND operations
  */
-export class StateManager {
-  constructor() {
-    // AI provider and model state
-    this.aiState = {
-      provider: null,
-      models: [],
-      model: '',
-      selectedProviderKey: ''
+
+import { logger } from '../utils/logger.js'
+import { createProvider } from '../utils/provider-factory.js'
+import { API_PROVIDERS } from '../config/api_providers.js'
+import { DEFAULT_MODELS } from '../config/default_models.js'
+
+function createStateManager() {
+  // Private state with closures
+  const aiState = {
+    currentProvider: null,        // Current provider instance
+    currentProviderKey: '',       // Current provider key (openai, deepseek, etc)
+    currentModel: '',             // Current model ID
+    availableModels: [],          // Models for current provider
+    providers: new Map(),         // All initialized providers
+    initialized: false            // Service initialization status
+  }
+    
+  // Operation state tracking
+  const operationState = {
+    isProcessingRequest: false,
+    isTypingResponse: false,
+    isRetryingProvider: false,
+    shouldReturnToPrompt: false
+  }
+  
+  // Request management
+  const requestState = {
+    currentRequestController: null,
+    currentSpinnerInterval: null,
+    currentStreamProcessor: null
+  }
+  
+  // Context and conversation history
+  const contextState = {
+    contextHistory: [],
+    maxContextHistory: 10 // Default, can be overridden from config
+  }
+  
+  // User session data
+  let userSession = {}
+  
+  // State change listeners
+  const listeners = new Map()
+  
+  // === MAIN OPERATIONS - StateManager handles switching ===
+  
+  /**
+   * Ensure provider is initialized (lazy-loading) without changing global state
+   */
+  async function ensureProviderInitialized(providerKey) {
+    // Check if provider is available  
+    const providerConfig = API_PROVIDERS[providerKey]
+    if (!providerConfig) {
+      throw new Error(`Unknown provider: ${providerKey}`)
     }
     
-    // Operation state tracking
-    this.operationState = {
-      isProcessingRequest: false,
-      isTypingResponse: false,
-      isRetryingProvider: false,
-      shouldReturnToPrompt: false
+    if (!process.env[providerConfig.apiKeyEnv]) {
+      throw new Error(`${providerConfig.name} API key not found`)
     }
     
-    // Request management
-    this.requestState = {
-      currentRequestController: null,
-      currentSpinnerInterval: null,
-      currentStreamProcessor: null
+    // Get or create provider instance
+    let providerData = aiState.providers.get(providerKey)
+    
+    if (!providerData) {
+      // Lazy-loading: create new provider
+      logger.debug(`StateManager: Lazy-loading provider ${providerKey}`)
+      
+      const providerInstance = createProvider(providerKey, providerConfig)
+      await providerInstance.initializeClient()
+      const models = await providerInstance.listModels()
+      
+      // Store in cache for future use
+      providerData = {
+        instance: providerInstance,
+        config: providerConfig,
+        models: models
+      }
+      aiState.providers.set(providerKey, providerData)
     }
     
-    // Context and conversation history
-    this.contextState = {
-      contextHistory: [],
-      maxContextHistory: 10 // Default, can be overridden from config
+    return providerData
+  }
+  
+  /**
+   * Switch AI provider (main operation)
+   */
+  async function switchProvider(providerKey, targetModel = null) {
+    try {
+      logger.debug(`StateManager: Switching to provider ${providerKey}`)
+      
+      // Use common initialization logic
+      const providerData = await ensureProviderInitialized(providerKey)
+      
+      // Determine target model
+      let selectedModel = targetModel
+      if (!selectedModel) {
+        // Use default model from config first, then fall back to first available
+        const defaultModel = DEFAULT_MODELS[providerKey].model
+        if (defaultModel && providerData.models.some(m => (typeof m === 'string' ? m === defaultModel : m.id === defaultModel))) {
+          selectedModel = defaultModel
+        } else if (providerData.models.length > 0) {
+          // Fall back to first available model
+          selectedModel = typeof providerData.models[0] === 'string' ? providerData.models[0] : providerData.models[0].id
+        }
+      }
+      
+      // Update global state (only difference from createChatCompletion)
+      updateAIProvider({
+        instance: providerData.instance,
+        key: providerKey,
+        model: selectedModel,
+        models: providerData.models,
+        config: providerData.config
+      })
+      
+      logger.debug(`StateManager: Successfully switched to ${providerKey} with ${providerData.models.length} models`)
+      return {
+        provider: providerData.instance,
+        model: selectedModel,
+        models: providerData.models
+      }
+      
+    } catch (error) {
+      logger.error(`StateManager: Provider switch failed: ${error.message}`)
+      throw error
     }
-    
-    // User session data
-    this.userSession = {}
-    
-    // State change listeners
-    this.listeners = new Map()
+  }
+  
+  /**
+   * Switch AI model (main operation)
+   */
+  async function switchModel(targetModel) {
+    try {
+      if (!aiState.currentProvider) {
+        throw new Error('No provider currently active')
+      }
+      
+      // Verify model exists
+      const modelExists = aiState.availableModels.some(m => {
+        return typeof m === 'string' ? m === targetModel : (m.id === targetModel || m.name === targetModel)
+      })
+      
+      if (!modelExists) {
+        throw new Error(`Model ${targetModel} not available for current provider`)
+      }
+      
+      // Update current model
+      updateModel(targetModel)
+      
+      logger.debug(`StateManager: Successfully switched to model ${targetModel}`)
+      return targetModel
+      
+    } catch (error) {
+      logger.error(`StateManager: Model switch failed: ${error.message}`)
+      throw error
+    }
   }
   
   // === AI State Management ===
   
   /**
-   * Update AI provider state
-   * @param {Object} providerInfo - Provider information
+   * Update AI provider state - Single Source of Truth
    */
-  updateAIProvider(providerInfo) {
-    const previousProvider = this.aiState.selectedProviderKey
+  function updateAIProvider(providerInfo) {
+    const previousProvider = aiState.currentProviderKey
     
-    this.aiState.provider = providerInfo.instance
-    this.aiState.selectedProviderKey = providerInfo.key
-    this.aiState.model = providerInfo.model
-    this.aiState.models = providerInfo.models || []
+    aiState.currentProvider = providerInfo.instance
+    aiState.currentProviderKey = providerInfo.key
+    aiState.currentModel = providerInfo.model
+    aiState.availableModels = providerInfo.models || []
+    
+    // Store provider in map for future use
+    if (providerInfo.instance) {
+      aiState.providers.set(providerInfo.key, {
+        instance: providerInfo.instance,
+        config: providerInfo.config,
+        models: providerInfo.models || []
+      })
+    }
     
     // Update process title
     if (typeof process !== 'undefined' && process.title) {
-      process.title = this.aiState.model
+      process.title = aiState.currentModel
     }
     
-    this.notifyListeners('ai-provider-changed', {
+    notifyListeners('ai-provider-changed', {
       previous: previousProvider,
       current: providerInfo.key,
       model: providerInfo.model
@@ -68,18 +197,17 @@ export class StateManager {
   
   /**
    * Update current model
-   * @param {string} modelId - New model ID
    */
-  updateModel(modelId) {
-    const previousModel = this.aiState.model
-    this.aiState.model = modelId
+  function updateModel(modelId) {
+    const previousModel = aiState.currentModel
+    aiState.currentModel = modelId
     
     // Update process title
     if (typeof process !== 'undefined' && process.title) {
       process.title = modelId
     }
     
-    this.notifyListeners('model-changed', {
+    notifyListeners('model-changed', {
       previous: previousModel,
       current: modelId
     })
@@ -87,253 +215,313 @@ export class StateManager {
   
   /**
    * Get current AI state
-   * @returns {Object} Current AI state
    */
-  getAIState() {
-    return { ...this.aiState }
+  function getAIState() {
+    return { ...aiState }
+  }
+  
+  /**
+   * Get current provider with metadata
+   */
+  function getCurrentProvider() {
+    if (!aiState.currentProvider) return null
+    return {
+      instance: aiState.currentProvider,
+      key: aiState.currentProviderKey,
+      model: aiState.currentModel
+    }
+  }
+  
+  /**
+   * Get current provider key
+   */
+  function getCurrentProviderKey() {
+    return aiState.currentProviderKey
+  }
+  
+  /**
+   * Get current model
+   */
+  function getCurrentModel() {
+    return aiState.currentModel
+  }
+  
+  /**
+   * Get available models for current provider with lazy loading
+   */
+  function getAvailableModels() {
+    // Lazy loading - if no models but provider exists, load them
+    if (aiState.availableModels.length === 0 && aiState.currentProviderKey) {
+      const providerData = aiState.providers.get(aiState.currentProviderKey)
+      if (providerData && providerData.models) {
+        aiState.availableModels = providerData.models
+      }
+    }
+    return [...aiState.availableModels]
+  }
+  
+  /**
+   * Set provider in map
+   */
+  function setProvider(key, providerData) {
+    aiState.providers.set(key, providerData)
+  }
+  
+  /**
+   * Get provider from map
+   */
+  function getProvider(key) {
+    return aiState.providers.get(key)
+  }
+  
+  /**
+   * Get all providers
+   */
+  function getAllProviders() {
+    return aiState.providers
+  }
+  
+  /**
+   * Set service initialization status
+   */
+  function setServiceInitialized(initialized) {
+    aiState.initialized = initialized
   }
   
   // === Operation State Management ===
   
   /**
    * Set processing request state
-   * @param {boolean} isProcessing - Whether request is being processed
-   * @param {AbortController} controller - Request controller
    */
-  setProcessingRequest(isProcessing, controller = null) {
-    this.operationState.isProcessingRequest = isProcessing
-    this.requestState.currentRequestController = controller
+  function setProcessingRequest(isProcessing, controller = null) {
+    operationState.isProcessingRequest = isProcessing
     
-    this.notifyListeners('processing-state-changed', {
+    // Only update controller if explicitly provided, otherwise keep existing
+    if (controller !== null) {
+      requestState.currentRequestController = controller
+    }
+    
+    notifyListeners('processing-state-changed', {
       isProcessing,
-      hasController: !!controller
+      hasController: !!requestState.currentRequestController
     })
   }
   
   /**
    * Set typing response state
-   * @param {boolean} isTyping - Whether response is being typed
    */
-  setTypingResponse(isTyping) {
-    this.operationState.isTypingResponse = isTyping
-    this.notifyListeners('typing-state-changed', { isTyping })
+  function setTypingResponse(isTyping) {
+    operationState.isTypingResponse = isTyping
+    notifyListeners('typing-state-changed', { isTyping })
   }
   
   /**
    * Set provider retry state
-   * @param {boolean} isRetrying - Whether provider retry is in progress
    */
-  setRetryingProvider(isRetrying) {
-    this.operationState.isRetryingProvider = isRetrying
-    this.notifyListeners('retry-state-changed', { isRetrying })
+  function setRetryingProvider(isRetrying) {
+    operationState.isRetryingProvider = isRetrying
+    notifyListeners('retry-state-changed', { isRetrying })
   }
   
   /**
    * Get current operation state
-   * @returns {Object} Current operation state
    */
-  getOperationState() {
-    return { ...this.operationState }
+  function getOperationState() {
+    return { ...operationState }
   }
   
   // === Request State Management ===
   
   /**
    * Set current stream processor
-   * @param {Object} processor - Stream processor instance
    */
-  setStreamProcessor(processor) {
-    this.requestState.currentStreamProcessor = processor
+  function setStreamProcessor(processor) {
+    requestState.currentStreamProcessor = processor
   }
   
   /**
    * Set spinner interval
-   * @param {number} interval - Spinner interval ID
    */
-  setSpinnerInterval(interval) {
-    this.requestState.currentSpinnerInterval = interval
+  function setSpinnerInterval(interval) {
+    requestState.currentSpinnerInterval = interval
   }
   
   /**
    * Clear all request state
    */
-  clearRequestState() {
-    this.requestState.currentRequestController = null
-    this.requestState.currentSpinnerInterval = null
-    this.requestState.currentStreamProcessor = null
-    this.operationState.isProcessingRequest = false
-    this.operationState.isTypingResponse = false
+  function clearRequestState() {
+    requestState.currentRequestController = null
+    requestState.currentSpinnerInterval = null
+    requestState.currentStreamProcessor = null
+    operationState.isProcessingRequest = false
+    operationState.isTypingResponse = false
   }
 
   /**
    * Set current request controller
-   * @param {AbortController} controller - Request controller
    */
-  setCurrentRequestController(controller) {
-    this.requestState.currentRequestController = controller
+  function setCurrentRequestController(controller) {
+    requestState.currentRequestController = controller
   }
 
   /**
    * Set should return to prompt flag
-   * @param {boolean} shouldReturn - Whether to return to prompt
    */
-  setShouldReturnToPrompt(shouldReturn) {
-    this.operationState.shouldReturnToPrompt = shouldReturn
+  function setShouldReturnToPrompt(shouldReturn) {
+    operationState.shouldReturnToPrompt = shouldReturn
   }
 
   /**
    * Check if should return to prompt
-   * @returns {boolean} Should return to prompt
    */
-  shouldReturnToPrompt() {
-    return this.operationState.shouldReturnToPrompt
+  function shouldReturnToPrompt() {
+    return operationState.shouldReturnToPrompt
   }
 
   /**
    * Check if currently typing response
-   * @returns {boolean} Is typing response
    */
-  isTypingResponse() {
-    return this.operationState.isTypingResponse
+  function isTypingResponse() {
+    return operationState.isTypingResponse
   }
 
   /**
    * Check if currently processing request
-   * @returns {boolean} Is processing request
    */
-  isProcessingRequest() {
-    return this.operationState.isProcessingRequest
+  function isProcessingRequest() {
+    return operationState.isProcessingRequest
   }
 
   /**
    * Get current spinner interval
-   * @returns {number|null} Spinner interval ID
    */
-  getSpinnerInterval() {
-    return this.requestState.currentSpinnerInterval
+  function getSpinnerInterval() {
+    return requestState.currentSpinnerInterval
   }
   
   /**
    * Get current request controller
-   * @returns {AbortController|null} Current request controller
    */
-  getCurrentRequestController() {
-    return this.requestState.currentRequestController
+  function getCurrentRequestController() {
+    return requestState.currentRequestController
+  }
+
+  /**
+   * Get current stream processor
+   */
+  function getCurrentStreamProcessor() {
+    return requestState.currentStreamProcessor
+  }
+
+  /**
+   * Clear current request controller (explicit cleanup)
+   */
+  function clearRequestController() {
+    requestState.currentRequestController = null
+    notifyListeners('controller-cleared', {
+      timestamp: Date.now()
+    })
   }
   
   // === Context Management ===
   
   /**
    * Add message to context history
-   * @param {string} role - Message role (user/assistant)
-   * @param {string} content - Message content
    */
-  addToContext(role, content) {
-    this.contextState.contextHistory.push({ role, content })
+  function addToContext(role, content) {
+    contextState.contextHistory.push({ role, content })
     
     // Trim history if too long
-    if (this.contextState.contextHistory.length > this.contextState.maxContextHistory) {
-      this.contextState.contextHistory = this.contextState.contextHistory.slice(-this.contextState.maxContextHistory)
+    if (contextState.contextHistory.length > contextState.maxContextHistory) {
+      contextState.contextHistory = contextState.contextHistory.slice(-contextState.maxContextHistory)
     }
     
-    this.notifyListeners('context-updated', {
+    notifyListeners('context-updated', {
       role,
       content,
-      historyLength: this.contextState.contextHistory.length
+      historyLength: contextState.contextHistory.length
     })
   }
   
   /**
    * Clear context history
    */
-  clearContext() {
-    this.contextState.contextHistory = []
-    this.notifyListeners('context-cleared', {})
+  function clearContext() {
+    contextState.contextHistory = []
+    notifyListeners('context-cleared', {})
   }
   
   /**
    * Get context history
-   * @returns {Array} Context history array
    */
-  getContextHistory() {
-    return [...this.contextState.contextHistory]
+  function getContextHistory() {
+    return [...contextState.contextHistory]
   }
   
   /**
    * Set maximum context history length
-   * @param {number} maxLength - Maximum history length
    */
-  setMaxContextHistory(maxLength) {
-    this.contextState.maxContextHistory = maxLength
+  function setMaxContextHistory(maxLength) {
+    contextState.maxContextHistory = maxLength
     
     // Trim current history if needed
-    if (this.contextState.contextHistory.length > maxLength) {
-      this.contextState.contextHistory = this.contextState.contextHistory.slice(-maxLength)
+    if (contextState.contextHistory.length > maxLength) {
+      contextState.contextHistory = contextState.contextHistory.slice(-maxLength)
     }
   }
 
   /**
    * Set context history directly
-   * @param {Array} history - New context history
    */
-  setContextHistory(history) {
-    this.contextState.contextHistory = [...history]
-    this.notifyListeners('context-history-set', { length: history.length })
+  function setContextHistory(history) {
+    contextState.contextHistory = [...history]
+    notifyListeners('context-history-set', { length: history.length })
   }
   
   // === User Session Management ===
   
   /**
    * Update user session data
-   * @param {Object} sessionData - Session data to merge
    */
-  updateUserSession(sessionData) {
-    this.userSession = { ...this.userSession, ...sessionData }
-    this.notifyListeners('session-updated', sessionData)
+  function updateUserSession(sessionData) {
+    userSession = { ...userSession, ...sessionData }
+    notifyListeners('session-updated', sessionData)
   }
   
   /**
    * Get user session data
-   * @returns {Object} Current user session
    */
-  getUserSession() {
-    return { ...this.userSession }
+  function getUserSession() {
+    return { ...userSession }
   }
   
   // === Event Listener Management ===
   
   /**
    * Add state change listener
-   * @param {string} event - Event name
-   * @param {Function} callback - Callback function
    */
-  addListener(event, callback) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set())
+  function addListener(event, callback) {
+    if (!listeners.has(event)) {
+      listeners.set(event, new Set())
     }
-    this.listeners.get(event).add(callback)
+    listeners.get(event).add(callback)
   }
   
   /**
    * Remove state change listener
-   * @param {string} event - Event name
-   * @param {Function} callback - Callback function
    */
-  removeListener(event, callback) {
-    if (this.listeners.has(event)) {
-      this.listeners.get(event).delete(callback)
+  function removeListener(event, callback) {
+    if (listeners.has(event)) {
+      listeners.get(event).delete(callback)
     }
   }
   
   /**
    * Notify listeners of state change
-   * @private
-   * @param {string} event - Event name
-   * @param {Object} data - Event data
    */
-  notifyListeners(event, data) {
-    if (this.listeners.has(event)) {
-      this.listeners.get(event).forEach(callback => {
+  function notifyListeners(event, data) {
+    if (listeners.has(event)) {
+      listeners.get(event).forEach(callback => {
         try {
           callback(data)
         } catch (error) {
@@ -347,14 +535,13 @@ export class StateManager {
   
   /**
    * Get complete state snapshot
-   * @returns {Object} Complete state snapshot
    */
-  getStateSnapshot() {
+  function getStateSnapshot() {
     return {
-      aiState: this.getAIState(),
-      operationState: this.getOperationState(),
-      contextHistory: this.getContextHistory(),
-      userSession: this.getUserSession(),
+      aiState: getAIState(),
+      operationState: getOperationState(),
+      contextHistory: getContextHistory(),
+      userSession: getUserSession(),
       timestamp: new Date().toISOString()
     }
   }
@@ -362,36 +549,138 @@ export class StateManager {
   /**
    * Reset all state to initial values
    */
-  reset() {
-    this.aiState = {
-      provider: null,
-      models: [],
-      model: '',
-      selectedProviderKey: ''
-    }
+  function reset() {
+    aiState.currentProvider = null
+    aiState.currentProviderKey = ''
+    aiState.currentModel = ''
+    aiState.availableModels = []
+    aiState.providers.clear()
+    aiState.initialized = false
     
-    this.operationState = {
-      isProcessingRequest: false,
-      isTypingResponse: false,
-      isRetryingProvider: false,
-      shouldReturnToPrompt: false
-    }
+    operationState.isProcessingRequest = false
+    operationState.isTypingResponse = false
+    operationState.isRetryingProvider = false
+    operationState.shouldReturnToPrompt = false
     
-    this.clearRequestState()
-    this.clearContext()
-    this.userSession = {}
+    clearRequestState()
+    clearContext()
+    userSession = {}
     
-    this.notifyListeners('state-reset', {})
+    notifyListeners('state-reset', {})
   }
   
   /**
    * Check if application is currently busy
-   * @returns {boolean} True if busy
    */
-  isBusy() {
-    return this.operationState.isProcessingRequest || 
-           this.operationState.isTypingResponse || 
-           this.operationState.isRetryingProvider
+  function isBusy() {
+    return operationState.isProcessingRequest || 
+           operationState.isTypingResponse || 
+           operationState.isRetryingProvider
+  }
+
+  // === Create AI completion (main operation) ===
+  
+  async function createChatCompletion(messages, options = {}, providerModel = null) {
+    // No specific provider+model - use current global state
+    if (!providerModel) {
+      if (!aiState.currentProvider) {
+        throw new Error('No AI provider currently active')
+      }
+      
+      try {
+        return await aiState.currentProvider.createChatCompletion(aiState.currentModel, messages, options)
+      } catch (error) {
+        if (options.signal.aborted) {
+          throw error // User cancelled - don't log as error
+        }
+        logger.error(`StateManager: Chat completion failed for current model ${aiState.currentModel}:`, error)
+        throw error
+      }
+    }
+    
+    // Specific provider+model from command - ensure provider is initialized
+    const targetProviderKey = providerModel.provider
+    const targetModel = providerModel.model
+    
+    logger.debug(`StateManager: Using specific provider ${targetProviderKey} with model ${targetModel}`)
+    
+    // Use common initialization logic (no global state change)
+    const providerData = await ensureProviderInitialized(targetProviderKey)
+    
+    try {
+      return await providerData.instance.createChatCompletion(targetModel, messages, options)
+    } catch (error) {
+      if (options.signal.aborted) {
+        throw error // User cancelled - don't log as error
+      }
+      logger.error(`StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`, error)
+      throw error
+    }
+  }
+  
+
+  // Return the functional object (NO CLASS!)
+  return {
+    // Main operations
+    switchProvider,
+    switchModel,
+    createChatCompletion,
+    
+    // AI state getters
+    getAIState,
+    getCurrentProvider,
+    getCurrentProviderKey,
+    getCurrentModel,
+    getAvailableModels,
+    setProvider,
+    getProvider,
+    getAllProviders,
+    setServiceInitialized,
+    
+    // AI state setters (internal)
+    updateAIProvider,
+    updateModel,
+    
+    // Operation state
+    setProcessingRequest,
+    setTypingResponse,
+    setRetryingProvider,
+    getOperationState,
+    
+    // Request state
+    setStreamProcessor,
+    setSpinnerInterval,
+    clearRequestState,
+    setCurrentRequestController,
+    setShouldReturnToPrompt,
+    shouldReturnToPrompt,
+    isTypingResponse,
+    isProcessingRequest,
+    getSpinnerInterval,
+    getCurrentRequestController,
+    getCurrentStreamProcessor,
+    clearRequestController,
+    
+    // Context management
+    addToContext,
+    clearContext,
+    getContextHistory,
+    setMaxContextHistory,
+    setContextHistory,
+    
+    // User session
+    updateUserSession,
+    getUserSession,
+    
+    // Event listeners
+    addListener,
+    removeListener,
+    notifyListeners,
+    
+    // Utilities
+    getStateSnapshot,
+    reset,
+    isBusy
   }
 }
 
@@ -402,7 +691,7 @@ let stateManagerInstance = null
 
 export function getStateManager() {
   if (!stateManagerInstance) {
-    stateManagerInstance = new StateManager()
+    stateManagerInstance = createStateManager()
   }
   return stateManagerInstance
 }

@@ -3,24 +3,10 @@ import { logger } from './logger.js'
 
 /**
  * Event subscription descriptor
- * @typedef {Object} EventSubscription
- * @property {string} id - Unique subscription ID
- * @property {string} eventName - Event name
- * @property {Function} handler - Event handler function
- * @property {Object} options - Subscription options
- * @property {boolean} options.once - Execute handler only once
- * @property {number} options.priority - Handler priority (higher = earlier)
- * @property {Object} options.context - Execution context
  */
 
 /**
  * Event payload
- * @typedef {Object} EventPayload
- * @property {string} type - Event type/name
- * @property {any} data - Event data
- * @property {Date} timestamp - Event timestamp
- * @property {string} source - Event source identifier
- * @property {Object} metadata - Additional metadata
  */
 
 /**
@@ -52,14 +38,13 @@ export class EventBus {
 
   /**
    * Subscribe to an event with options
-   * @param {string} eventName - Event name to subscribe to
-   * @param {Function} handler - Event handler function
-   * @param {Object} options - Subscription options
-   * @param {boolean} options.once - Execute handler only once
-   * @param {number} options.priority - Handler priority (default: 0)
-   * @param {Object} options.context - Execution context for handler
-   * @returns {string} Subscription ID for unsubscribing
-   * @example
+
+
+
+
+
+
+
    * const id = eventBus.on('user:login', (payload) => {
    *   console.log('User logged in:', payload.data.username)
    * }, { priority: 10 })
@@ -103,10 +88,10 @@ export class EventBus {
 
   /**
    * Subscribe to an event that executes only once
-   * @param {string} eventName - Event name to subscribe to
-   * @param {Function} handler - Event handler function
-   * @param {Object} options - Additional options
-   * @returns {string} Subscription ID
+
+
+
+
    */
   once(eventName, handler, options = {}) {
     return this.on(eventName, handler, { ...options, once: true })
@@ -114,8 +99,8 @@ export class EventBus {
 
   /**
    * Unsubscribe from an event using subscription ID
-   * @param {string} subscriptionId - Subscription ID returned by on() or once()
-   * @returns {boolean} True if subscription was found and removed
+
+
    */
   off(subscriptionId) {
     for (const [eventName, subscribers] of this.subscriptions) {
@@ -136,8 +121,8 @@ export class EventBus {
 
   /**
    * Remove all subscribers for a specific event
-   * @param {string} eventName - Event name to clear
-   * @returns {number} Number of subscribers removed
+
+
    */
   removeAllListeners(eventName) {
     const subscribers = this.subscriptions.get(eventName)
@@ -150,12 +135,12 @@ export class EventBus {
 
   /**
    * Emit an event to all subscribers
-   * @param {string} eventName - Event name to emit
-   * @param {any} data - Event data payload
-   * @param {Object} options - Emission options
-   * @param {string} options.source - Event source identifier
-   * @param {Object} options.metadata - Additional metadata
-   * @returns {Promise<EventPayload>} Promise that resolves when all handlers complete
+
+
+
+
+
+
    */
   async emit(eventName, data = null, options = {}) {
     if (this.isDisposed) {
@@ -194,9 +179,9 @@ export class EventBus {
 
   /**
    * Emit event synchronously (fire and forget)
-   * @param {string} eventName - Event name to emit
-   * @param {any} data - Event data payload
-   * @param {Object} options - Emission options
+
+
+
    */
   emitSync(eventName, data = null, options = {}) {
     this.emit(eventName, data, options).catch(error => {
@@ -206,8 +191,7 @@ export class EventBus {
 
   /**
    * Add middleware function that processes events before handlers
-   * @param {Function} middlewareFunc - Middleware function (payload) => payload
-   * @example
+
    * eventBus.use((payload) => {
    *   console.log('Event:', payload.type, 'at', payload.timestamp)
    *   return payload
@@ -222,8 +206,8 @@ export class EventBus {
 
   /**
    * Get list of subscribers for an event
-   * @param {string} eventName - Event name
-   * @returns {EventSubscription[]} Array of subscriptions
+
+
    */
   getSubscribers(eventName) {
     return this.subscriptions.get(eventName) || []
@@ -231,7 +215,7 @@ export class EventBus {
 
   /**
    * Get all event names that have subscribers
-   * @returns {string[]} Array of event names
+
    */
   getEventNames() {
     return Array.from(this.subscriptions.keys())
@@ -239,7 +223,7 @@ export class EventBus {
 
   /**
    * Get event statistics
-   * @returns {Object} Event statistics
+
    */
   getStats() {
     const stats = {
@@ -260,7 +244,7 @@ export class EventBus {
 
   /**
    * Set maximum number of listeners per event
-   * @param {number} max - Maximum listeners
+
    */
   setMaxListeners(max) {
     if (typeof max !== 'number' || max < 0) {
@@ -284,9 +268,8 @@ export class EventBus {
 
   /**
    * Execute all handlers for an event
-   * @private
-   * @param {string} eventName - Event name
-   * @param {EventPayload} payload - Event payload
+
+
    */
   async executeHandlers(eventName, payload) {
     const subscribers = this.subscriptions.get(eventName)
@@ -320,10 +303,9 @@ export class EventBus {
 
   /**
    * Execute individual event handler
-   * @private
-   * @param {EventSubscription} subscription - Subscription descriptor
-   * @param {EventPayload} payload - Event payload
-   * @returns {Promise} Handler execution promise
+
+
+
    */
   async executeHandler(subscription, payload) {
     const { handler, options } = subscription
@@ -342,9 +324,8 @@ export class EventBus {
 
   /**
    * Process event through middleware chain
-   * @private
-   * @param {EventPayload} payload - Original payload
-   * @returns {Promise<EventPayload>} Processed payload
+
+
    */
   async processMiddleware(payload) {
     let processedPayload = payload
@@ -365,8 +346,7 @@ export class EventBus {
 
   /**
    * Update event statistics
-   * @private
-   * @param {string} eventName - Event name
+
    */
   updateEventStats(eventName) {
     const current = this.eventStats.get(eventName) || 0
@@ -375,7 +355,6 @@ export class EventBus {
 
   /**
    * Validate subscription parameters
-   * @private
    */
   validateSubscription(eventName, handler) {
     this.validateEventName(eventName)
@@ -387,8 +366,7 @@ export class EventBus {
 
   /**
    * Validate event name
-   * @private
-   * @param {string} eventName - Event name to validate
+
    */
   validateEventName(eventName) {
     if (!eventName || typeof eventName !== 'string' || eventName.trim() === '') {
@@ -399,7 +377,7 @@ export class EventBus {
 
 /**
  * Create a new EventBus instance
- * @returns {EventBus} New event bus instance
+
  */
 export function createEventBus() {
   return new EventBus()

@@ -2,26 +2,10 @@ import { AppError } from '../utils/error-handler.js'
 
 /**
  * Request processing context
- * @typedef {Object} ProcessingContext
- * @property {string} originalInput - Original user input
- * @property {string} processedInput - Currently processed input
- * @property {Object} command - Parsed command information
- * @property {Object} flags - Extracted flags (force, etc.)
- * @property {Object} metadata - Additional processing metadata
- * @property {Object} services - Available services
- * @property {AbortController} abortController - Request abort controller
- * @property {Date} startTime - Processing start time
- * @property {Map} processingData - Handler-specific data storage
  */
 
 /**
  * Handler processing result
- * @typedef {Object} HandlerResult
- * @property {boolean} handled - Whether input was handled by this handler
- * @property {any} result - Handler result data
- * @property {boolean} stopChain - Whether to stop processing chain
- * @property {string} nextInput - Modified input for next handler
- * @property {Object} metadata - Additional result metadata
  */
 
 /**
@@ -30,10 +14,10 @@ import { AppError } from '../utils/error-handler.js'
  */
 export class BaseRequestHandler {
   /**
-   * @param {Object} dependencies - Handler dependencies
-   * @param {Object} dependencies.eventBus - Event bus for communication
-   * @param {Object} dependencies.logger - Logger instance
-   * @param {Object} dependencies.errorBoundary - Error boundary for resilient handling
+
+
+
+
    */
   constructor(dependencies = {}) {
     this.eventBus = dependencies.eventBus
@@ -52,8 +36,8 @@ export class BaseRequestHandler {
 
   /**
    * Set next handler in the chain
-   * @param {BaseRequestHandler} handler - Next handler
-   * @returns {BaseRequestHandler} The next handler for chaining
+
+
    */
   setNext(handler) {
     if (!(handler instanceof BaseRequestHandler)) {
@@ -67,8 +51,8 @@ export class BaseRequestHandler {
 
   /**
    * Handle request with error boundary protection
-   * @param {ProcessingContext} context - Processing context
-   * @returns {Promise<HandlerResult>} Processing result
+
+
    */
   async handle(context) {
     this.validateContext(context)
@@ -123,9 +107,8 @@ export class BaseRequestHandler {
 
   /**
    * Process request and continue chain if needed
-   * @private
-   * @param {ProcessingContext} context - Processing context
-   * @returns {Promise<HandlerResult>} Processing result
+
+
    */
   async processWithChain(context) {
     // Check if this handler can process the request
@@ -167,8 +150,8 @@ export class BaseRequestHandler {
   /**
    * Check if this handler can process the request
    * Override in subclasses
-   * @param {ProcessingContext} context - Processing context
-   * @returns {Promise<boolean>} True if handler can process
+
+
    */
   async canHandle(context) {
     return false
@@ -176,8 +159,8 @@ export class BaseRequestHandler {
 
   /**
    * Process the request - must be implemented by subclasses
-   * @param {ProcessingContext} context - Processing context
-   * @returns {Promise<HandlerResult>} Processing result
+
+
    */
   async process(context) {
     throw new Error(`${this.handlerName} must implement process() method`)
@@ -185,10 +168,9 @@ export class BaseRequestHandler {
 
   /**
    * Create successful result
-   * @protected
-   * @param {any} result - Result data
-   * @param {Object} options - Result options
-   * @returns {HandlerResult} Handler result
+
+
+
    */
   createResult(result, options = {}) {
     return {
@@ -206,10 +188,9 @@ export class BaseRequestHandler {
 
   /**
    * Create pass-through result (for middleware handlers)
-   * @protected
-   * @param {string} nextInput - Modified input for next handler
-   * @param {Object} metadata - Additional metadata
-   * @returns {HandlerResult} Handler result
+
+
+
    */
   createPassThrough(nextInput, metadata = {}) {
     return {
@@ -228,9 +209,8 @@ export class BaseRequestHandler {
 
   /**
    * Create unhandled result
-   * @private
-   * @param {ProcessingContext} context - Processing context
-   * @returns {HandlerResult} Handler result
+
+
    */
   createUnhandledResult(context) {
     return {
@@ -248,9 +228,8 @@ export class BaseRequestHandler {
 
   /**
    * Create error result
-   * @private
-   * @param {Error} error - Error that occurred
-   * @returns {HandlerResult} Handler result
+
+
    */
   createErrorResult(error) {
     return {
@@ -268,8 +247,7 @@ export class BaseRequestHandler {
 
   /**
    * Validate processing context
-   * @private
-   * @param {ProcessingContext} context - Processing context
+
    */
   validateContext(context) {
     if (!context) {
@@ -286,9 +264,8 @@ export class BaseRequestHandler {
 
   /**
    * Check if error is critical (should stop chain)
-   * @private
-   * @param {Error} error - Error to check
-   * @returns {boolean} True if critical
+
+
    */
   isCriticalError(error) {
     return error.name === 'AbortError' || 
@@ -298,10 +275,9 @@ export class BaseRequestHandler {
 
   /**
    * Update handler statistics
-   * @private
-   * @param {string} action - Action performed
-   * @param {number} duration - Duration in milliseconds
-   * @param {string} error - Error message if failed
+
+
+
    */
   updateStats(action, duration, error = null) {
     const key = error ? `${action}:error` : action
@@ -321,7 +297,7 @@ export class BaseRequestHandler {
 
   /**
    * Get handler statistics
-   * @returns {Object} Handler statistics
+
    */
   getStats() {
     const stats = {
@@ -341,7 +317,7 @@ export class BaseRequestHandler {
 
   /**
    * Get handler health status
-   * @returns {Object} Health status
+
    */
   getHealthStatus() {
     const processedStats = this.processingStats.get('processed')
@@ -364,9 +340,8 @@ export class BaseRequestHandler {
 
   /**
    * Emit event through event bus
-   * @protected
-   * @param {string} eventName - Event name
-   * @param {Object} data - Event data
+
+
    */
   emitEvent(eventName, data = {}) {
     if (this.eventBus) {
@@ -380,10 +355,9 @@ export class BaseRequestHandler {
 
   /**
    * Log message with handler context
-   * @protected
-   * @param {string} level - Log level
-   * @param {string} message - Log message
-   * @param {Object} context - Additional context
+
+
+
    */
   log(level, message, context = {}) {
     if (this.logger && typeof this.logger[level] === 'function') {

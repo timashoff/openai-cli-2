@@ -143,8 +143,8 @@ export class RetryPlugin {
 
   /**
    * Check if error is Anthropic overloaded_error
-   * @param {Error} error - Error to check
-   * @returns {boolean} True if Anthropic overloaded error
+
+
    */
   isAnthropicOverloadedError(error) {
     return error.message && (
