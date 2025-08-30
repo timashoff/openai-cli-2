@@ -1,5 +1,9 @@
 import { databaseCommandService } from './DatabaseCommandService.js'
 import { logger } from '../utils/logger.js'
+import { getClipboardContent } from '../utils/index.js'
+import { sanitizeString } from '../utils/validation.js'
+import { APP_CONSTANTS } from '../config/constants.js'
+import { color } from '../config/color.js'
 
 /**
  * Service for input processing - handles ALL user input processing
@@ -11,6 +15,9 @@ export class InputProcessingService {
     this.app = dependencies.app
     this.initialized = false
     this.databaseCommandService = databaseCommandService
+    this.stats = {
+      clipboardInsertions: 0
+    }
   }
 
   async initialize() {
@@ -19,10 +26,62 @@ export class InputProcessingService {
     try {
       // DatabaseCommandService is already initialized as singleton
       this.initialized = true
-      this.logger.debug('CommandProcessingService initialized')
+      this.logger.debug('InputProcessingService initialized')
     } catch (error) {
-      this.logger.error('Failed to initialize CommandProcessingService:', error)
+      this.logger.error('Failed to initialize InputProcessingService:', error)
       throw error
+    }
+  }
+
+  /**
+   * Process clipboard markers in input - MAIN ENTRY POINT
+   */
+  async processInput(input) {
+    try {
+      // 1. Process clipboard markers first
+      const processedInput = await this.processClipboardMarkers(input)
+      
+      // Return only the processed string - Router doesn't need metadata
+      return processedInput
+    } catch (error) {
+      this.logger.error('Input processing failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Process clipboard markers in input
+   */
+  async processClipboardMarkers(input) {
+    if (!input.includes(APP_CONSTANTS.CLIPBOARD_MARKER)) {
+      return input
+    }
+
+    try {
+      const clipboardContent = await getClipboardContent()
+      const sanitizedContent = sanitizeString(clipboardContent)
+      
+      // Validate clipboard content length
+      const maxLength = APP_CONSTANTS.MAX_INPUT_LENGTH || 10000
+      if (sanitizedContent.length > maxLength) {
+        throw new Error(`Clipboard content too large (${sanitizedContent.length} chars, max ${maxLength})`)
+      }
+      
+      // Replace clipboard markers
+      const processedInput = input.replace(
+        new RegExp(APP_CONSTANTS.CLIPBOARD_MARKER.replace(/\$/g, '\\$'), 'g'),
+        sanitizedContent
+      )
+      
+      // Update stats
+      this.stats.clipboardInsertions++
+      
+      this.logger.debug(`Clipboard content inserted: ${sanitizedContent.length} chars`)
+      console.log(`${color.grey}[Clipboard content inserted (${sanitizedContent.length} chars)]${color.reset}`)
+      
+      return processedInput
+    } catch (error) {
+      throw new Error(`Clipboard processing failed: ${error.message}`)
     }
   }
 
@@ -173,8 +232,8 @@ export class InputProcessingService {
    * Dispose of service resources
    */
   dispose() {
-    this.instructionsCache = null
     this.initialized = false
-    this.logger.debug('CommandProcessingService disposed')
+    this.stats = { clipboardInsertions: 0 }
+    this.logger.debug('InputProcessingService disposed')
   }
 }

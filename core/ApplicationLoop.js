@@ -348,10 +348,11 @@ ${colorInput}> `
         prompt: prompt
       })
       
+      // Get user input using standard readline
       let userInput = await this.rl.question(prompt)
       // Reset color after user input to ensure LLM response is not green
       process.stdout.write(color.reset)
-      userInput = userInput.trim()
+      userInput = (userInput || '').trim()
       
       // Emit input received event
       emitStateEvent(STATE_EVENTS.INPUT_RECEIVED, {

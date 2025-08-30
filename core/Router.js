@@ -104,8 +104,11 @@ export class Router {
   async analyzeInput(input) {
     const trimmedInput = input.trim()
     
-    // Parse flags first and get clean input
-    const { cleanInput, flags } = this.parseFlags(trimmedInput)
+    // Process clipboard markers FIRST (before any analysis)
+    const processedInput = await this.commandProcessingService.processInput(trimmedInput)
+    
+    // Parse flags and get clean input (NOTE: --force flags are disabled with cache)
+    const { cleanInput, flags } = this.parseFlags(processedInput)
     
     // 1. System commands first (PRIORITY)
     const commandName = cleanInput.split(' ')[0].toLowerCase()
@@ -130,8 +133,8 @@ export class Router {
           instruction: instructionCommand.instruction,
           id: instructionCommand.id,
           models: instructionCommand.models || [],
-          isCached: instructionCommand.isCached, // From database - FIXED!
-          isForced: flags.isForced // FIXED: Parse from input flags
+          isCached: instructionCommand.isCached, // From database (ignored - cache disabled)
+          isForced: flags.isForced // Parsed but ignored (cache disabled)
         }
       }
     }
