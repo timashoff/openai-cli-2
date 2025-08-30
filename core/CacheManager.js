@@ -5,6 +5,7 @@
  */
 import cache from '../utils/cache.js'
 import { logger } from '../utils/logger.js'
+import { APP_CONSTANTS } from '../config/constants.js'
 
 export class CacheManager {
   constructor() {
@@ -22,6 +23,10 @@ export class CacheManager {
    * Simple boolean check - RequestRouter already handled force flags
    */
   shouldCache(command) {
+    if (!APP_CONSTANTS.CACHE_ENABLED) {
+      this.stats.cacheSkips++
+      return false
+    }
     return command && command.isCached
   }
 
@@ -81,7 +86,7 @@ export class CacheManager {
 
    */
   async getCache(cacheKey) {
-    if (!cacheKey) return undefined
+    if (!APP_CONSTANTS.CACHE_ENABLED || !cacheKey) return undefined
     
     const value = cache.get(cacheKey)
     if (value) {
@@ -97,7 +102,7 @@ export class CacheManager {
 
    */
   async setCache(cacheKey, response) {
-    if (!cacheKey) return
+    if (!APP_CONSTANTS.CACHE_ENABLED || !cacheKey) return
 
     try {
       await cache.set(cacheKey, response)
@@ -216,6 +221,7 @@ export class CacheManager {
 
    */
   async getCacheByModel(userInput, commandId, model) {
+    if (!APP_CONSTANTS.CACHE_ENABLED) return undefined
     const cacheKey = this.generateModelCacheKey(userInput, commandId, model)
     return await this.getCache(cacheKey)
   }
@@ -228,6 +234,7 @@ export class CacheManager {
 
    */
   async setCacheByModel(userInput, commandId, model, response) {
+    if (!APP_CONSTANTS.CACHE_ENABLED) return
     const cacheKey = this.generateModelCacheKey(userInput, commandId, model)
     await this.setCache(cacheKey, response)
   }

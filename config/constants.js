@@ -25,6 +25,9 @@ export const APP_CONSTANTS = {
   CACHE_DIR_NAME: 'AI_responses',
   CACHE_FILE_NAME: 'cache.json',
   
+  // Feature flags
+  CACHE_ENABLED: false, // Temporarily disabled - will implement history/conversation saving later
+  
   // Special markers
   CLIPBOARD_MARKER: '$$',
   FORCE_FLAGS: [' --force', ' -f'],
