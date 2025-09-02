@@ -56,7 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   ```
 
 - **Workflow**:
-  1. **feature → develop**: Squash merge (clean history)
+  1. **feature → develop**: Regular merge (preserves contributions)
   2. **develop → master**: Squash merge + manual version tags
 
 - **Commands for development**:
@@ -65,10 +65,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   git checkout -b feature/my-feature
   git commit -m "feat: implement awesome feature"
   
-  # Merge to develop (squash)
+  # Merge to develop (regular - preserves GitHub contributions)
   git checkout develop
-  git merge --squash feature/my-feature
-  git commit -m "feat: implement user authentication system"
+  git merge feature/my-feature
   
   # Release to master (when ready)
   git checkout master
@@ -86,11 +85,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Advantages**:
   - Simplicity: only basic git commands
   - Flexibility: versions assigned manually when ready
-  - Cleanliness: squash merge gives clean history in develop
-  - Maximum clean history: each commit in master = release
+  - GitHub contributions: regular merge preserves developer activity
+  - Clean releases: squash merge only in master for clean release history
   - GPG signatures: use -s flag for verified tags
   - Control: full control over releases
   - Minimalism: no external dependencies
+  - Motivation: visible activity in GitHub graph
 
 - **Commit types** (conventional commits):
   - `feat:` - new functionality
