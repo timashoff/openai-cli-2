@@ -1,7 +1,7 @@
 // Application constants
 export const APP_CONSTANTS = {
   // Limits
-  MAX_INPUT_LENGTH: 10000, // Maximum length of user input
+  MAX_INPUT_LENGTH: 30000, // Maximum length of user input
   MAX_CONTEXT_HISTORY: 10, // Maximum number of messages in context
   MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
   MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
@@ -9,7 +9,7 @@ export const APP_CONSTANTS = {
   MAX_CONTENT_LENGTH: 25000, // Maximum length of content to extract from web pages
 
   // Timeouts
-  API_TIMEOUT: 100000, // 100 seconds for API requests
+  API_TIMEOUT: 180000, // 180 seconds for API requests
   PROVIDER_INIT_TIMEOUT: 30000, // 30 seconds for provider initialization
   CLIPBOARD_TIMEOUT: 5000, // 5 seconds for clipboard operations
   CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds

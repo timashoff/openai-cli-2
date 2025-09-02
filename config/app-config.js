@@ -6,7 +6,6 @@
 export const APP_CONFIG = {
   // Network and API Configuration
   TIMEOUTS: {
-    API_REQUEST: 180000,        // 3 minutes for API requests
     PROVIDER_INIT: 30000,       // 30 seconds for provider initialization
     CLIPBOARD_ACCESS: 5000,     // 5 seconds for clipboard operations
     HEALTH_CHECK: 10000,        // 10 seconds for health checks
@@ -27,7 +26,6 @@ export const APP_CONFIG = {
 
   // Content and Size Limits
   LIMITS: {
-    MAX_INPUT_LENGTH: 100000,   // Maximum user input length
     MAX_OUTPUT_LENGTH: 50000,   // Maximum AI response length
     MAX_CONTEXT_HISTORY: 20,    // Maximum context history items
     MAX_CACHE_ENTRIES: 1000,    // Maximum cache entries
@@ -127,23 +125,33 @@ export const APP_CONFIG = {
 
   // Provider-Specific Configuration
   PROVIDERS: {
-    OPENAI: {
-      DEFAULT_MODEL: 'gpt-4o-mini',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    openai: {
+      name: 'OpenAI',
+      baseURL: 'https://api.openai.com/v1',
+      apiKeyEnv: 'OPENAI_API_KEY',
+      defaultModel: 'gpt-5-mini',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
     },
-    DEEPSEEK: {
-      DEFAULT_MODEL: 'deepseek-chat',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    deepseek: {
+      name: 'DeepSeek',  
+      baseURL: 'https://api.deepseek.com/v1',
+      apiKeyEnv: 'DEEPSEEK_API_KEY',
+      defaultModel: 'deepseek-chat',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
     },
-    ANTHROPIC: {
-      DEFAULT_MODEL: 'claude-3-5-sonnet-20241022',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    anthropic: {
+      name: 'Anthropic',
+      baseURL: 'https://api.anthropic.com/v1', 
+      apiKeyEnv: 'ANTHROPIC_API_KEY',
+      isClaude: true,
+      defaultModel: 'claude-3-5-sonnet-20241022',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
     },
   },
 
