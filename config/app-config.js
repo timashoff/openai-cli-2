@@ -177,86 +177,83 @@ export const APP_CONFIG = {
 
 /**
  * Get configuration value with environment override
-
-
-
+ * UNUSED - replaced with direct APP_CONFIG access for better performance
  */
-export function getConfig(path, environment = process.env.NODE_ENV || 'development') {
-  const pathParts = path.split('.')
+// export function getConfig(path, environment = process.env.NODE_ENV || 'development') {
+//   const pathParts = path.split('.')
 
-  // Get base value
-  let value = APP_CONFIG
-  for (const part of pathParts) {
-    if (value && typeof value === 'object' && part in value) {
-      value = value[part]
-    } else {
-      throw new Error(`Configuration path '${path}' not found`)
-    }
-  }
+//   // Get base value
+//   let value = APP_CONFIG
+//   for (const part of pathParts) {
+//     if (value && typeof value === 'object' && part in value) {
+//       value = value[part]
+//     } else {
+//       throw new Error(`Configuration path '${path}' not found`)
+//     }
+//   }
 
-  // Apply environment override if exists
-  if (APP_CONFIG.ENVIRONMENTS[environment]) {
-    let envOverride = APP_CONFIG.ENVIRONMENTS[environment]
-    for (const part of pathParts) {
-      if (envOverride && typeof envOverride === 'object' && part in envOverride) {
-        envOverride = envOverride[part]
-      } else {
-        envOverride = null
-        break
-      }
-    }
+//   // Apply environment override if exists
+//   if (APP_CONFIG.ENVIRONMENTS[environment]) {
+//     let envOverride = APP_CONFIG.ENVIRONMENTS[environment]
+//     for (const part of pathParts) {
+//       if (envOverride && typeof envOverride === 'object' && part in envOverride) {
+//         envOverride = envOverride[part]
+//       } else {
+//         envOverride = null
+//         break
+//       }
+//     }
 
-    if (envOverride !== null && envOverride !== undefined) {
-      return envOverride
-    }
-  }
+//     if (envOverride !== null && envOverride !== undefined) {
+//       return envOverride
+//     }
+//   }
 
-  return value
-}
+//   return value
+// }
 
 /**
  * Validate configuration values
-
-
+ * UNUSED - validation function not called anywhere in codebase
  */
-export function validateConfig(config = APP_CONFIG) {
-  const errors = []
+// export function validateConfig(config = APP_CONFIG) {
+//   const errors = []
 
-  try {
-    // Validate timeouts are positive numbers
-    for (const [key, value] of Object.entries(config.TIMEOUTS)) {
-      if (typeof value !== 'number' || value <= 0) {
-        errors.push(`TIMEOUTS.${key} must be a positive number, got: ${value}`)
-      }
-    }
+//   try {
+//     // Validate timeouts are positive numbers
+//     for (const [key, value] of Object.entries(config.TIMEOUTS)) {
+//       if (typeof value !== 'number' || value <= 0) {
+//         errors.push(`TIMEOUTS.${key} must be a positive number, got: ${value}`)
+//       }
+//     }
 
-    // Validate limits are positive numbers
-    for (const [key, value] of Object.entries(config.LIMITS)) {
-      if (typeof value !== 'number' || value <= 0) {
-        errors.push(`LIMITS.${key} must be a positive number, got: ${value}`)
-      }
-    }
+//     // Validate limits are positive numbers
+//     for (const [key, value] of Object.entries(config.LIMITS)) {
+//       if (typeof value !== 'number' || value <= 0) {
+//         errors.push(`LIMITS.${key} must be a positive number, got: ${value}`)
+//       }
+//     }
 
-    // Validate retry configuration
-    if (config.RETRY.BACKOFF_MULTIPLIER <= 1) {
-      errors.push('RETRY.BACKOFF_MULTIPLIER must be greater than 1')
-    }
+//     // Validate retry configuration
+//     if (config.RETRY.BACKOFF_MULTIPLIER <= 1) {
+//       errors.push('RETRY.BACKOFF_MULTIPLIER must be greater than 1')
+//     }
 
-    if (config.RETRY.JITTER_FACTOR < 0 || config.RETRY.JITTER_FACTOR > 1) {
-      errors.push('RETRY.JITTER_FACTOR must be between 0 and 1')
-    }
+//     if (config.RETRY.JITTER_FACTOR < 0 || config.RETRY.JITTER_FACTOR > 1) {
+//       errors.push('RETRY.JITTER_FACTOR must be between 0 and 1')
+//     }
 
-    // Validate performance thresholds
-    if (config.PERFORMANCE.MEMORY_USAGE_THRESHOLD <= 0 || config.PERFORMANCE.MEMORY_USAGE_THRESHOLD > 1) {
-      errors.push('PERFORMANCE.MEMORY_USAGE_THRESHOLD must be between 0 and 1')
-    }
+//     // Validate performance thresholds
+//     if (config.PERFORMANCE.MEMORY_USAGE_THRESHOLD <= 0 || config.PERFORMANCE.MEMORY_USAGE_THRESHOLD > 1) {
+//       errors.push('PERFORMANCE.MEMORY_USAGE_THRESHOLD must be between 0 and 1')
+//     }
 
-  } catch (error) {
-    errors.push(`Configuration validation error: ${error.message}`)
-  }
+//   } catch (error) {
+//     errors.push(`Configuration validation error: ${error.message}`)
+//   }
 
-  return errors
-}
+//   return errors
+// }
 
 /**
  * Get all configuration as a flattened object
