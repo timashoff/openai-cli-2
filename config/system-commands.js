@@ -39,9 +39,9 @@ export const SYSTEM_COMMANDS = {
   
   cmd: {
     aliases: ['кмд'],
-    handler: 'CmdCommand',
-    module: '../commands/cmd-command.js',
-    description: 'Manage custom commands',
+    handler: 'CmdModule',
+    module: '../commands/cmd/index.js',
+    description: 'Interactive command management system',
     usage: 'cmd'
   }
 }

@@ -4,7 +4,7 @@
 
 ### 1. MAX_INPUT_LENGTH
 - [x] **Problem**: Different values in multiple files
-- **Current State**: 
+- **Current State**:
   - `constants.js`: ~~`10000`~~ → **`30000`** ✅
   - `app-config.js`: ~~`100000`~~ → **REMOVED** ✅
   - Used in: `clipboard-handler.js`, `input-processing-service.js`, `utils/index.js`
@@ -22,7 +22,7 @@
 - **Action**: ~~[TODO]~~ **COMPLETED** - Updated constants.js, removed from app-config.js
 - **Status**: **DONE** ✅
 
-### 3. MAX_CONTEXT_HISTORY  
+### 3. MAX_CONTEXT_HISTORY
 - [ ] **Problem**: Different history limits
 - **Current State**:
   - `constants.js`: `10`
@@ -44,16 +44,16 @@
 ## Provider Models Duplication
 
 ### 5. OpenAI Default Model
-- [ ] **Problem**: Conflicting model names, one doesn't exist
+- [x] **Problem**: Conflicting model names, one doesn't exist
 - **Current State**:
   - `app-config.js`: `'gpt-4o-mini'` ✅ Valid model
   - `default_models.js`: `'gpt-5-mini'` ❌ **NON-EXISTENT MODEL**
-- **Recommendation**: Fix `gpt-5-mini` → `gpt-4o-mini` 
+- **Recommendation**: Fix `gpt-5-mini` → `gpt-4o-mini`
 - **Action**: [TODO] Update default_models.js
 - **Status**: TODO
 
 ### 6. DeepSeek Default Model
-- [ ] **Problem**: Consistent but duplicated
+- [x] **Problem**: Consistent but duplicated
 - **Current State**:
   - `app-config.js`: `'deepseek-chat'`
   - `default_models.js`: `'deepseek-chat'`
@@ -61,13 +61,13 @@
 - **Action**: [TODO] Decide consolidation approach
 - **Status**: TODO
 
-### 7. Anthropic Default Model  
-- [ ] **Problem**: Consistent but duplicated
+### 7. Anthropic Default Model
+- [x] **Problem**: Consistent but duplicated
 - **Current State**:
   - `app-config.js`: `'claude-3-5-sonnet-20241022'`
   - `default_models.js`: `'claude-3-5-sonnet-20241022'`
 - **Recommendation**: Keep one source (app-config.js)
-- **Action**: [TODO] Decide consolidation approach  
+- **Action**: [TODO] Decide consolidation approach
 - **Status**: TODO
 
 ## Architecture Issues
@@ -104,14 +104,14 @@
 - [ ] **Problem**: Need to update imports after cleanup
 - **Files to update**:
   - `services/input-processing-service.js`
-  - `handlers/clipboard-handler.js` 
+  - `handlers/clipboard-handler.js`
   - `utils/index.js`
   - `config-manager.js` (will be deleted)
 - **Action**: [TODO] Update imports to use app-config.js
 - **Status**: TODO
 
 ### 12. Files Using default_models.js
-- [ ] **Problem**: Need to handle after consolidation
+- [x] **Problem**: Need to handle after consolidation
 - **Files to update**:
   - `services/ai-provider-service.js`
   - `core/StateManager.js`
@@ -150,7 +150,7 @@
 
 ### Decisions Pending:
 - [ ] Exact structure of consolidated provider config
-- [ ] Environment variable handling approach  
+- [ ] Environment variable handling approach
 - [ ] Backward compatibility requirements
 
 ---
