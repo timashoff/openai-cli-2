@@ -22,8 +22,7 @@ export const outputHandler = {
    * Main output method - for normal text with newline
    */
   write: (text) => {
-    // if (globalAbortSignal && globalAbortSignal.aborted) return
-    if (globalAbortSignal.aborted) return
+    if (globalAbortSignal && globalAbortSignal.aborted) return
     if (text) {
       target.write(text + '\n')
     }
@@ -33,8 +32,7 @@ export const outputHandler = {
    * Stream output - for real-time streaming (no newline)
    */
   writeStream: (chunk) => {
-    // if (globalAbortSignal && globalAbortSignal.aborted) return
-    if (globalAbortSignal.aborted) return
+    if (globalAbortSignal && globalAbortSignal.aborted) return
     if (chunk) {
       target.write(chunk)
     }
@@ -72,8 +70,7 @@ export const outputHandler = {
    * Raw write without newline or color
    */
   writeRaw: (text) => {
-    // if (globalAbortSignal && globalAbortSignal.aborted) return
-    if (globalAbortSignal.aborted) return
+    if (globalAbortSignal && globalAbortSignal.aborted) return
     if (text) {
       target.write(text)
     }

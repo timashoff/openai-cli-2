@@ -39,8 +39,8 @@ export class ApplicationLoop {
       completer // Restored after removing conflicting readline from utils/index.js
     }
     
-    // Create own readline interface
-    this.rl = readline.createInterface(this.readlineConfig)
+    // Create own readline interface  
+    this.rl = this.createReadlineInterface()
     
     // Dynamic ESC handler system
     this.escHandlers = new Map() // id -> handler function
@@ -59,6 +59,20 @@ export class ApplicationLoop {
   }
 
   /**
+   * Create readline interface with proper SIGINT handling (DRY principle)
+   */
+  createReadlineInterface() {
+    const rl = readline.createInterface(this.readlineConfig)
+    
+    // CRITICAL: Redirect readline SIGINT to our graceful handler instead of default AbortError
+    rl.on('SIGINT', () => {
+      this.handleInterrupt()
+    })
+    
+    return rl
+  }
+
+  /**
    * Temporarily pause readline interface for raw mode menus
    */
   pauseReadline() {
@@ -73,7 +87,7 @@ export class ApplicationLoop {
    */
   resumeReadline() {
     if (!this.rl) {
-      this.rl = readline.createInterface(this.readlineConfig)
+      this.rl = this.createReadlineInterface()
     }
   }
 
@@ -147,9 +161,7 @@ export class ApplicationLoop {
     // Don't enable globally as it conflicts with readline
     this.globalKeyPressHandler = globalKeyPressHandler
     
-    process.on('SIGINT', () => {
-      this.exitApp()
-    })
+    // SIGINT handling is now done via readline.on('SIGINT') in createReadlineInterface()
     
     process.on('SIGTERM', cleanup)
     process.on('exit', cleanup)
@@ -320,11 +332,7 @@ ${colorInput}> `
     
     // If readline was closed during initialization, recreate it
     if (!this.rl || this.rl.closed) {
-      this.rl = readline.createInterface({ 
-        input: process.stdin, 
-        output: process.stdout,
-        completer 
-      })
+      this.rl = this.createReadlineInterface()
     }
     
     // CRITICAL FIX: Enable escape key handling for AI requests
@@ -404,6 +412,15 @@ ${colorInput}> `
       } catch (error) {
         // Handle other errors gracefully (abort is handled by Promise.race above)
         try {
+          // Suppress errors during shutdown to avoid crash messages during Ctrl+C
+          if (this.isExiting) {
+            // During shutdown, silently ignore AbortErrors and other cancellation errors
+            if (error.message === 'AbortError' || error.name === 'AbortError' || 
+                error.message.includes('aborted') || error.message.includes('cancelled')) {
+              continue // Exit silently during shutdown
+            }
+          }
+          
           errorHandler.handleError(error, { context: 'user_input' })
           
           // If it's a user input error, continue the loop for recovery
@@ -413,7 +430,10 @@ ${colorInput}> `
           }
         } catch (handlerError) {
           // If error handler itself fails, show basic message and continue
-          console.log(`${color.red}An error occurred. Please try again.${color.reset}`)
+          // But not during shutdown
+          if (!this.isExiting) {
+            console.log(`${color.red}An error occurred. Please try again.${color.reset}`)
+          }
           continue
         }
       } finally {
@@ -657,6 +677,34 @@ ${colorInput}> `
       const dots = '.'.repeat(historyLength)
       console.log(color.yellow + dots + color.reset)
     }
+  }
+
+  /**
+   * Handle Ctrl+C interrupt gracefully (same as ESC + exit)
+   */
+  async handleInterrupt() {
+    // Check if we have active requests that need graceful cancellation
+    const controller = this.stateManager.getCurrentRequestController()
+    
+    if (controller && this.stateManager.isProcessingRequest()) {
+      // There's an active request - cancel it gracefully like ESC does
+      controller.abort()
+      
+      // Use outputHandler with abort signal like ESC does
+      outputHandler.setAbortSignal(controller.signal)
+      
+      // Clean up streaming state
+      if (this.stateManager.isTypingResponse()) {
+        this.stateManager.setTypingResponse(false)
+        this.stateManager.setShouldReturnToPrompt(true)
+      }
+      
+      // Give brief moment for cancellation to process
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    
+    // Now proceed with graceful exit
+    await this.exitApp()
   }
 
   /**
