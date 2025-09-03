@@ -587,6 +587,7 @@ function createStateManager() {
       try {
         return await aiState.currentProvider.createChatCompletion(aiState.currentModel, messages, options)
       } catch (error) {
+        // if (options.signal && options.signal.aborted) {
         if (options.signal.aborted) {
           throw error // User cancelled - don't log as error
         }
@@ -607,6 +608,7 @@ function createStateManager() {
     try {
       return await providerData.instance.createChatCompletion(targetModel, messages, options)
     } catch (error) {
+      // if (options.signal && options.signal.aborted) {
       if (options.signal.aborted) {
         throw error // User cancelled - don't log as error
       }

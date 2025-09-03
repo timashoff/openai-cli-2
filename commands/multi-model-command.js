@@ -23,12 +23,23 @@ export const multiModelCommand = {
       }
 
       // Execute live models with race logic if any
+      let completed = true
       if (liveModels.length > 0) {
-        await this.executeRaceWithStreaming(liveModels, commandData, app, cacheManager)
+        try {
+          await this.executeRaceWithStreaming(liveModels, commandData, app, cacheManager)
+        } catch (error) {
+          if (error.message === 'AbortError' || error.name === 'AbortError') {
+            completed = false // Don't show summary if aborted
+          } else {
+            throw error
+          }
+        }
       }
 
-      // Display final summary
-      this.displaySummary(cachedModels.length, liveModels.length, commandData.models.length)
+      // Display final summary only if not aborted
+      if (completed) {
+        this.displaySummary(cachedModels.length, liveModels.length, commandData.models.length)
+      }
 
     } catch (error) {
       logger.error(`MultiModelCommand: Execution failed: ${error.message}`)
@@ -119,7 +130,10 @@ export const multiModelCommand = {
     // Create and start spinner before any AI requests
     const spinner = createSpinner()
     const controller = stateManager.getCurrentRequestController()
+
+    // Set abort signal in outputHandler to block output on ESC
     if (controller) {
+      outputHandler.setAbortSignal(controller.signal)
       spinner.start(controller) // Show spinner with ESC handling
     }
 
@@ -134,8 +148,14 @@ export const multiModelCommand = {
       modelTimings.set(`${model.provider}:${model.model}`, startTime)
 
       try {
-        // Create AbortController for this model
-        const controller = new AbortController()
+        // Use the main AbortController from StateManager (connected to ESC key)
+        const controller = stateManager.getCurrentRequestController()
+
+
+        // if (!controller || !controller.signal) {
+        if (!controller.signal) {
+          throw new Error('AbortController not available from StateManager')
+        }
 
         // Create streaming request directly via StateManager
         const stream = await stateManager.createChatCompletion(messages, {
@@ -171,7 +191,7 @@ export const multiModelCommand = {
 
           // Stream content if this is the winner
           if (isWinner && content) {
-            process.stdout.write(content)
+            outputHandler.writeStream(content)
           }
         }
 
@@ -204,6 +224,18 @@ export const multiModelCommand = {
 
       } catch (error) {
         const timing = (Date.now() - startTime) / 1000
+
+        // Handle user cancellation silently
+        if (error.message === 'AbortError' || error.name === 'AbortError') {
+          modelResults.set(`${model.provider}:${model.model}`, {
+            timing,
+            success: false,
+            error: 'Request cancelled'
+          })
+          return { model, timing, success: false, error: 'Request cancelled' }
+        }
+
+        // Log only real errors, not user cancellations
         logger.error(`MultiModelCommand: Model ${model.provider}:${model.model} failed: ${error.message}`)
 
         modelResults.set(`${model.provider}:${model.model}`, {
@@ -224,6 +256,12 @@ export const multiModelCommand = {
       spinner.stop('error') // No models responded
     }
     spinner.dispose()
+
+    // Don't display results if request was aborted
+    // if (controller && controller.signal && controller.signal.aborted) {
+    if (controller.signal.aborted) {
+      throw new Error('AbortError') // Signal to parent that execution was aborted
+    }
 
     // Display non-winner results
     this.displayRemainingResults(liveModels, modelResults, winnerModel)
@@ -253,7 +291,10 @@ export const multiModelCommand = {
         outputHandler.write(result.response)
         outputHandler.write(`checkmark ${result.timing.toFixed(1)}s`)
       } else {
-        outputHandler.writeError(`Failed: ${result.error}`)
+        // Don't show cancelled requests as failures
+        if (result.error !== 'Request cancelled') {
+          outputHandler.writeError(`Failed: ${result.error}`)
+        }
         outputHandler.write(`x ${result.timing.toFixed(1)}s`)
       }
 
@@ -269,6 +310,7 @@ export const multiModelCommand = {
       outputHandler.writeNewline()
 
       const respondedCount = cachedCount + liveCount
+      //strange code alert! 🚨
       if (respondedCount === totalCount) {
         outputHandler.write(`[${respondedCount}/${totalCount} models responded]`)
       } else {

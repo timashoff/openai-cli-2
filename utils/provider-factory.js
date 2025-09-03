@@ -52,7 +52,7 @@ export class BaseProvider {
     this.stats.requests++
     this.stats.totalResponseTime += responseTime
     this.stats.lastRequest = Date.now()
-    
+
     if (error) {
       this.stats.errors++
     }
@@ -64,11 +64,11 @@ export class BaseProvider {
   getStats() {
     return {
       ...this.stats,
-      averageResponseTime: this.stats.requests > 0 
-        ? this.stats.totalResponseTime / this.stats.requests 
+      averageResponseTime: this.stats.requests > 0
+        ? this.stats.totalResponseTime / this.stats.requests
         : 0,
-      errorRate: this.stats.requests > 0 
-        ? (this.stats.errors / this.stats.requests) * 100 
+      errorRate: this.stats.requests > 0
+        ? (this.stats.errors / this.stats.requests) * 100
         : 0
     }
   }
@@ -114,12 +114,12 @@ export class OpenAIProvider extends BaseProvider {
   async listModels() {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
     try {
       const response = await this.client.models.list()
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response.data.sort((a, b) => a.id.localeCompare(b.id))
     } catch (error) {
       const responseTime = Date.now() - startTime
@@ -131,31 +131,32 @@ export class OpenAIProvider extends BaseProvider {
   async createChatCompletion(model, messages, options = {}) {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
+    // Extract signal for AbortController, but don't pass it to API
+    const { signal, ...apiOptions } = options
+
     try {
-      // Extract signal for AbortController, but don't pass it to API
-      const { signal, ...apiOptions } = options
-      
       const response = await this.client.chat.completions.create({
         model,
         messages,
         stream: apiOptions.stream || true,
         ...apiOptions
-      }, { signal }) // Pass signal to the request options, not API parameters
-      
+      }, signal ? { signal } : {}) // Pass signal to the request options only if it exists
+
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      
+
       // Check if user cancelled request
+      // if (signal && signal.aborted) {
       if (signal.aborted) {
-        throw error // User cancelled - not an error
+        throw new Error('AbortError') // Special error type for silent handling
       }
-      
+
       throw new AppError(`Failed to create chat completion: ${error.message}`, true, 500)
     }
   }
@@ -191,7 +192,7 @@ export class AnthropicProvider extends BaseProvider {
 
   async makeRequest(url, options = {}) {
     this.cspChecker.validateUrl(url)
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -201,25 +202,26 @@ export class AnthropicProvider extends BaseProvider {
         ...options.headers
       }
     })
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       throw new Error(error.error?.message || 'API request failed')
     }
-    
+
     return response
   }
 
   async listModels() {
     // Anthropic doesn't have a public models endpoint, return static list
+    //🚨 hardcode detected!
     const staticModels = [
       'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022', 
+      'claude-3-5-haiku-20241022',
       'claude-3-opus-20240229',
       'claude-3-sonnet-20240229',
       'claude-3-haiku-20240307'
     ]
-    
+
     // Return models in the same format as other providers for consistency
     return staticModels.map(id => ({ id }))
   }
@@ -227,14 +229,15 @@ export class AnthropicProvider extends BaseProvider {
   async createChatCompletion(model, messages, options = {}) {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
+    // Extract signal for AbortController, but don't pass it to API
+    const { signal, ...apiOptions } = options
+
     try {
-      // Extract signal for AbortController, but don't pass it to API
-      const { signal, ...apiOptions } = options
-      
       const response = await this.makeRequest('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        signal, // Pass signal to fetch options
+        //🚨 the code is strange (signal && { signal })
+        ...(signal && { signal }), // Pass signal to fetch options only if it exists
         body: JSON.stringify({
           model,
           messages,
@@ -243,20 +246,21 @@ export class AnthropicProvider extends BaseProvider {
           ...apiOptions
         })
       })
-      
+
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response.body
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      
+
       // Check if user cancelled request
+      // if (signal && signal.aborted) {
       if (signal.aborted) {
-        throw error // User cancelled - not an error
+        throw new Error('AbortError') // Special error type for silent handling
       }
-      
+
       throw new AppError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
     }
   }
@@ -298,7 +302,7 @@ export class ProviderFactory {
     if (typeof ProviderClass !== 'function') {
       throw new AppError('Provider must be a constructor function', true, 400)
     }
-    
+
     this.providers.set(type, ProviderClass)
     logger.debug(`Provider type ${type} registered`)
   }
@@ -311,14 +315,14 @@ export class ProviderFactory {
     if (!ProviderClass) {
       throw new AppError(`Unknown provider type: ${type}`, true, 404)
     }
-    
+
     validateObject(config, 'provider config')
-    
+
     try {
       const instance = new ProviderClass(config)
       const instanceId = `${type}:${config.name || 'default'}`
       this.instances.set(instanceId, instance)
-      
+
       logger.debug(`Provider instance created: ${instanceId}`)
       return instance
     } catch (error) {
@@ -345,11 +349,11 @@ export class ProviderFactory {
    */
   getProviderStats() {
     const stats = {}
-    
+
     for (const [id, provider] of this.instances) {
       stats[id] = provider.getStats()
     }
-    
+
     return stats
   }
 
@@ -379,7 +383,7 @@ export class ProviderFactory {
     if (!ProviderClass) {
       throw new AppError(`Unknown provider type: ${type}`, true, 404)
     }
-    
+
     // Create temporary instance for validation
     try {
       const tempInstance = new ProviderClass(config)
