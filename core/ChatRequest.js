@@ -9,7 +9,6 @@ import { StreamProcessor } from '../utils/stream-processor.js'
 import cache from '../utils/cache.js'
 import { createSpinner } from '../utils/spinner.js'
 import { unifiedErrorHandler } from '../utils/unified-error-handler.js'
-import { API_PROVIDERS } from '../config/api_providers.js'
 import { outputHandler } from './output-handler.js'
 
 export function createChatRequest(app) {
@@ -27,10 +26,10 @@ export function createChatRequest(app) {
   async function processChatRequest(commandData, cliManager) {
     try {
       logger.debug('ChatRequest: Processing final chat request')
-      
+
       // Extract specific provider and model if provided
       const providerModel = commandData.models.length ? extractProviderModel(commandData.models[0]) : null
-      
+
       // Execute chat request with prepared content and provider model
       return await handleChatRequest(commandData.content, cliManager, providerModel)
 
@@ -44,63 +43,63 @@ export function createChatRequest(app) {
   async function handleChatRequest(input, cliManager, providerModel = null) {
     // Use StateManager directly instead of ServiceManager
     const stateManager = app.stateManager
-    
+
     // Get existing abort controller from StateManager (created in ApplicationLoop)
     const controller = stateManager.getCurrentRequestController()
     if (!controller) {
       throw new Error('No abort controller available for request')
     }
-    
+
     // Create spinner
     const spinner = createSpinner()
-    
+
     try {
-      
+
       // Start spinner with ESC handling - UNIFIED!
       spinner.start(controller) // Automatically handles ESC → ☓
-      
+
       // Prepare messages with context
       const contextHistory = stateManager.getContextHistory()
       const messages = contextHistory.map(({ role, content }) => ({ role, content }))
       messages.push({ role: 'user', content: input })
-      
+
       // Create streaming request with abort signal - use StateManager directly
-      const stream = await stateManager.createChatCompletion(messages, { 
+      const stream = await stateManager.createChatCompletion(messages, {
         stream: true,
         signal: controller.signal
       }, providerModel)
-      
+
       // Simple streaming response processing
       const streamProcessor = new StreamProcessor(stateManager.getCurrentProviderKey())
       const response = []
       let firstChunk = true
-      
+
       const chunkHandler = async (content) => {
         // Check for abort
         if (controller.signal.aborted) {
           return
         }
-        
+
         // Stop spinner on first chunk and show model info
         if (firstChunk) {
           spinner.stop('success') // ✓ 1.2s
-          
+
           // Display model header if using specific provider
           if (providerModel) {
-            const providerName = API_PROVIDERS[providerModel.provider]?.name || providerModel.provider
+            const providerName = providerModel.provider
             outputHandler.write(`\n${providerName} (${providerModel.model}):`)
           }
-          
+
           firstChunk = false
         }
-        
+
         // Output content directly
         if (content) {
           process.stdout.write(content)
           response.push(content)
         }
       }
-      
+
       // Process stream with abort handling
       try {
         await streamProcessor.processStream(stream, controller.signal, chunkHandler)
@@ -112,27 +111,27 @@ export function createChatRequest(app) {
         }
         throw streamError // Re-throw other errors
       }
-      
+
       // Update context history if request wasn't aborted
       if (!controller.signal.aborted) {
         const fullResponse = response.join('')
-        
+
         // Add newline after LLM response to prevent prompt from overwriting
         if (fullResponse.trim()) {
           process.stdout.write('\n')
         }
-        
+
         stateManager.addToContext('user', input)
         stateManager.addToContext('assistant', fullResponse)
       }
-      
+
     } catch (error) {
       // Check if user cancelled request
       if (controller.signal.aborted) {
         // User pressed ESC - spinner already shows ☓
         return  // Silent exit
       }
-      
+
       // Real errors need to be shown to user
       const processedError = unifiedErrorHandler.processError(error, { component: 'ChatRequest' })
       if (spinner.isActive()) {

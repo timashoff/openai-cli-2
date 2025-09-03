@@ -125,6 +125,15 @@ export const APP_CONFIG = {
 
   // Provider-Specific Configuration
   PROVIDERS: {
+    deepseek: {
+      name: 'DeepSeek',
+      baseURL: 'https://api.deepseek.com/v1',
+      apiKeyEnv: 'DEEPSEEK_API_KEY',
+      defaultModel: 'deepseek-chat',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
+    },
     openai: {
       name: 'OpenAI',
       baseURL: 'https://api.openai.com/v1',
@@ -134,18 +143,9 @@ export const APP_CONFIG = {
       temperature: 0.7,
       streaming: true,
     },
-    deepseek: {
-      name: 'DeepSeek',  
-      baseURL: 'https://api.deepseek.com/v1',
-      apiKeyEnv: 'DEEPSEEK_API_KEY',
-      defaultModel: 'deepseek-chat',
-      maxTokens: 4096,
-      temperature: 0.7,
-      streaming: true,
-    },
     anthropic: {
       name: 'Anthropic',
-      baseURL: 'https://api.anthropic.com/v1', 
+      baseURL: 'https://api.anthropic.com/v1',
       apiKeyEnv: 'ANTHROPIC_API_KEY',
       isClaude: true,
       defaultModel: 'claude-3-5-sonnet-20241022',

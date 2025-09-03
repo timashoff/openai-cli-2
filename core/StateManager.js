@@ -1,13 +1,12 @@
 /**
  * StateManager - Centralized state management and operations for AI application
- * Functional object with closures (NO CLASSES per CLAUDE.md!)
  * Single Source of Truth for state AND operations
  */
 
 import { logger } from '../utils/logger.js'
 import { createProvider } from '../utils/provider-factory.js'
-import { API_PROVIDERS } from '../config/api_providers.js'
-import { DEFAULT_MODELS } from '../config/default_models.js'
+import { APP_CONFIG } from '../config/app-config.js'
+const PROVIDERS = APP_CONFIG.PROVIDERS
 
 function createStateManager() {
   // Private state with closures
@@ -19,7 +18,7 @@ function createStateManager() {
     providers: new Map(),         // All initialized providers
     initialized: false            // Service initialization status
   }
-    
+
   // Operation state tracking
   const operationState = {
     isProcessingRequest: false,
@@ -27,80 +26,78 @@ function createStateManager() {
     isRetryingProvider: false,
     shouldReturnToPrompt: false
   }
-  
+
   // Request management
   const requestState = {
     currentRequestController: null,
     currentSpinnerInterval: null,
     currentStreamProcessor: null
   }
-  
+
   // Context and conversation history
   const contextState = {
     contextHistory: [],
     maxContextHistory: 10 // Default, can be overridden from config
   }
-  
+
   // User session data
   let userSession = {}
-  
+
   // State change listeners
   const listeners = new Map()
-  
+
   // === MAIN OPERATIONS - StateManager handles switching ===
-  
+
   /**
    * Ensure provider is initialized (lazy-loading) without changing global state
    */
-  async function ensureProviderInitialized(providerKey) {
-    // Check if provider is available  
-    const providerConfig = API_PROVIDERS[providerKey]
-    if (!providerConfig) {
-      throw new Error(`Unknown provider: ${providerKey}`)
-    }
-    
+  async function ensureProviderInitialized(providerId) {
+    // Check if provider is available
+    const providerConfig = PROVIDERS[providerId]
+    // if (!providerConfig) { //   throw new Error(`Unknown provider: ${providerId}`) // }
+
     if (!process.env[providerConfig.apiKeyEnv]) {
       throw new Error(`${providerConfig.name} API key not found`)
     }
-    
+
     // Get or create provider instance
-    let providerData = aiState.providers.get(providerKey)
-    
+    let providerData = aiState.providers.get(providerId)
+
     if (!providerData) {
       // Lazy-loading: create new provider
-      logger.debug(`StateManager: Lazy-loading provider ${providerKey}`)
-      
-      const providerInstance = createProvider(providerKey, providerConfig)
+      logger.debug(`StateManager: Lazy-loading provider ${providerId}`)
+
+      const providerInstance = createProvider(providerId, providerConfig)
       await providerInstance.initializeClient()
       const models = await providerInstance.listModels()
-      
+
       // Store in cache for future use
       providerData = {
         instance: providerInstance,
         config: providerConfig,
         models: models
       }
-      aiState.providers.set(providerKey, providerData)
+      aiState.providers.set(providerId, providerData)
     }
-    
+
     return providerData
   }
-  
+
   /**
    * Switch AI provider (main operation)
    */
-  async function switchProvider(providerKey, targetModel = null) {
+  async function switchProvider(providerId, targetModel = null) {
     try {
-      logger.debug(`StateManager: Switching to provider ${providerKey}`)
-      
+      logger.debug(`StateManager: Switching to provider ${providerId}`)
+
       // Use common initialization logic
-      const providerData = await ensureProviderInitialized(providerKey)
-      
+      const providerData = await ensureProviderInitialized(providerId)
+
       // Determine target model
       let selectedModel = targetModel
       if (!selectedModel) {
         // Use default model from config first, then fall back to first available
-        const defaultModel = DEFAULT_MODELS[providerKey].model
+        const defaultModel = PROVIDERS[providerId].defaultModel
         if (defaultModel && providerData.models.some(m => (typeof m === 'string' ? m === defaultModel : m.id === defaultModel))) {
           selectedModel = defaultModel
         } else if (providerData.models.length > 0) {
@@ -108,29 +105,29 @@ function createStateManager() {
           selectedModel = typeof providerData.models[0] === 'string' ? providerData.models[0] : providerData.models[0].id
         }
       }
-      
+
       // Update global state (only difference from createChatCompletion)
       updateAIProvider({
         instance: providerData.instance,
-        key: providerKey,
+        key: providerId,
         model: selectedModel,
         models: providerData.models,
         config: providerData.config
       })
-      
-      logger.debug(`StateManager: Successfully switched to ${providerKey} with ${providerData.models.length} models`)
+
+      logger.debug(`StateManager: Successfully switched to ${providerId} with ${providerData.models.length} models`)
       return {
         provider: providerData.instance,
         model: selectedModel,
         models: providerData.models
       }
-      
+
     } catch (error) {
       logger.error(`StateManager: Provider switch failed: ${error.message}`)
       throw error
     }
   }
-  
+
   /**
    * Switch AI model (main operation)
    */
@@ -139,41 +136,41 @@ function createStateManager() {
       if (!aiState.currentProvider) {
         throw new Error('No provider currently active')
       }
-      
+
       // Verify model exists
       const modelExists = aiState.availableModels.some(m => {
         return typeof m === 'string' ? m === targetModel : (m.id === targetModel || m.name === targetModel)
       })
-      
+
       if (!modelExists) {
         throw new Error(`Model ${targetModel} not available for current provider`)
       }
-      
+
       // Update current model
       updateModel(targetModel)
-      
+
       logger.debug(`StateManager: Successfully switched to model ${targetModel}`)
       return targetModel
-      
+
     } catch (error) {
       logger.error(`StateManager: Model switch failed: ${error.message}`)
       throw error
     }
   }
-  
+
   // === AI State Management ===
-  
+
   /**
    * Update AI provider state - Single Source of Truth
    */
   function updateAIProvider(providerInfo) {
     const previousProvider = aiState.currentProviderKey
-    
+
     aiState.currentProvider = providerInfo.instance
     aiState.currentProviderKey = providerInfo.key
     aiState.currentModel = providerInfo.model
     aiState.availableModels = providerInfo.models || []
-    
+
     // Store provider in map for future use
     if (providerInfo.instance) {
       aiState.providers.set(providerInfo.key, {
@@ -182,44 +179,44 @@ function createStateManager() {
         models: providerInfo.models || []
       })
     }
-    
+
     // Update process title
     if (typeof process !== 'undefined' && process.title) {
       process.title = aiState.currentModel
     }
-    
+
     notifyListeners('ai-provider-changed', {
       previous: previousProvider,
       current: providerInfo.key,
       model: providerInfo.model
     })
   }
-  
+
   /**
    * Update current model
    */
   function updateModel(modelId) {
     const previousModel = aiState.currentModel
     aiState.currentModel = modelId
-    
+
     // Update process title
     if (typeof process !== 'undefined' && process.title) {
       process.title = modelId
     }
-    
+
     notifyListeners('model-changed', {
       previous: previousModel,
       current: modelId
     })
   }
-  
+
   /**
    * Get current AI state
    */
   function getAIState() {
     return { ...aiState }
   }
-  
+
   /**
    * Get current provider with metadata
    */
@@ -231,21 +228,21 @@ function createStateManager() {
       model: aiState.currentModel
     }
   }
-  
+
   /**
    * Get current provider key
    */
   function getCurrentProviderKey() {
     return aiState.currentProviderKey
   }
-  
+
   /**
    * Get current model
    */
   function getCurrentModel() {
     return aiState.currentModel
   }
-  
+
   /**
    * Get available models for current provider with lazy loading
    */
@@ -259,54 +256,54 @@ function createStateManager() {
     }
     return [...aiState.availableModels]
   }
-  
+
   /**
    * Set provider in map
    */
   function setProvider(key, providerData) {
     aiState.providers.set(key, providerData)
   }
-  
+
   /**
    * Get provider from map
    */
   function getProvider(key) {
     return aiState.providers.get(key)
   }
-  
+
   /**
    * Get all providers
    */
   function getAllProviders() {
     return aiState.providers
   }
-  
+
   /**
    * Set service initialization status
    */
   function setServiceInitialized(initialized) {
     aiState.initialized = initialized
   }
-  
+
   // === Operation State Management ===
-  
+
   /**
    * Set processing request state
    */
   function setProcessingRequest(isProcessing, controller = null) {
     operationState.isProcessingRequest = isProcessing
-    
+
     // Only update controller if explicitly provided, otherwise keep existing
     if (controller !== null) {
       requestState.currentRequestController = controller
     }
-    
+
     notifyListeners('processing-state-changed', {
       isProcessing,
       hasController: !!requestState.currentRequestController
     })
   }
-  
+
   /**
    * Set typing response state
    */
@@ -314,7 +311,7 @@ function createStateManager() {
     operationState.isTypingResponse = isTyping
     notifyListeners('typing-state-changed', { isTyping })
   }
-  
+
   /**
    * Set provider retry state
    */
@@ -322,30 +319,30 @@ function createStateManager() {
     operationState.isRetryingProvider = isRetrying
     notifyListeners('retry-state-changed', { isRetrying })
   }
-  
+
   /**
    * Get current operation state
    */
   function getOperationState() {
     return { ...operationState }
   }
-  
+
   // === Request State Management ===
-  
+
   /**
    * Set current stream processor
    */
   function setStreamProcessor(processor) {
     requestState.currentStreamProcessor = processor
   }
-  
+
   /**
    * Set spinner interval
    */
   function setSpinnerInterval(interval) {
     requestState.currentSpinnerInterval = interval
   }
-  
+
   /**
    * Clear all request state
    */
@@ -398,7 +395,7 @@ function createStateManager() {
   function getSpinnerInterval() {
     return requestState.currentSpinnerInterval
   }
-  
+
   /**
    * Get current request controller
    */
@@ -422,27 +419,27 @@ function createStateManager() {
       timestamp: Date.now()
     })
   }
-  
+
   // === Context Management ===
-  
+
   /**
    * Add message to context history
    */
   function addToContext(role, content) {
     contextState.contextHistory.push({ role, content })
-    
+
     // Trim history if too long
     if (contextState.contextHistory.length > contextState.maxContextHistory) {
       contextState.contextHistory = contextState.contextHistory.slice(-contextState.maxContextHistory)
     }
-    
+
     notifyListeners('context-updated', {
       role,
       content,
       historyLength: contextState.contextHistory.length
     })
   }
-  
+
   /**
    * Clear context history
    */
@@ -450,20 +447,20 @@ function createStateManager() {
     contextState.contextHistory = []
     notifyListeners('context-cleared', {})
   }
-  
+
   /**
    * Get context history
    */
   function getContextHistory() {
     return [...contextState.contextHistory]
   }
-  
+
   /**
    * Set maximum context history length
    */
   function setMaxContextHistory(maxLength) {
     contextState.maxContextHistory = maxLength
-    
+
     // Trim current history if needed
     if (contextState.contextHistory.length > maxLength) {
       contextState.contextHistory = contextState.contextHistory.slice(-maxLength)
@@ -477,9 +474,9 @@ function createStateManager() {
     contextState.contextHistory = [...history]
     notifyListeners('context-history-set', { length: history.length })
   }
-  
+
   // === User Session Management ===
-  
+
   /**
    * Update user session data
    */
@@ -487,16 +484,16 @@ function createStateManager() {
     userSession = { ...userSession, ...sessionData }
     notifyListeners('session-updated', sessionData)
   }
-  
+
   /**
    * Get user session data
    */
   function getUserSession() {
     return { ...userSession }
   }
-  
+
   // === Event Listener Management ===
-  
+
   /**
    * Add state change listener
    */
@@ -506,7 +503,7 @@ function createStateManager() {
     }
     listeners.get(event).add(callback)
   }
-  
+
   /**
    * Remove state change listener
    */
@@ -515,7 +512,7 @@ function createStateManager() {
       listeners.get(event).delete(callback)
     }
   }
-  
+
   /**
    * Notify listeners of state change
    */
@@ -530,9 +527,9 @@ function createStateManager() {
       })
     }
   }
-  
+
   // === Utility Methods ===
-  
+
   /**
    * Get complete state snapshot
    */
@@ -545,7 +542,7 @@ function createStateManager() {
       timestamp: new Date().toISOString()
     }
   }
-  
+
   /**
    * Reset all state to initial values
    */
@@ -556,37 +553,37 @@ function createStateManager() {
     aiState.availableModels = []
     aiState.providers.clear()
     aiState.initialized = false
-    
+
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
     operationState.isRetryingProvider = false
     operationState.shouldReturnToPrompt = false
-    
+
     clearRequestState()
     clearContext()
     userSession = {}
-    
+
     notifyListeners('state-reset', {})
   }
-  
+
   /**
    * Check if application is currently busy
    */
   function isBusy() {
-    return operationState.isProcessingRequest || 
-           operationState.isTypingResponse || 
+    return operationState.isProcessingRequest ||
+           operationState.isTypingResponse ||
            operationState.isRetryingProvider
   }
 
   // === Create AI completion (main operation) ===
-  
+
   async function createChatCompletion(messages, options = {}, providerModel = null) {
     // No specific provider+model - use current global state
     if (!providerModel) {
       if (!aiState.currentProvider) {
         throw new Error('No AI provider currently active')
       }
-      
+
       try {
         return await aiState.currentProvider.createChatCompletion(aiState.currentModel, messages, options)
       } catch (error) {
@@ -597,16 +594,16 @@ function createStateManager() {
         throw error
       }
     }
-    
+
     // Specific provider+model from command - ensure provider is initialized
     const targetProviderKey = providerModel.provider
     const targetModel = providerModel.model
-    
+
     logger.debug(`StateManager: Using specific provider ${targetProviderKey} with model ${targetModel}`)
-    
+
     // Use common initialization logic (no global state change)
     const providerData = await ensureProviderInitialized(targetProviderKey)
-    
+
     try {
       return await providerData.instance.createChatCompletion(targetModel, messages, options)
     } catch (error) {
@@ -617,7 +614,7 @@ function createStateManager() {
       throw error
     }
   }
-  
+
 
   // Return the functional object (NO CLASS!)
   return {
@@ -625,7 +622,7 @@ function createStateManager() {
     switchProvider,
     switchModel,
     createChatCompletion,
-    
+
     // AI state getters
     getAIState,
     getCurrentProvider,
@@ -636,17 +633,17 @@ function createStateManager() {
     getProvider,
     getAllProviders,
     setServiceInitialized,
-    
+
     // AI state setters (internal)
     updateAIProvider,
     updateModel,
-    
+
     // Operation state
     setProcessingRequest,
     setTypingResponse,
     setRetryingProvider,
     getOperationState,
-    
+
     // Request state
     setStreamProcessor,
     setSpinnerInterval,
@@ -660,23 +657,23 @@ function createStateManager() {
     getCurrentRequestController,
     getCurrentStreamProcessor,
     clearRequestController,
-    
+
     // Context management
     addToContext,
     clearContext,
     getContextHistory,
     setMaxContextHistory,
     setContextHistory,
-    
+
     // User session
     updateUserSession,
     getUserSession,
-    
+
     // Event listeners
     addListener,
     removeListener,
     notifyListeners,
-    
+
     // Utilities
     getStateSnapshot,
     reset,

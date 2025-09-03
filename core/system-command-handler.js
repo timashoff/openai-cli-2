@@ -5,7 +5,8 @@
 import { logger } from '../utils/logger.js'
 import { getSystemCommand, isSystemCommand } from '../config/system-commands.js'
 import { outputHandler } from './output-handler.js'
-import { API_PROVIDERS } from '../config/api_providers.js'
+import {APP_CONFIG} from '../config/app-config.js'
+const PROVIDERS = APP_CONFIG.PROVIDERS
 
 /**
  * Create clean context interfaces instead of God Object
@@ -14,7 +15,7 @@ import { API_PROVIDERS } from '../config/api_providers.js'
 const createCleanContext = (applicationLoop) => {
   // We still need app internally, but commands won't see it
   const app = applicationLoop.app
-  
+
   return {
     // UI interfaces - for user interaction only
     ui: {
@@ -23,7 +24,7 @@ const createCleanContext = (applicationLoop) => {
       pauseReadline: () => applicationLoop.pauseReadline(),
       resumeReadline: () => applicationLoop.resumeReadline()
     },
-    
+
     // ESC handler interfaces - for dynamic ESC handling
     esc: {
       register: (handler, description) => applicationLoop.registerEscHandler(handler, description),
@@ -31,22 +32,22 @@ const createCleanContext = (applicationLoop) => {
       clear: () => applicationLoop.clearAllEscHandlers(),
       getHandlers: () => applicationLoop.getEscHandlers()
     },
-    
+
     // Provider interfaces - for AI provider management
     providers: {
       getCurrent: () => app.stateManager.getCurrentProvider(),
       getAvailable: () => {
-        return Object.entries(API_PROVIDERS)
+        return Object.entries(PROVIDERS)
           .filter(([key, config]) => process.env[config.apiKeyEnv])
-          .map(([key, config]) => ({ 
-            key, 
+          .map(([key, config]) => ({
+            key,
             name: config.name,
             isCurrent: false // Will be set by command
           }))
       },
       switch: async (key) => app.stateManager.switchProvider(key)
     },
-    
+
     // Model interfaces - for AI model management
     models: {
       getCurrent: () => {
@@ -59,7 +60,7 @@ const createCleanContext = (applicationLoop) => {
         return await app.stateManager.switchModel(model)
       }
     },
-    
+
     // State interfaces - for application state
     state: {
       getAIState: () => app.stateManager.getAIState(),
@@ -80,44 +81,44 @@ export const systemCommandHandler = {
     try {
       const commandName = input.trim().split(' ')[0].toLowerCase()
       const args = input.trim().split(' ').slice(1)
-      
+
       logger.debug(`Executing system command: ${commandName}`)
-      
+
       const systemCommand = getSystemCommand(commandName)
       if (systemCommand) {
         // Dynamically import and execute the command
         const CommandModule = await import(systemCommand.module)
-        
+
         // Try default export first, then named export
         const CommandClass = CommandModule.default || CommandModule[systemCommand.handler]
         if (!CommandClass) {
           throw new Error(`Command not found: ${systemCommand.handler}`)
         }
-        
+
         // Support both classes (legacy) and functional objects
-        const commandInstance = typeof CommandClass === 'function' && CommandClass.prototype && CommandClass.prototype.constructor 
-          ? new CommandClass() 
+        const commandInstance = typeof CommandClass === 'function' && CommandClass.prototype && CommandClass.prototype.constructor
+          ? new CommandClass()
           : CommandClass
-        
+
         // Create clean context interfaces (NO GOD OBJECT!)
         const context = createCleanContext(applicationLoop)
-        
+
         const result = await commandInstance.execute(args, context)
-        
+
         // If command returned a string, display it to user
         if (typeof result === 'string' && result.trim()) {
           outputHandler.write(result)
         }
-        
+
         return result
       }
-      
+
       // Command not found
       const errorMsg = `System command not found: ${commandName}`
       applicationLoop.writeError(errorMsg)
       logger.warn(errorMsg)
       return null
-      
+
     } catch (error) {
       const errorMsg = `System command execution failed: ${error.message}`
       applicationLoop.writeError(errorMsg)
@@ -151,12 +152,12 @@ export const systemCommandHandler = {
       try {
         const CommandModule = await import(systemCommand.module)
         const Command = CommandModule.default || CommandModule[systemCommand.handler]
-        
+
         // Support both classes (legacy) and functional objects
         const commandInstance = typeof Command === 'function' && Command.prototype && Command.prototype.constructor
           ? new Command()
           : Command
-          
+
         return commandInstance.getHelp ? commandInstance.getHelp() : {
           description: systemCommand.description,
           usage: systemCommand.usage,

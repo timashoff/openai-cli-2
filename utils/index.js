@@ -6,7 +6,7 @@ import { platform } from 'node:os'
 
 import { execModel } from './model/execModel.js'
 import cache from './cache.js'
-import { API_PROVIDERS } from '../config/api_providers.js'
+// import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
 import { getAllSystemCommands } from './autocomplete.js'
 import { AppError } from './error-handler.js'
@@ -32,18 +32,18 @@ const getClipboardContent = async () => {
       throw new Error(`Unsupported platform: ${os}`)
   }
   try {
-    const { stdout } = await execution(command, { 
+    const { stdout } = await execution(command, {
       timeout: 5000, // 5 second timeout for clipboard operations
       maxBuffer: APP_CONSTANTS.MAX_INPUT_LENGTH // Limit buffer size
     })
-    
+
     const clipboardContent = stdout.trim()
-    
+
     // Validate clipboard content size
     if (clipboardContent.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
       throw new AppError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
     }
-    
+
     // Return sanitized content
     return sanitizeString(clipboardContent)
   } catch (error) {
@@ -66,17 +66,17 @@ const getClipboardContent = async () => {
 const openInBrowser = async (url) => {
   const os = platform()
   let command
-  
+
   // Validate URL format
   if (!url || typeof url !== 'string') {
     throw new AppError('Invalid URL provided', true, 400)
   }
-  
+
   // Add https:// if no protocol specified
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = `https://${url}`
   }
-  
+
   // Platform-specific commands
   switch (os) {
     case 'darwin':
@@ -91,9 +91,9 @@ const openInBrowser = async (url) => {
     default:
       throw new Error(`Unsupported platform: ${os}`)
   }
-  
+
   try {
-    await execution(command, { 
+    await execution(command, {
       timeout: 5000, // 5 second timeout for browser operations
       maxBuffer: 1024 * 1024 // 1MB buffer limit
     })
@@ -140,9 +140,9 @@ const clearTerminalLine = () => {
 const showStatus = (type, time, message = '') => {
   const icon = type === 'success' ? '✓' : '☓'
   const statusColor = type === 'success' ? color.green : color.red
-  
+
   const statusText = `${statusColor}${icon}${color.reset} ${time}s`
-  
+
   if (message) {
     process.stdout.write(statusText + '\n')
     process.stdout.write(message + '\n')
