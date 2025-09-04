@@ -49,6 +49,14 @@ export class Router {
       
     } catch (error) {
       logger.error('Route and process failed:', error)
+      
+      // Clean up state after error to prevent corruption
+      try {
+        applicationLoop.app.stateManager.clearAllOperations()
+      } catch (cleanupError) {
+        logger.error('State cleanup failed:', cleanupError)
+      }
+      
       applicationLoop.writeError(`Error: ${error.message}`)
       return null
     }

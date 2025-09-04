@@ -421,6 +421,13 @@ ${colorInput}> `
             }
           }
           
+          // Clean up state after error to prevent corruption  
+          try {
+            this.app.stateManager.clearAllOperations()
+          } catch (cleanupError) {
+            // Ignore cleanup errors during shutdown
+          }
+          
           errorHandler.handleError(error, { context: 'user_input' })
           
           // If it's a user input error, continue the loop for recovery
