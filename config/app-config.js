@@ -123,6 +123,12 @@ export const APP_CONFIG = {
     ENABLE_EXPERIMENTAL_FEATURES: false, // Enable experimental features
   },
 
+  // System prompts for different behaviors
+  SYSTEM_PROMPTS: {
+    // DISABLE_MARKDOWN: "CRITICAL INSTRUCTION: You are FORBIDDEN from using ANY formatting symbols. NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO numbered lists (1., 2.), NO bullet points (-, *), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.",
+    DISABLE_MARKDOWN: "CRITICAL INSTRUCTION: You are FORBIDDEN from using formatting symbols: NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.",
+  },
+
   // Provider-Specific Configuration
   PROVIDERS: {
     deepseek: {
@@ -133,6 +139,7 @@ export const APP_CONFIG = {
       maxTokens: 4096,
       temperature: 0.7,
       streaming: true,
+      markdown: false,
     },
     openai: {
       name: 'OpenAI',
@@ -142,6 +149,7 @@ export const APP_CONFIG = {
       maxTokens: 4096,
       temperature: 0.7,
       streaming: true,
+      markdown: true,
     },
     anthropic: {
       name: 'Anthropic',
@@ -152,6 +160,7 @@ export const APP_CONFIG = {
       maxTokens: 4096,
       temperature: 0.7,
       streaming: true,
+      markdown: true,
     },
   },
 

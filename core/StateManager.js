@@ -578,6 +578,19 @@ function createStateManager() {
   // === Create AI completion (main operation) ===
 
   async function createChatCompletion(messages, options = {}, providerModel = null) {
+    // Determine provider key for markdown setting
+    const providerKey = providerModel ? providerModel.provider : aiState.currentProviderKey
+    
+    // Check if markdown should be disabled for this provider
+    const providerConfig = APP_CONFIG.PROVIDERS[providerKey]
+    if (providerConfig && !providerConfig.markdown) {
+      // Add system prompt to disable markdown
+      messages = [
+        { role: 'system', content: APP_CONFIG.SYSTEM_PROMPTS.DISABLE_MARKDOWN },
+        ...messages
+      ]
+    }
+
     // No specific provider+model - use current global state
     if (!providerModel) {
       if (!aiState.currentProvider) {
