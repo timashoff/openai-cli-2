@@ -59,10 +59,10 @@ export const multiModelCommand = {
     for (const model of commandData.models) {
       try {
         // Use proper CacheManager method for per-model cache
-        const hasCache = await cacheManager.hasCacheByModel(input, commandData.id, `${model.provider}:${model.model}`)
+        const hasCache = await cacheManager.hasCacheByModel(input, commandData.commandId, `${model.provider}:${model.model}`)
 
         if (hasCache) {
-          const cachedResponse = await cacheManager.getCacheByModel(input, commandData.id, `${model.provider}:${model.model}`)
+          const cachedResponse = await cacheManager.getCacheByModel(input, commandData.commandId, `${model.provider}:${model.model}`)
           results.push({ model, cached: cachedResponse, error: null })
         } else {
           results.push({ model, cached: null, error: null })
@@ -213,7 +213,7 @@ export const multiModelCommand = {
 
         // Cache the response
         if (commandData.isCached && fullResponse) {
-          await cacheManager.setCacheByModel(commandData.userInput, commandData.id, `${model.provider}:${model.model}`, fullResponse)
+          await cacheManager.setCacheByModel(commandData.userInput, commandData.commandId, `${model.provider}:${model.model}`, fullResponse)
         }
 
         // Display timing if winner

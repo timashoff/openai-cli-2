@@ -55,7 +55,7 @@ export class Router {
   }
   
   /**
-   * Execute command from analysis - DIRECT EXECUTION with ready data
+   * Execute command from analysis - SINGLE SOURCE OF TRUTH for data creation
    */
   async executeFromAnalysis(analysis, applicationLoop) {
     switch (analysis.type) {
@@ -63,19 +63,52 @@ export class Router {
         return await this.systemCommandHandler.handle(analysis.rawInput, applicationLoop)
         
       case this.REQUEST_TYPES.INSTRUCTION:
+        // Create data object - Single Source of Truth
+        const instructionData = this.createData({
+          content: analysis.instructionCommand.content,
+          userInput: analysis.instructionCommand.userInput,
+          instruction: analysis.instructionCommand.instruction,
+          commandId: analysis.instructionCommand.id,
+          models: analysis.instructionCommand.models || [],
+          isCached: analysis.instructionCommand.isCached,
+          isForced: analysis.flags.isForced
+        })
+        
         if (this.commandHandler) {
-          // Pass ready commandData (no duplication!)
-          return await this.commandHandler.handle(analysis.commandData, applicationLoop.app)
+          return await this.commandHandler.handle(instructionData, applicationLoop.app)
         }
         // Fallback to direct ChatRequest
-        return await this.chatRequest.processChatRequest(analysis.commandData, applicationLoop)
+        return await this.chatRequest.processChatRequest(instructionData, applicationLoop)
         
       case this.REQUEST_TYPES.CHAT:
       default:
-        return await this.chatRequest.processChatRequest(analysis.commandData, applicationLoop)
+        // Create data object - Single Source of Truth
+        const chatData = this.createData({
+          content: analysis.rawInput,
+          userInput: analysis.rawInput,
+          models: [],
+          isCached: false,
+          isForced: analysis.flags.isForced
+        })
+        return await this.chatRequest.processChatRequest(chatData, applicationLoop)
     }
   }
   
+  /**
+   * Create standardized data object - Single Source of Truth
+   */
+  createData(options = {}) {
+    return {
+      content: options.content || '',
+      userInput: options.userInput || options.content || '',
+      instruction: options.instruction || null,
+      commandId: options.commandId || null,
+      models: options.models || [],
+      isCached: options.isCached || false,
+      isForced: options.isForced || false
+    }
+  }
+
   /**
    * Parse flags from input and return clean input + flags
    */
@@ -116,7 +149,8 @@ export class Router {
       return {
         type: this.REQUEST_TYPES.SYSTEM,
         rawInput: cleanInput,
-        commandName
+        commandName,
+        flags: flags
       }
     }
     
@@ -126,16 +160,8 @@ export class Router {
       return {
         type: this.REQUEST_TYPES.INSTRUCTION,
         rawInput: cleanInput,
-        commandData: {
-          success: true,
-          content: instructionCommand.content,
-          userInput: instructionCommand.userInput,
-          instruction: instructionCommand.instruction,
-          id: instructionCommand.id,
-          models: instructionCommand.models || [],
-          isCached: instructionCommand.isCached, // From database (ignored - cache disabled)
-          isForced: flags.isForced // Parsed but ignored (cache disabled)
-        }
+        instructionCommand: instructionCommand,
+        flags: flags
       }
     }
     
@@ -143,7 +169,8 @@ export class Router {
     if (this.hasUrl(cleanInput)) {
       return {
         type: this.REQUEST_TYPES.MCP_ENHANCED,
-        rawInput: cleanInput
+        rawInput: cleanInput,
+        flags: flags
       }
     }
     
@@ -151,13 +178,7 @@ export class Router {
     return {
       type: this.REQUEST_TYPES.CHAT,
       rawInput: cleanInput,
-      commandData: {
-        content: cleanInput,
-        userInput: cleanInput,
-        models: [], // Required for ChatRequest compatibility
-        isCached: false,
-        isForced: flags.isForced // FIXED: Parse from input flags
-      }
+      flags: flags
     }
   }
   

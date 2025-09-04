@@ -11,18 +11,18 @@ export function createCommandHandler(chatRequest, cacheManager) {
   /**
    * Handle instruction command from database with multi-model and cache support
    */
-  async function handle(commandData, app) {
-    const { content, userInput, isCached, isForced, models } = commandData
+  async function handle(data, app) {
+    const { content, userInput, isCached, isForced, models } = data
     
     logger.debug(`CommandHandler: Processing instruction command with ${models.length} model(s)`)
     
     // Route to appropriate handler based on model count
     if (models.length > 1) {
       logger.debug('CommandHandler: Routing to MultiModelCommand')
-      return await multiModelCommand.execute(commandData, app, cacheManager)
+      return await multiModelCommand.execute(data, app, cacheManager)
     } else {
       logger.debug('CommandHandler: Routing to single ChatRequest')
-      return await handleSingleModel(commandData, app)
+      return await handleSingleModel(data, app)
     }
   }
   
@@ -30,16 +30,16 @@ export function createCommandHandler(chatRequest, cacheManager) {
    * Handle single model command with cache support
    * Uses unified cache API like MultiModelCommand
    */
-  async function handleSingleModel(commandData, app) {
-    const { content, userInput, isCached, isForced, id, models } = commandData
+  async function handleSingleModel(data, app) {
+    const { content, userInput, isCached, isForced, commandId, models } = data
     
-    // DEBUG: Log all commandData for debugging
+    // DEBUG: Log all data for debugging
     logger.debug('CommandHandler: handleSingleModel called with:', {
-      id, 
+      commandId, 
       userInput,
       isCached,
       isForced,
-      modelsCount: models?.length || 0,
+      modelsCount: models.length,
       models: models
     })
     
@@ -58,14 +58,14 @@ export function createCommandHandler(chatRequest, cacheManager) {
     
     // Check cache first (unless forced) using unified API
     if (isCached && !isForced) {
-      const cacheKey = `${id || 'single'}:${userInput}:${modelKey}`
+      const cacheKey = `${commandId || 'single'}:${userInput}:${modelKey}`
       logger.debug(`CommandHandler: Checking cache with key: ${cacheKey}`)
       
-      const hasCachedResult = await cacheManager.hasCacheByModel(userInput, id || 'single', modelKey)
+      const hasCachedResult = await cacheManager.hasCacheByModel(userInput, commandId || 'single', modelKey)
       logger.debug(`CommandHandler: Cache check result: ${hasCachedResult}`)
       
       if (hasCachedResult) {
-        const cachedResult = await cacheManager.getCacheByModel(userInput, id || 'single', modelKey)
+        const cachedResult = await cacheManager.getCacheByModel(userInput, commandId || 'single', modelKey)
         logger.debug('CommandHandler: Single model cache hit - returning cached result')
         app.cliManager.writeOutput(cachedResult)
         return cachedResult
@@ -77,13 +77,13 @@ export function createCommandHandler(chatRequest, cacheManager) {
     }
     
     // No cache or forced - send to ChatRequest
-    const result = await chatRequest.processChatRequest(commandData, app.cliManager)
+    const result = await chatRequest.processChatRequest(data, app.cliManager)
     
     // Cache the result if needed using unified API
     if (isCached && result) {
-      const cacheKey = `${id || 'single'}:${userInput}:${modelKey}`
+      const cacheKey = `${commandId || 'single'}:${userInput}:${modelKey}`
       logger.debug(`CommandHandler: Caching result with key: ${cacheKey}`)
-      await cacheManager.setCacheByModel(userInput, id || 'single', modelKey, result)
+      await cacheManager.setCacheByModel(userInput, commandId || 'single', modelKey, result)
       logger.debug('CommandHandler: Result cached successfully')
     }
     

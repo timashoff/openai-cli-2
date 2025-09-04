@@ -23,15 +23,15 @@ export function createChatRequest(app) {
     return null
   }
 
-  async function processChatRequest(commandData, cliManager) {
+  async function processChatRequest(data, cliManager) {
     try {
       logger.debug('ChatRequest: Processing final chat request')
 
       // Extract specific provider and model if provided
-      const providerModel = commandData.models.length ? extractProviderModel(commandData.models[0]) : null
+      const providerModel = data.models.length ? extractProviderModel(data.models[0]) : null
 
       // Execute chat request with prepared content and provider model
-      return await handleChatRequest(commandData.content, cliManager, providerModel)
+      return await handleChatRequest(data.content, cliManager, providerModel)
 
     } catch (error) {
       unifiedErrorHandler.handleAndDisplayError(error, cliManager, { component: 'ChatRequest' })
