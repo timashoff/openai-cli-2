@@ -2,6 +2,7 @@ import { outputHandler } from '../core/output-handler.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
+import { APP_CONSTANTS } from '../config/constants.js'
 
 export const multiModelCommand = {
   /**
@@ -24,9 +25,10 @@ export const multiModelCommand = {
 
       // Execute live models with race logic if any
       let completed = true
+      let successfulLiveModels = 0
       if (liveModels.length > 0) {
         try {
-          await this.executeRaceWithStreaming(liveModels, commandData, app, cacheManager)
+          successfulLiveModels = await this.executeRaceWithStreaming(liveModels, commandData, app, cacheManager)
         } catch (error) {
           if (error.message === 'AbortError' || error.name === 'AbortError') {
             completed = false // Don't show summary if aborted
@@ -38,7 +40,7 @@ export const multiModelCommand = {
 
       // Display final summary only if not aborted
       if (completed) {
-        this.displaySummary(cachedModels.length, liveModels.length, commandData.models.length)
+        this.displaySummary(cachedModels.length, successfulLiveModels, commandData.models.length)
       }
 
     } catch (error) {
@@ -126,6 +128,7 @@ export const multiModelCommand = {
 
     let firstModelStarted = false
     let winnerModel = null
+    this.allModelsCompleted = false
 
     // Create and start spinner before any AI requests
     const spinner = createSpinner()
@@ -218,6 +221,23 @@ export const multiModelCommand = {
           outputHandler.writeNewline()
           outputHandler.write(`checkmark ${timing.toFixed(1)}s`)
           outputHandler.writeNewline()
+          
+          // Start spinner for remaining models if there are any
+          const remainingModelsCount = liveModels.length - 1
+          if (remainingModelsCount > 0) {
+            // Check if we should show "Waiting..." message based on timing gap
+            setTimeout(() => {
+              // Only show spinner if still waiting after 1 second
+              if (!this.allModelsCompleted) {
+                const remainingSpinner = createSpinner()
+                remainingSpinner.start(controller)
+                
+                // Store spinner reference for cleanup
+                this.remainingSpinner = remainingSpinner
+                outputHandler.write(`Waiting for ${remainingModelsCount} more model${remainingModelsCount > 1 ? 's' : ''}...`)
+              }
+            }, APP_CONSTANTS.MULTI_MODEL_WAIT_THRESHOLD)
+          }
         }
 
         return { model, timing, success: true, isWinner }
@@ -250,12 +270,21 @@ export const multiModelCommand = {
 
     // Wait for all models to complete
     const results = await Promise.allSettled(modelPromises)
+    
+    // Mark all models as completed to prevent delayed spinner
+    this.allModelsCompleted = true
 
-    // Cleanup spinner if still active
+    // Cleanup main spinner if still active
     if (spinner.isActive()) {
       spinner.stop('error') // No models responded
     }
     spinner.dispose()
+    
+    // Cleanup remaining models spinner if active
+    if (this.remainingSpinner && this.remainingSpinner.isActive()) {
+      this.remainingSpinner.stop('success')
+      this.remainingSpinner.dispose()
+    }
 
     // Don't display results if request was aborted
     // if (controller && controller.signal && controller.signal.aborted) {
@@ -265,6 +294,11 @@ export const multiModelCommand = {
 
     // Display non-winner results
     this.displayRemainingResults(liveModels, modelResults, winnerModel)
+    
+    // Count successful responses for accurate summary
+    const successfulLiveModels = Array.from(modelResults.values()).filter(result => result.success).length
+    
+    return successfulLiveModels // Return count for summary
   },
 
   /**

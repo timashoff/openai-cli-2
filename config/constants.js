@@ -18,6 +18,9 @@ export const APP_CONSTANTS = {
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
   TYPING_DELAY: 10, // Delay between characters when typing response
   CLEAR_TIMEOUT: 100, // Timeout for screen clear
+  
+  // Multi-model execution
+  MULTI_MODEL_WAIT_THRESHOLD: 1000, // Don't show "Waiting..." if gap < 1 second
   RAPID_CHECK_INTERVAL: 5, // Interval for rapid abort checking in ms
   ATTEMPT_DURATION: 5000, // Duration of one attempt in ms (5 seconds)
 
