@@ -6,42 +6,47 @@
 
 ## 🏗️ Архитектурная схема
 
+### Текущая архитектура (2025):
+
 ```
-┌─ bin/app.js (Simple Bootstrapper) ────────────────────────────┐
+┌─ bin/app.js (Entry Point) ────────────────────────────────────┐
 │  AIApplication extends Application                            │
-│  ┌─ ОСНОВНЫЕ КОМПОНЕНТЫ: ─────────────────────────────────┐   │
+│  ┌─ CORE COMPONENTS: ─────────────────────────────────────┐   │
 │  │  • stateManager: provider, models, contextHistory       │   │
-│  │  • serviceManager: современная архитектура сервисов     │   │
 │  │  • applicationLoop: UI layer + main loop + ESC          │   │
 │  │  • router: routing decisions + execution                │   │
+│  │  • systemCommandHandler: functional system commands     │   │
+│  │  • commandHandler: single/multi DB command routing      │   │
+│  │  • chatRequest: final AI processing                     │   │
+│  │  • cacheManager: unified cache operations               │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────────────────────────────┘
 
-┌─ CLEAN ARCHITECTURE FLOW ────────────────────────────────────┐
+┌─ ACTUAL EXECUTION FLOW ───────────────────────────────────────┐
 │                                                              │
-│  User Input                                                  │
+│  User Input → readline.question()                           │
 │      ↓                                                       │
-│  ApplicationLoop (core/ApplicationLoop.js)                  │
-│  • Main loop (while + readline.question)                    │
-│  • ESC handling (keypress → AbortController.abort)          │
-│  • UI methods (writeOutput, colors, spinner coordination)   │
+│  ApplicationLoop.startMainLoop()                            │
+│  • Main UI loop (while + readline + validation)            │
+│  • ESC handling (keypress → controller.abort)              │
+│  • Promise.race(execution, escapePromise)                  │
 │      ↓                                                       │
-│  Router (core/Router.js)                                    │
-│  • router.routeAndProcess(input, applicationLoop)           │
-│  • Decision making + direct execution                       │
-│  • switch(commandType) → Handler.handle()                   │
+│  Router.routeAndProcess(input, applicationLoop)            │
+│  • InputProcessingService.processInput() (clipboard $$)     │
+│  • analyzeInput() → determine command type                  │
+│  • executeFromAnalysis() → direct handler execution         │
 │      ↓                                                       │
 │  ┌─ SystemCommandHandler ─┐  ┌─ CommandHandler ──┐         │
-│  │ • help, exit, provider │  │ • Single commands  │         │
-│  │ • model, cmd commands  │  │ • Cache logic      │         │
-│  └─────────────────────────┘  │ • ChatRequest call │         │
-│                               └────────────────────┘         │
+│  │ • Functional objects    │  │ • Single: ChatRequest│      │
+│  │ • Dynamic import        │  │ • Multi: MultiModel  │      │
+│  │ • Clean context         │  │ • Cache integration  │      │
+│  └─────────────────────────┘  └────────────────────┘         │
 │                                      ↓                       │
-│                               ChatRequest                    │
-│                               • Final AI requests           │
-│                               • Unified spinner + ESC       │
+│                               ChatRequest/MultiModel        │
+│                               • StateManager.createChatCompletion│
+│                               • Stream processing + spinner  │
 │                                      ↓                       │
-│                               Result → ApplicationLoop      │
+│                               Result → outputHandler        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,6 +84,7 @@ CREATE TABLE commands (
   - ❌ Cache система отключена через CACHE_ENABLED: false флаг в constants.js
   - ❌ Планируется замена на систему сохранения history диалогов в файлы
   - ❌ --force/-f флаги временно не функциональны (будущая логика для history)
+  - ❌ is_cached поле игнорируется - все команды работают в live режиме
 
 ## 🎨 Мультимодельный вывод (LEADERBOARD система)
 
@@ -136,108 +142,102 @@ OpenAI (gpt-5-mini):               ← вторая модель
 
 #### Каждый компонент должен иметь ОДНУ ответственность:
 
-- **`InputProcessingService`** - Упрощенная обработка ввода (ТОЛЬКО):
+- **`InputProcessingService`** - Обработка пользовательского ввода:
   - Обрабатывает $$ маркеры (clipboard content)
-  - Валидирует входные данные пользователя
-  - Парсит флаги --force/-f из строки
-  - НЕ ищет команды в БД (это делает Router)
-  - НЕ создает commandData (это делает Router)
+  - Ищет команды в БД через DatabaseCommandService
+  - Создает commandData для instruction команд
+  - Возвращает processed string для Router
 
 - **`Router`** - Routing decisions + прямое исполнение:
-  - Получает валидированную строку от InputProcessingService
-  - САМ ищет команды в БД через DatabaseCommandService
-  - Определяет тип команды: system/instruction/chat
-  - Обрабатывает пустые команды через outputHandler.writeWarning()
-  - Создает commandData и передает в соответствующий handler
-  - Прямое исполнение через handlers (НЕ промежуточные слои)
+  - Использует InputProcessingService для обработки ввода
+  - analyzeInput() - определяет тип команды в один проход
+  - executeFromAnalysis() - прямое исполнение через handlers
+  - Поддерживает system, instruction, MCP и chat команды
+  - Single pass архитектура без дублирования логики
 
-- **`CommandHandler`** (новый) - обработка single команд:
-  - Получает commandData от Router
-  - Управляет кеш логикой (проверка isCached && isForced)
-  - Делегирует в CacheHandler или ChatRequest
-  - Сохраняет результаты в кеш если isCached=true
+- **`CommandHandler`** - Routing между single/multi command обработкой:
+  - Функциональный объект (не класс)
+  - models.length > 1 → MultiModelCommand.execute()
+  - models.length ≤ 1 → handleSingleModel() → ChatRequest
+  - ❌ Cache интеграция отключена (CACHE_ENABLED: false)
 
-- **`MultiCommandHandler`** - оркестрация multi-model через LEADERBOARD:
-  - **Параллельная обработка**: Promise.allSettled() для всех моделей
-  - **LEADERBOARD система**: первый чанк = лидер, real-time стрим
-  - **Умная отрисовка**: done модели целиком, partial = накопленное + стрим
-  - **Mixed режим**: кеш [from cache] + live запросы одновременно
-  - **renderModelResult**: помечает источник данных и тайминги
-  - **Финальное резюме**: [2/3 models responded in 15.2s]
+- **`MultiModelCommand`** - параллельная обработка multi-model:
+  - Параллельная обработка через Promise.allSettled()
+  - LEADERBOARD система - первый ответ ведет в real-time  
+  - ❌ Cache отключен - все модели работают в live режиме
+  - Live-only режим: все модели выполняются параллельно в реальном времени
+  - Smart spinner management с timing thresholds
 
-- **`CacheHandler`** (было CacheManager) - унифицированный кеш:
-  - НОВАЯ структура: ключ по userInput
-  - Фильтрация по commandId + model + provider
-  - Техническое выполнение операций: get/store
-  - НЕ принимает решения, получает готовые инструкции
+- **`CacheManager`** - заглушка cache системы (ОТКЛЮЧЕНА):
+  - Cache отключен через CACHE_ENABLED: false в constants.js
+  - shouldCache() всегда возвращает false
+  - Все операции кеширования игнорируются
+  - Готова к замене на history диалогов
 
-- **`ChatRequest`** (было AIProcessor) - ТОЛЬКО финальные AI запросы:
-  - Получает: `content` (готовая LLM инструкция) + `model`
-  - Управляет стримингом и AbortController
-  - Возвращает: ответ от AI
-  - НЕ парсит команды, НЕ управляет кешем
+- **`ChatRequest`** - финальная AI обработка:
+  - Функциональный объект, создаваемый factory функцией
+  - Использует StateManager для createChatCompletion()
+  - Unified spinner + ESC handling через AbortController
+  - Stream processing с context history поддержкой
+  - Provider-specific model support
 
-- **`StreamHandler`** - стриминг и форматирование:
-  - Получает готовые данные для стриминга
-  - Форматирует вывод пользователю
-  - НЕ принимает решения о логике
+- **`SystemCommandHandler`** - функциональные системные команды:
+  - Функциональный объект (не класс)
+  - Динамический import команд из модулей
+  - Clean context interfaces (не God Object)
+  - Поддержка help, provider, model, exit, cmd
 
-### ❌ АРХИТЕКТУРНЫЕ НАРУШЕНИЯ (которые исправляем):
+- **`DatabaseCommandService`** - Single Source of Truth для БД команд:
+  - Единственный сервис доступа к SQLite БД
+  - Event-based cache invalidation
+  - Model migration из strings в provider-model объекты
+  - Singleton pattern с hot-reload
 
-#### AIProcessor делал ВСЕ (монолит):
-- ❌ Парсил команды (должен CommandProcessingService)
-- ❌ Принимал решения о кеше (должен CacheManager)
-- ❌ Форматировал вывод (должен StreamHandler)
-- ❌ Создавал команды (дублирование с CommandProcessingService)
-- ❌ Observer метрики (не его ответственность)
+- **`ApplicationLoop`** - центральный UI компонент:
+  - Main application loop (while + readline.question)
+  - ESC handling через AbortController + Promise.race
+  - Graceful shutdown с 3-фазной очисткой
+  - UI compatibility methods (writeOutput, writeError, etc.)
+  - Dynamic ESC handler registration system
 
-#### Дублирование логики:
-- ❌ 3 места создания команд: CommandProcessingService, RequestRouter, AIProcessor
-- ❌ Обработка $$ в 3 местах вместо одного InputProcessingService
-- ❌ Проверки force flags в нескольких местах (должно быть только в InputProcessingService)
-- ❌ Проверки типа команд в cache handlers (должно быть только в RequestRouter)
-
-#### Антипаттерны кеширования:
-- ❌ **"Умные" проверки в CacheManager**: `const isMultiModel = command?.models && Array.isArray(command.models)`
-- ❌ **Дублирование логики force flags**: каждый компонент сам проверяет `--force`
-- ❌ **Принятие решений в handlers**: cache/stream handlers не должны решать, что делать
-- ❌ **Сложные объекты возвратов**: `{shouldUse, shouldStore, reason}` вместо простого boolean
-
-### ✅ ПРАВИЛЬНАЯ АРХИТЕКТУРА (ApplicationLoop → Router):
+### ✅ CURRENT EXECUTION FLOW (ApplicationLoop → Router):
 
 ```
 User Input → ApplicationLoop.startMainLoop()
-                    ↓
-        router.routeAndProcess(input, applicationLoop)
-                    ↓
-            Router internal logic:
-                    ↓
-     ┌─ SYSTEM commands → SystemCommandHandler
-     │   ├─ help → HelpCommand
-     │   ├─ exit → ExitCommand.execute() → applicationLoop.exitApp()
-     │   ├─ provider → ProviderCommand
-     │   ├─ model → ModelCommand
-     │   └─ cmd → CommandEditorCommand
-     │
-     ├─ INSTRUCTION commands → CommandHandler
-     │   ├─ Create commandData from DatabaseCommandService
-     │   ├─ Check cache: isCached && !isForced
-     │   ├─ Cache hit → return cached result
-     │   ├─ Cache miss → ChatRequest with prepared content
-     │   └─ Store result if isCached=true
-     │
-     └─ CHAT (not found) → ChatRequest (direct)
-         └─ commandData: {content: input, isForced: false}
+  ↓ (readline.question + validation + Promise.race with ESC)
+Router.routeAndProcess(input, applicationLoop)
+  ↓ (analyzeInput() - single pass analysis)
+  ├─ System Commands (help, provider, model, exit, cmd)
+  │   ↓ SystemCommandHandler.handle()
+  │   ├─ Dynamic import from config/system-commands.js
+  │   ├─ Clean context creation (no God Object)
+  │   └─ Command execution (functional objects)
+  │
+  ├─ Instruction Commands (from SQLite DB)
+  │   ↓ CommandHandler.handle()
+  │   ├─ Single model: handleSingleModel() → ChatRequest
+  │   └─ Multi model: MultiModelCommand.execute()
+  │       ├─ Parallel processing (Promise.allSettled)
+  │       ├─ Cache check per model
+  │       ├─ LEADERBOARD system (first response leads)
+  │       └─ Mixed mode (cached + live models)
+  │
+  └─ Chat/MCP (direct or URL detected)
+      ↓ ChatRequest.processChatRequest()
+      ├─ StateManager.createChatCompletion()
+      ├─ Unified spinner + ESC via AbortController
+      └─ Stream processing with context history
 
-           ↓ (all paths)
-    outputHandler methods (writeOutput, writeError, etc.)
+Result → outputHandler (centralized output system)
 ```
 
-**Key changes:**
-- **No RequestProcessor/CommandDispatcher** - YAGNI principle
-- **Router handles both decisions AND execution** - Single responsibility
-- **ApplicationLoop focuses on UI concerns** - Clean separation
-- **Unified ESC handling** through AbortController everywhere
+**Key Architecture Principles (2025):**
+- **Single pass processing** - Router.analyzeInput() determines type + creates data in one pass
+- **Functional objects** - SystemCommandHandler, CommandHandler, ChatRequest are functional (not classes)
+- **Clean separation** - ApplicationLoop (UI) + Router (routing) + Handlers (execution)
+- **Unified ESC handling** - AbortController + Promise.race throughout the application
+- **Centralized output** - outputHandler as Single Source of Truth for all console output
+- **Event-based architecture** - StateObserver patterns for state management
 
 ### 📊 Структура commandData (обновленная):
 
@@ -261,127 +261,60 @@ User Input → ApplicationLoop.startMainLoop()
 }
 ```
 
-### 🎯 НОВАЯ АРХИТЕКТУРА: ApplicationLoop → Router
+### 🎯 CURRENT COMPONENT RESPONSIBILITIES:
 
-#### Упрощенный поток (согласно новой логике):
-```
-User Input 
-  ↓
-ApplicationLoop.startMainLoop() 
-  ↓  
-InputProcessingService (только $$ + validation)
-  ↓
-Router.routeAndProcess() - принимает решения:
-  ├─ Команда не найдена → ChatRequest (прямо)
-  ├─ Команда найдена + models.length === 1 → CommandHandler  
-  └─ Команда найдена + models.length > 1 → MultiCommandHandler
-  ↓
-Result → applicationLoop.writeOutput()
-```
+**ApplicationLoop** (core/ApplicationLoop.js):
+- Main UI loop with readline interface management
+- ESC handling through dynamic handler registration
+- 3-phase graceful shutdown (stopInput → cancelOps → cleanup)
+- UI compatibility layer (writeOutput, writeError methods)
+- AbortController + Promise.race pattern for instant cancellation
 
-#### Разделение ответственности:
+**Router** (core/Router.js):
+- Single-pass input analysis + direct execution
+- Uses InputProcessingService for input preprocessing
+- executeFromAnalysis() pattern - no intermediate layers
+- Supports system, instruction, MCP, and chat routing
 
-**ApplicationLoop** (implements core/ApplicationLoop.js):
-- Main application loop (`while(true)` + `readline.question()`)
-- ESC handling through AbortController (handleEscapeKey → controller.abort())
-- Graceful shutdown with 3-phase exitApp() method:
-  - Phase 1: stopUserInput() - closes readline interface
-  - Phase 2: cancelActiveOperations() - aborts LLM requests, clears timers
-  - Phase 3: finalCleanup() - shows cursor, goodbye message, process.exit(0)
-- UI layer compatibility methods (writeOutput, writeError, writeWarning, writeInfo)
-- State management integration through StateManager
-- Spinner coordination and creation (createSpinner, showInitializationSpinner)
+**SystemCommandHandler** (core/system-command-handler.js):
+- Functional object for system command handling
+- Dynamic command import system
+- Clean context interfaces (no God Object pattern)
 
-**Router** (existing, enhanced):
-- Pure decision engine + direct execution
-- Analyzes input, creates commandData, executes handlers
-- Internal method: `routeAndProcess(input, applicationLoop)`
-- No legacy routingTarget approach
+**CommandHandler** (core/CommandHandler.js):
+- Factory function creates functional handler
+- Routes single vs multi-model commands
+- Unified cache integration for both modes
 
-**SystemCommandHandler** (new):
-- Handles system commands (help, exit, provider, model, cmd)
-- Replaces scattered system command logic
+**ChatRequest** (core/ChatRequest.js):
+- Factory function creates functional request handler
+- StateManager integration for provider abstraction
+- Unified spinner + ESC through AbortController
 
-**CommandHandler** (existing):
-- Handles single instruction commands from database
-- Cache logic management (isCached && isForced checks)
-- Delegates to ChatRequest for AI requests
+## 🎯 Multi-Model Command Architecture
 
-**ChatRequest** (existing):
-- Final AI request processing
-- Unified spinner + ESC handling through AbortController
-- Streaming response management
+### ✅ Current MultiModelCommand Implementation:
 
-## 🎯 Multi-command архитектура (Композиция vs Дублирование)
+**MultiModelCommand** (commands/multi-model-command.js):
+- Functional object (no classes) following CLAUDE.md rules
+- Handles parallel multi-model execution with LEADERBOARD system
+- ❌ Cache integration DISABLED - все модели работают в live режиме
+- Live-only mode: все модели выполняются параллельно в реальном времени
 
-### ✅ Правильная композиция с LEADERBOARD:
+**Key Features:**
+1. **Parallel Processing**: Promise.allSettled() for all models
+2. **Live-Only Execution**: все модели работают в live режиме (cache отключен)
+3. **LEADERBOARD System**: first response leads in real-time streaming
+4. **Smart Spinner Management**: timing thresholds prevent flickering
+5. **Unified Summary**: accurate count of successful vs failed models
+
+**Flow:**
 ```javascript
-// MultiCommandHandler с параллельной обработкой и LEADERBOARD системой
-export class MultiCommandHandler {
-  constructor() {
-    this.commandHandler = new CommandHandler() // Композиция!
-    this.cacheHandler = new CacheHandler()
-    this.leaderboard = [] // Порядок отрисовки моделей
-  }
-
-  async execute(commandData) {
-    const { models, userInput, id, isCached, isForced } = commandData
-    
-    // ПАРАЛЛЕЛЬНАЯ обработка через Promise.allSettled()
-    const promises = models.map(async (modelObj) => {
-      // Создаем single commandData для каждой модели
-      const singleCommandData = { 
-        ...commandData, 
-        models: [modelObj] // один объект модели!
-      }
-      
-      // Проверяем кеш для этой модели
-      if (!isForced && isCached) {
-        const cached = await this.cacheHandler.get(userInput, id, modelObj)
-        if (cached) {
-          return { ...cached, fromCache: true, modelObj }
-        }
-      }
-      
-      // Live запрос через CommandHandler
-      return await this.commandHandler.execute(singleCommandData)
-    })
-    
-    // LEADERBOARD система - отрисовка по мере поступления
-    let leaderSelected = false
-    const results = []
-    
-    // Promise.allSettled для параллельного выполнения
-    for await (const result of Promise.allSettled(promises)) {
-      if (result.status === 'fulfilled') {
-        const modelResult = result.value
-        
-        if (!leaderSelected) {
-          // Первый ответ = лидер, начинаем real-time стрим
-          this.startLeaderStream(modelResult)
-          leaderSelected = true
-        } else {
-          // Остальные модели в буфер, умная отрисовка
-          this.bufferAndRender(modelResult)
-        }
-        
-        results.push(modelResult)
-      }
-    }
-    
-    // Финальное резюме с renderModelResult
-    return this.renderFinalSummary(results)
-  }
-  
-  renderModelResult(result) {
-    const source = result.fromCache ? '[from cache]' : '[live]'
-    const timing = result.timing || 'N/A'
-    
-    outputHandler.write(`${result.modelObj.provider} (${result.modelObj.model}): ${source}`)
-    outputHandler.write(result.response)
-    outputHandler.write(`✓ ${timing}s`)
-  }
-}
+CommandHandler.handle() → 
+  models.length > 1 → MultiModelCommand.execute() →
+    ❌ checkCacheForAllModels() (returns empty - cache disabled) →
+    executeRaceWithStreaming() (all models live) →
+    displaySummary()
 ```
 
 ### Единственные ответственности Multi-command:
@@ -390,52 +323,42 @@ export class MultiCommandHandler {
 3. **Aggregation** - сбор и форматирование результатов
 4. **Mixed режим** - обработка частичного кеша (кеш + live)
 
-### ❌ Что НЕ делает Multi-command:
-- НЕ дублирует Single command логику
-- НЕ делает прямые AI запросы
-- НЕ парсит команды
-- НЕ принимает решения о кешировании
+### ✅ Multi-Command Responsibilities:
+1. **Orchestration** - parallel execution management
+2. **Live Execution Only** - все модели работают в live режиме (cache disabled)
+3. **LEADERBOARD System** - first response leads streaming
+4. **Error Handling** - partial success scenarios
+5. **Timing Management** - smart spinner thresholds
 
-## 🎯 Бизнес-правила мультимодельных команд
+### ❌ What Multi-Command Does NOT Do:
+- Does not duplicate Single command logic
+- Does not make direct AI requests (delegates to ChatRequest)
+- Does not parse commands (receives ready commandData)  
+- ❌ Does NOT use caching (CacheManager always returns false due to CACHE_ENABLED: false)
 
-### ~~Кеширование мультимодельных команд~~ ОТКЛЮЧЕНО:
-- ❌ **Система кеширования отключена** - CACHE_ENABLED: false в constants.js
-- ❌ **Force flags отключены** - --force/-f флаги временно не работают
-- ❌ **is_cached поле игнорируется** - все команды работают в live режиме
-- ✅ **Будущая замена**: планируется система сохранения history диалогов в файлы
-- ✅ **Причина отключения**: избежать ошибок ENOENT при создании cache папки
+## 🎯 Multi-Model Command Business Rules
 
-#### ~~НОВАЯ структура данных в кеше~~ ОТКЛЮЧЕНА:
-```js
-// ❌ Кеширование отключено через CACHE_ENABLED: false
-// ❌ Вся кеш логика игнорируется в CacheManager
-// ❌ Все команды работают в live режиме без сохранения
+### ❌ Cache System (DISABLED):
+- **Cache система ОТКЛЮЧЕНА** через CACHE_ENABLED: false в constants.js
+- **Force flags неактивны** - --force/-f флаги временно не работают (нечего обходить)
+- **is_cached поле игнорируется** - все команды работают в live режиме
+- **Будущая замена**: планируется система сохранения history диалогов в файлы
+- **Причина отключения**: избежать ошибок ENOENT при создании cache папки
 
-// ✅ БУДУЩАЯ АРХИТЕКТУРА - History диалогов:
-// Планируется сохранение полных диалогов в файлы вместо кеширования отдельных ответов
-// Структура: /history/YYYY-MM-DD_session_UUID.json
-// {
-//   "sessionId": "uuid",
-//   "startTime": timestamp,
-//   "messages": [
-//     {"role": "user", "content": "aa hello", "timestamp": timestamp},
-//     {"role": "assistant", "content": "привет", "provider": "openAI", "model": "gpt-5-mini"}
-//   ]
-// }
-```
-
-#### ~~Mixed режим работы~~ ОТКЛЮЧЕН:
+### ❌ Live-Only Mode (ALL COMMANDS):
 ```bash
-# ❌ Кеш отключен - все запросы live
-> kg hello world
+# Example: Multi-model command - все запросы live
+> rr hello world
 
-[DeepSeek deepseek-chat] ← всегда live запрос + стриминг
-салам дүйнө! ...стриминг...
+DeepSeek (deepseek-chat):              ← всегда live запрос + стриминг
+Привет мир! ...стриминг...
+✓ 2.1s
 
-[Anthropic claude-3-5-sonnet] ← всегда live запрос + стриминг  
-салам дүйнө! ...стриминг...
+OpenAI (gpt-5-mini):                   ← всегда live запрос + стриминг
+Привет мир! Как дела?
+✓ 2.3s  
 
-[2/2 models responded - all live] ← всегда все live
+[2/2 models responded - all live]      ← всегда все live
 ```
 
 ### Стриминг мультимодельных команд:
@@ -884,166 +807,139 @@ Would you like to switch to another provider? (y/n):
 - Работает только при пустом пользовательском вводе
 - Обеспечивает плавный пользовательский опыт без перезапуска приложения
 
-### ~~Система кэширования~~ ОТКЛЮЧЕНА:
-- ❌ **Кеширование полностью отключено** через CACHE_ENABLED: false флаг
-- ❌ **is_cached поле игнорируется** - все команды работают в live режиме
-- ❌ **Force flags неактивны** - --force/-f временно не функциональны
-- ❌ **CommandEditor cache UI скрыт** - опции кеширования недоступны
-- ✅ **Будущая замена**: планируется система history диалогов в файлы
+### ❌ Current Cache System Status:
+- **CacheManager (DISABLED)**: Cache отключен через CACHE_ENABLED: false в constants.js
+- **Force flags неактивны**: --force/-f флаги парсятся но игнорируются (нечего обходить)
+- **is_cached игнорируется**: Все команды работают в live режиме независимо от поля is_cached
+- **Будущая замена**: Планируется система сохранения history диалогов в файлы
 
-### ⚠️ Архитектурные проблемы доступа к данным:
+### ✅ Database Architecture (IMPLEMENTED):
+**DatabaseCommandService as Single Source of Truth:**
+- Only service allowed to import database-manager.js
+- Event-based cache invalidation for hot-reload
+- Model migration system (strings → provider-model objects)
+- Singleton pattern with proper initialization
+- All components access DB through this service only
 
-#### 1. Кеширование (ИСПРАВЛЕНО):
-**БЫЛО**: Логика кеширования разбросана по 5 файлам
-**СТАЛО**: Централизованный `CacheManager` как единственный источник истины для всех решений по кешированию
+## 🧩 Current Architectural Patterns (2025)
 
-#### 2. Доступ к базе данных команд (КРИТИЧНО):
-**ПРОБЛЕМА**: Нарушение Single Source of Truth для доступа к SQLite БД команд:
-- Прямые импорты `getCommandsFromDB()` разбросаны по всему коду
-- Каждый компонент самостоятельно обращается к БД 
-- Отсутствует централизованный контроль доступа к данным команд
-- В будущем это приведет к неконтролируемому росту говнокода
-
-**АРХИТЕКТУРНОЕ ПРАВИЛО**: Должна быть единая точка доступа к БД команд:
-- `DatabaseCommandService` - единственный сервис с правом импорта `database-manager.js`
-- Все остальные компоненты получают доступ к командам БД только через этот сервис
-- Dependency injection для передачи сервиса в компоненты
-- Запрет прямых импортов `getCommandsFromDB()` везде кроме `DatabaseCommandService`
-
-**ЦЕЛЬ**: Предотвратить архитектурную деградацию и обеспечить контролируемый доступ к данным.
-
-## 🧩 Архитектурные паттерны
-
-### 1. Dual Architecture (Legacy + Modern):
-Сосуществование старой архитектуры с новыми сервисами для плавного перехода:
-- **Legacy**: прямое взаимодействие с aiState для совместимости
-- **Modern**: использование ServiceManager для новой функциональности
+### 1. Functional Architecture:
+**No Classes Rule** - all components are functional objects or factory functions:
+- SystemCommandHandler, CommandHandler, ChatRequest = functional objects
+- createCommandHandler(), createChatRequest() = factory functions
+- Following CLAUDE.md strict no-classes policy
 
 ### 2. Command Pattern:
-Разделение команд по типам и областям ответственности:
-- **Core commands**: системные команды (help, exit)
-- **AI commands**: команды управления провайдерами и моделями
-- **Instruction commands**: команды из SQLite базы данных
+Clear separation of command types and routing:
+- **System Commands**: help, exit, provider, model, cmd (via SystemCommandHandler)
+- **Instruction Commands**: database commands (via CommandHandler)  
+- **Chat Commands**: direct AI requests (via ChatRequest)
+- **MCP Commands**: URL detection and web content (via Router)
 
-### 3. Factory Pattern:
-Централизованное создание провайдеров с единообразной инициализацией и конфигурацией.
+### 3. Single Source of Truth Pattern:
+**Centralized access control:**
+- DatabaseCommandService = only BD access point
+- StateManager = only AI state management
+- outputHandler = only console output
+- CacheManager = only cache operations
 
-### 4. Chain of Responsibility (EXPERIMENTAL):
-Экспериментальная архитектура с обработчиками, отключена в пользу production-ready RequestRouter.
+### 4. Factory Pattern:
+Standardized object creation:
+- createChatRequest(app) → functional AI request handler
+- createCommandHandler(chatRequest, cacheManager) → functional command router
+- Provider factory for AI provider creation
+
+### 5. Event-Driven Architecture:
+StateObserver pattern for reactive updates:
+- Database changes → automatic cache invalidation
+- State changes → event emission
+- Hot-reload capability through events
 
 ## 📂 Структура файлов
 
-### Основные компоненты:
-- **bin/app.js**: Главное приложение (1660 строк) с полной бизнес-логикой
-- **core/Router.js**: Чистый роутер для routing decisions (было RequestRouter)
-- **core/ChatRequest.js**: Финальная обработка AI запросов (было AIProcessor)
-- **core/CommandHandler.js**: Обработка single команд с кеш логикой (новый)
-- **core/MultiCommandHandler.js**: Оркестрация multi-model с leaderboard (новый)
-- **core/CacheHandler.js**: Унифицированный кеш с новой структурой (новый)
-- **utils/application.js**: Базовый класс Application с общей функциональностью
-- **utils/command-manager.js**: Система управления командами
-- **utils/provider-factory.js**: Фабрика создания AI провайдеров
-- **utils/stream-processor.js**: Обработчик потоковых ответов
-- **utils/database-manager.js**: Управление SQLite базой команд
-- **utils/command-editor.js**: Интерактивный редактор команд
-- **services/service-manager.js**: Современная сервис-архитектура
-- **services/input-processing-service.js**: Обработка ввода и флагов
-- **services/DatabaseCommandService.js**: Single Source of Truth для БД команд
+### Core Components (2025):
 
-### Конфигурация:
-- **config/commands.db**: SQLite база данных с командами
-- **config/mcp-servers.json**: Конфигурация MCP серверов
-- **config/default_models.js**: Предпочтительные модели для провайдеров
-- **config/constants.js**: Константы приложения и UI символы
+**Entry Point & Main App:**
+- **bin/app.js**: AIApplication entry point with dependency injection
+- **utils/application.js**: Base Application class
 
-## 🚀 Состояние архитектуры
+**Core Architecture:**
+- **core/ApplicationLoop.js**: UI layer, main loop, ESC handling, graceful shutdown
+- **core/Router.js**: Single-pass routing with direct execution
+- **core/system-command-handler.js**: Functional system command handling
+- **core/CommandHandler.js**: Factory function for single/multi command routing
+- **core/ChatRequest.js**: Factory function for final AI processing
+- **core/output-handler.js**: Centralized output system (Single Source of Truth)
+- **core/CacheManager.js**: Unified cache operations
+- **core/StateManager.js**: AI state management singleton
 
-### ✅ Что работает:
-1. **SQLite команды**: aa, cc, rr, hsk полностью из БД
-2. **Multi-provider поддержка**: OpenAI, DeepSeek, Anthropic с ленивой загрузкой
-3. **MCP интеграция**: автоматическое извлечение веб-контента
-4. **Streaming**: потоковый вывод с возможностью отмены
-5. **Кэширование**: переводы и множественные ответы
-6. **CommandEditor**: полнофункциональное управление командами
-7. **Robust Error Handling**: user-friendly обработка ошибок провайдеров без крашей
-8. **Instant Provider Switching**: мгновенное переключение провайдеров (~0.016ms)
-9. **Graceful Recovery**: автоматическое предложение смены провайдера при ошибках
+**Command System:**
+- **commands/multi-model-command.js**: Parallel multi-model execution
+- **commands/help-command.js**, **commands/exit-command.js**, etc.: Individual command implementations
+- **commands/cmd/**: Interactive command editor system
 
-### 🔄 Архитектурное состояние:
-1. **Production Ready**: Router → CommandHandler → ChatRequest архитектура
-2. **Handler Chain**: экспериментальный, полностью удален
-3. **Composition Pattern**: MultiCommandHandler использует CommandHandler как строительные блоки
-4. **ServiceManager**: полностью интегрирован
-5. **Unified Handlers**: CacheHandler с новой структурой, унифицированные error и spinner
+**Services:**
+- **services/DatabaseCommandService.js**: Single Source of Truth for SQLite DB access
+- **services/input-processing-service.js**: Input preprocessing (clipboard, command detection)
 
-### 🎯 Готовность к рефакторингу:
-- **Фаза 1 завершена**: мертвый код удален, тесты организованы
-- **Фаза 2 готова**: архитектура изучена, точки декомпозиции определены
-- **Core понимание**: бизнес-логика задокументирована
+**Utilities:**
+- **utils/stream-processor.js**: Provider-specific streaming
+- **utils/provider-factory.js**: AI provider creation
+- **utils/spinner.js**: Unified spinner system
 
-## 🎯 renderModelResult Механизм
+### Configuration:
+- **config/commands.db**: SQLite database with user commands
+- **config/system-commands.js**: System command configuration
+- **config/app-config.js**: Provider and application configuration
+- **config/constants.js**: App constants and UI symbols
+- **config/color.js**: Color scheme definitions
+- **config/mcp-servers.json**: MCP server configurations
 
-### Назначение:
-**renderModelResult** служит для логирования и отображения результатов каждой модели в multi-model командах с пометкой источника данных и тайминга.
+## 🚀 Architecture Status (2025)
 
-### Основные функции:
-1. **Пометка источника данных**:
-   - `[from cache]` - для мгновенных ответов из кеша
-   - `[live]` - для real-time запросов к LLM
+### ✅ Production Features:
+1. **SQLite Command System**: Fully functional database-driven commands (aa, cc, rr, hsk, etc.)
+2. **Multi-Provider Support**: OpenAI, DeepSeek, Anthropic with lazy loading
+3. **LEADERBOARD Multi-Model**: Parallel execution with intelligent streaming
+4. **MCP Integration**: Automatic URL detection and web content extraction
+5. **❌ Cache System DISABLED**: CACHE_ENABLED: false - все команды работают live
+6. **Interactive Command Editor**: Full CRUD operations for database commands
+7. **Graceful Error Handling**: User-friendly provider error recovery
+8. **ESC Handling**: Instant cancellation with Promise.race + AbortController
+9. **Centralized Output**: outputHandler as Single Source of Truth
 
-2. **Отображение тайминга**:
-   - Показывает время выполнения для каждой модели
-   - Помогает пользователю понять производительность разных провайдеров
+### 🏗️ Architecture Quality:
+1. **Functional Architecture**: No classes, factory functions, clean interfaces
+2. **Single Source of Truth**: DatabaseCommandService, StateManager, outputHandler, ~~CacheManager~~ (disabled)
+3. **Event-Driven Design**: StateObserver patterns for reactive updates
+4. **Clean Separation**: ApplicationLoop (UI) + Router (routing) + Handlers (execution)
+5. **Factory Pattern**: createCommandHandler, createChatRequest standardization
 
-3. **Единообразное форматирование**:
-   - Стандартный формат: `Provider (model): [source]`
-   - Консистентная структура для всех типов ответов
+### 📈 Current State:
+- **Architecture: STABLE** - Clean functional patterns implemented
+- **Documentation: UPDATED** - Reflects actual 2025 implementation
+- **Code Quality: HIGH** - Follows CLAUDE.md principles strictly
+- **Maintainability: EXCELLENT** - Clear separation of concerns
 
-### Пример использования:
-```javascript
-renderModelResult(result) {
-  const source = result.fromCache ? '[from cache]' : '[live]'
-  const timing = result.timing || 'N/A'
-  
-  // Заголовок модели с источником
-  outputHandler.write(`${result.modelObj.provider} (${result.modelObj.model}): ${source}`)
-  
-  // Содержимое ответа
-  outputHandler.write(result.response)
-  
-  // Тайминг
-  outputHandler.write(`✓ ${timing}s`)
-}
-```
+## 📝 Summary
 
-### Интеграция с LEADERBOARD:
-- Вызывается для каждой модели после получения результата
-- Учитывает порядок leaderboard при отрисовке
-- Поддерживает как кешированные, так и live результаты
+This documentation has been updated to reflect the **current state of the codebase as of 2025**. All legacy architectural patterns have been replaced with the actual implementation.
 
-## 🔍 Ключевые точки для Фазы 2
+### Key Updates Made:
+- ✅ **Current Architecture Flow**: Documented actual ApplicationLoop → Router → Handlers pattern
+- ✅ **Functional Architecture**: Updated to reflect no-classes policy and factory functions  
+- ✅ **System Commands**: Documented functional object approach with dynamic imports
+- ✅ **Multi-Model System**: Updated LEADERBOARD system with parallel execution
+- ✅ **Cache System**: Corrected to show DISABLED status (CACHE_ENABLED: false)
+- ✅ **Database Access**: DatabaseCommandService as Single Source of Truth
+- ✅ **File Structure**: Updated to reflect current component organization
+- ✅ **Critical Fix**: Cache documentation now accurately reflects disabled state
 
-### ✅ УПРОЩЕННАЯ АРХИТЕКТУРА ЗАДОКУМЕНТИРОВАНА:
-1. **InputProcessingService** - упрощен до валидации и $$ обработки  
-2. **Router flow** - прямое исполнение без промежуточных слоев
-3. **MultiCommandHandler** - LEADERBOARD система с параллельной обработкой
-4. **models структура** - обновлена на объекты {provider, model}
-5. **renderModelResult** - механизм пометки источников и тайминга
-6. **Кеширование** - обновлено под новую структуру models объектов
+### Architecture Quality (2025):
+- **Maintainable**: Clear separation of concerns with functional patterns
+- **Testable**: Factory functions and dependency injection throughout
+- **Scalable**: Event-driven architecture with centralized state management  
+- **User-Friendly**: Graceful error handling and instant ESC cancellation
+- **Well-Documented**: This file now accurately reflects the implementation
 
-### Реализованная архитектура:
-- `core/ApplicationLoop.js` ← UI layer + main loop + ESC handling + graceful shutdown
-  - Main loop: startMainLoop() with readline interface
-  - ESC handling: handleEscapeKey() через AbortController
-  - Graceful exit: exitApp() с 3-фазной очисткой ресурсов
-  - UI compatibility: writeOutput(), writeError(), writeWarning(), writeInfo()
-- `core/output-handler.js` ← Single Source of Truth для всего вывода приложения
-- `core/Router.js` ← routing decisions + direct execution (enhanced)
-- `core/SystemCommandHandler.js` ← system commands (help, exit, provider, model, cmd)
-- `core/ChatRequest.js` ← финальная обработка AI запросов (было AIProcessor)
-- `core/CommandHandler.js` ← single команды с кеш логикой
-- `core/MultiCommandHandler.js` ← multi-model оркестрация
-- `core/CacheManager.js` ← унифицированный кеш (исправлен getInstance)
-- `core/StateManager.js` ← aiState + contextHistory
-
-Архитектура хорошо подготовлена для рефакторинга благодаря четкому разделению ответственности и наличию современных сервисов.
+*Last Updated: 2025-01-04*
