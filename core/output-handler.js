@@ -22,7 +22,9 @@ export const outputHandler = {
    * Main output method - for normal text with newline
    */
   write: (text) => {
-    if (globalAbortSignal && globalAbortSignal.aborted) return
+    if (globalAbortSignal && globalAbortSignal.aborted) {
+      return
+    }
     if (text) {
       target.write(text + '\n')
     }

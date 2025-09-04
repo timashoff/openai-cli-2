@@ -125,7 +125,8 @@ export const HelpCommand = {
       output += `${color.white}Force Request:${color.reset} Add '${color.yellow}--force${color.reset}' or '${color.yellow}-f${color.reset}' to bypass cache\n`
       output += `  ${color.grey}Example: gg how are you? --force${color.reset}\n`
 
-      return output
+      process.stdout.write(output + '\n')
+      return null
 
     } catch (error) {
       return `${color.red}Error: Failed to show help - ${error.message}${color.reset}`

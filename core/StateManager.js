@@ -420,6 +420,28 @@ function createStateManager() {
     })
   }
 
+  /**
+   * Clear all operations and reset state after errors/cancellation
+   */
+  function clearAllOperations() {
+    // Clear all request and operation state
+    clearRequestState()
+    
+    // Reset operation flags
+    operationState.isProcessingRequest = false
+    operationState.isTypingResponse = false
+    operationState.isRetryingProvider = false
+    operationState.shouldReturnToPrompt = false
+    
+    // Notify listeners - DatabaseCommandService should listen to this event
+    // and handle its own cache invalidation (Single Source of Truth principle)
+    notifyListeners('all-operations-cleared', {
+      timestamp: Date.now()
+    })
+    
+    logger.debug('StateManager: All operations cleared and state reset')
+  }
+
   // === Context Management ===
 
   /**
@@ -672,6 +694,7 @@ function createStateManager() {
     getCurrentRequestController,
     getCurrentStreamProcessor,
     clearRequestController,
+    clearAllOperations,
 
     // Context management
     addToContext,

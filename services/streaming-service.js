@@ -369,9 +369,8 @@ export class StreamingService extends BaseService {
    * Setup event listeners for service communication
    */
   setupEventListeners() {
-    this.eventBus?.on('keyboard:escape', () => {
-      this.stopCurrentStream('escape_key')
-    })
+    // ESC handling removed - ApplicationLoop is Single Source of Truth for ESC
+    // StreamingService will be stopped via AbortController, not direct event listening
 
     this.eventBus?.on('application:shutdown', () => {
       this.stopAllStreams()

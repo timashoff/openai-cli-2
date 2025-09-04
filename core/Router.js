@@ -11,12 +11,12 @@ export class Router {
   constructor(dependencies = {}) {
     // Initialize CommandProcessingService (Single Source of Truth for commands)
     this.commandProcessingService = dependencies.commandProcessingService || new InputProcessingService()
-    
+
     // Handler dependencies (injected from app)
     this.systemCommandHandler = dependencies.systemCommandHandler || systemCommandHandler
     this.commandHandler = dependencies.commandHandler || null
     this.chatRequest = dependencies.chatRequest || null
-    
+
     // Request types
     this.REQUEST_TYPES = {
       SYSTEM: 'system',
@@ -25,17 +25,17 @@ export class Router {
       CHAT: 'chat'
     }
   }
-  
+
   /**
    * Initialize the router
    */
   async initialize() {
     // Initialize CommandProcessingService
     await this.commandProcessingService.initialize()
-    
+
     logger.debug('Router initialized - routing decisions only')
   }
-  
+
   /**
    * Route and process user input - DECISION + EXECUTION (ONE PASS)
    */
@@ -43,25 +43,18 @@ export class Router {
     try {
       // Single pass: analyze input and get all data needed (NO DUPLICATION)
       const analysis = await this.analyzeInput(input)
-      
+
       // Execute based on analysis type
       return await this.executeFromAnalysis(analysis, applicationLoop)
-      
+
     } catch (error) {
       logger.error('Route and process failed:', error)
-      
-      // Clean up state after error to prevent corruption
-      try {
-        applicationLoop.app.stateManager.clearAllOperations()
-      } catch (cleanupError) {
-        logger.error('State cleanup failed:', cleanupError)
-      }
-      
+
       applicationLoop.writeError(`Error: ${error.message}`)
       return null
     }
   }
-  
+
   /**
    * Execute command from analysis - SINGLE SOURCE OF TRUTH for data creation
    */
@@ -69,7 +62,7 @@ export class Router {
     switch (analysis.type) {
       case this.REQUEST_TYPES.SYSTEM:
         return await this.systemCommandHandler.handle(analysis.rawInput, applicationLoop)
-        
+
       case this.REQUEST_TYPES.INSTRUCTION:
         // Create data object - Single Source of Truth
         const instructionData = this.createData({
@@ -81,13 +74,13 @@ export class Router {
           isCached: analysis.instructionCommand.isCached,
           isForced: analysis.flags.isForced
         })
-        
+
         if (this.commandHandler) {
           return await this.commandHandler.handle(instructionData, applicationLoop.app)
         }
         // Fallback to direct ChatRequest
         return await this.chatRequest.processChatRequest(instructionData, applicationLoop)
-        
+
       case this.REQUEST_TYPES.CHAT:
       default:
         // Create data object - Single Source of Truth
@@ -101,7 +94,7 @@ export class Router {
         return await this.chatRequest.processChatRequest(chatData, applicationLoop)
     }
   }
-  
+
   /**
    * Create standardized data object - Single Source of Truth
    */
@@ -124,7 +117,7 @@ export class Router {
     const words = input.split(/\s+/)
     const flags = { isForced: false }
     const cleanWords = []
-    
+
     for (const word of words) {
       if (word === '--force' || word === '-f') {
         flags.isForced = true
@@ -132,10 +125,10 @@ export class Router {
         cleanWords.push(word)
       }
     }
-    
-    return { 
-      cleanInput: cleanWords.join(' '), 
-      flags 
+
+    return {
+      cleanInput: cleanWords.join(' '),
+      flags
     }
   }
 
@@ -144,13 +137,13 @@ export class Router {
    */
   async analyzeInput(input) {
     const trimmedInput = input.trim()
-    
+
     // Process clipboard markers FIRST (before any analysis)
     const processedInput = await this.commandProcessingService.processInput(trimmedInput)
-    
+
     // Parse flags and get clean input (NOTE: --force flags are disabled with cache)
     const { cleanInput, flags } = this.parseFlags(processedInput)
-    
+
     // 1. System commands first (PRIORITY)
     const commandName = cleanInput.split(' ')[0].toLowerCase()
     if (isSystemCommand(commandName)) {
@@ -161,7 +154,7 @@ export class Router {
         flags: flags
       }
     }
-    
+
     // 2. Instruction commands - ONE database search!
     const instructionCommand = await this.commandProcessingService.findInstructionCommand(cleanInput)
     if (instructionCommand && !instructionCommand.isInvalid) {
@@ -172,7 +165,7 @@ export class Router {
         flags: flags
       }
     }
-    
+
     // 3. MCP enhanced (URL detection)
     if (this.hasUrl(cleanInput)) {
       return {
@@ -181,7 +174,7 @@ export class Router {
         flags: flags
       }
     }
-    
+
     // 4. Default to chat
     return {
       type: this.REQUEST_TYPES.CHAT,
@@ -189,9 +182,7 @@ export class Router {
       flags: flags
     }
   }
-  
-  
-  
+
   /**
    * Get routing target based on command type - DECISION ONLY
    */
@@ -199,19 +190,19 @@ export class Router {
     switch (commandType) {
       case this.REQUEST_TYPES.SYSTEM:
         return 'system_command_handler'
-        
+
       case this.REQUEST_TYPES.INSTRUCTION:
         return 'instruction_processor'
-        
+
       case this.REQUEST_TYPES.MCP_ENHANCED:
         return 'mcp_processor'
-        
+
       case this.REQUEST_TYPES.CHAT:
       default:
         return 'ai_processor'
     }
   }
-  
+
   /**
    * Simple URL detection
    */
@@ -228,7 +219,7 @@ export class Router {
         }
       })
   }
-  
+
   /**
    * Get routing statistics
    */
@@ -239,4 +230,3 @@ export class Router {
     }
   }
 }
-
