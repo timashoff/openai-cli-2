@@ -2,7 +2,7 @@
 import { Application } from '../utils/application.js'
 import { color } from '../config/color.js'
 import { logger } from '../utils/logger.js'
-import { errorHandler } from '../utils/error-handler.js'
+import { errorHandler } from '../core/error-system/index.js'
 import { Router } from '../core/Router.js'
 import { ApplicationLoop } from '../core/ApplicationLoop.js'
 import { createChatRequest } from '../core/ChatRequest.js'

@@ -3,7 +3,7 @@
  * Handles all provider switching, model switching, and fallback logic
  */
 import { logger } from '../utils/logger.js'
-import { errorHandler } from '../utils/error-handler.js'
+import { errorHandler } from '../core/error-system/index.js'
 import { color } from '../config/color.js'
 
 export class ProviderSwitcher {

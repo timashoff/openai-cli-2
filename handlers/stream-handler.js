@@ -1,5 +1,5 @@
 import { BaseRequestHandler } from './base-handler.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { color } from '../config/color.js'
 import { getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
 import cacheManager from '../core/CacheManager.js'
@@ -148,7 +148,7 @@ export class StreamHandler extends BaseRequestHandler {
         return await this.processSingleStream(context)
         
       default:
-        throw new AppError(`Unknown processing strategy: ${strategy}`, true, 500)
+        throw new BaseError(`Unknown processing strategy: ${strategy}`, true, 500)
     }
   }
 
@@ -159,7 +159,7 @@ export class StreamHandler extends BaseRequestHandler {
    */
   async processMultiCommand(context) {
     if (!this.multiCommandProcessor) {
-      throw new AppError('Multi-command processor not available', true, 503)
+      throw new BaseError('Multi-command processor not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -246,7 +246,7 @@ export class StreamHandler extends BaseRequestHandler {
    */
   async processMultiProvider(context) {
     if (!this.multiCommandProcessor) {
-      throw new AppError('Multi-command processor not available', true, 503)
+      throw new BaseError('Multi-command processor not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -295,7 +295,7 @@ export class StreamHandler extends BaseRequestHandler {
    */
   async processDocument(context) {
     if (!this.multiCommandProcessor || !this.fileManager) {
-      throw new AppError('Document processing services not available', true, 503)
+      throw new BaseError('Document processing services not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -361,7 +361,7 @@ export class StreamHandler extends BaseRequestHandler {
    */
   async processSingleStream(context) {
     if (!this.providerService || !this.streamingService) {
-      throw new AppError('Streaming services not available', true, 503)
+      throw new BaseError('Streaming services not available', true, 503)
     }
     
     this.log('info', 'Processing single stream request')
@@ -370,7 +370,7 @@ export class StreamHandler extends BaseRequestHandler {
       // Get current provider
       const currentProvider = this.providerService.getCurrentProvider()
       if (!currentProvider || !currentProvider.provider) {
-        throw new AppError('No AI provider available', true, 503)
+        throw new BaseError('No AI provider available', true, 503)
       }
       
       // Prepare messages
@@ -699,7 +699,7 @@ export class StreamHandler extends BaseRequestHandler {
    */
   async processMultiCommandUncached(context) {
     if (!this.multiCommandProcessor) {
-      throw new AppError('Multi-command processor not available', true, 503)
+      throw new BaseError('Multi-command processor not available', true, 503)
     }
     
     const uncachedModels = context.uncachedModels || context.routingResult?.uncachedModels

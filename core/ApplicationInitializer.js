@@ -15,7 +15,7 @@ import { searchMCPServer } from '../utils/search-mcp-server.js'
 import { readFile } from 'node:fs/promises'
 import { color } from '../config/color.js'
 import { logger } from '../utils/logger.js'
-import { errorHandler } from '../utils/error-handler.js'
+import { errorHandler } from './error-system/index.js'
 
 // Legacy Phase 2 Commands - no longer used in current architecture
 // Current architecture uses CommandRouter, ProviderSwitcher, AIProcessor, CLIManager

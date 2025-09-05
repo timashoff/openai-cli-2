@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { spawn } from 'node:child_process'
 import { logger } from './logger.js'
-import { errorHandler } from './error-handler.js'
+import { errorHandler } from '../core/error-system/index.js'
 
 /**
  * MCP Manager for handling server lifecycle and client connections

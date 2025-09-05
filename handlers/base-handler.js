@@ -1,4 +1,4 @@
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 
 /**
  * Request processing context
@@ -41,7 +41,7 @@ export class BaseRequestHandler {
    */
   setNext(handler) {
     if (!(handler instanceof BaseRequestHandler)) {
-      throw new AppError('Handler must extend BaseRequestHandler', true, 400)
+      throw new BaseError('Handler must extend BaseRequestHandler', true, 400)
     }
     
     this.nextHandler = handler
@@ -251,14 +251,14 @@ export class BaseRequestHandler {
    */
   validateContext(context) {
     if (!context) {
-      throw new AppError('Processing context is required', true, 400)
+      throw new BaseError('Processing context is required', true, 400)
     }
     
     const required = ['originalInput', 'processedInput', 'services']
     const missing = required.filter(field => context[field] === undefined)
     
     if (missing.length > 0) {
-      throw new AppError(`Missing required context fields: ${missing.join(', ')}`, true, 400)
+      throw new BaseError(`Missing required context fields: ${missing.join(', ')}`, true, 400)
     }
   }
 

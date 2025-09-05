@@ -1,7 +1,6 @@
 import { createContainer, ServiceLifetime } from '../utils/di-container.js'
 import { createEventBus } from '../utils/event-bus.js'
-import { createErrorBoundary } from '../utils/error-boundary.js'
-import { AppError } from '../utils/error-handler.js'
+import { errorBoundary, BaseError } from '../core/error-system/index.js'
 
 // Import all service classes
 import { BaseService } from './base-service.js'
@@ -71,7 +70,7 @@ export class ServiceRegistry {
       
     } catch (error) {
       console.error('✗ ServiceRegistry initialization failed:', error.message)
-      throw new AppError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
+      throw new BaseError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
     }
   }
 
@@ -81,7 +80,7 @@ export class ServiceRegistry {
    */
   async start() {
     if (!this.isInitialized) {
-      throw new AppError('ServiceRegistry must be initialized before starting', true, 500)
+      throw new BaseError('ServiceRegistry must be initialized before starting', true, 500)
     }
 
     if (this.isStarted) {
@@ -119,7 +118,7 @@ export class ServiceRegistry {
     } catch (error) {
       console.error('✗ Service startup failed:', error.message)
       await this.shutdown() // Cleanup on failure
-      throw new AppError(`Service startup failed: ${error.message}`, true, 500)
+      throw new BaseError(`Service startup failed: ${error.message}`, true, 500)
     }
   }
 
@@ -306,12 +305,7 @@ export class ServiceRegistry {
     this.container.registerInstance('IEventBus', eventBus)
     console.log('    ✓ Registered IEventBus')
 
-    // Register ErrorBoundary (special case)
-    const errorBoundary = createErrorBoundary({
-      eventBus: eventBus,
-      logger: console, // Will be replaced with structured logger later
-      config: null
-    })
+    // Register ErrorBoundary (global instance)
     this.container.registerInstance('IErrorBoundary', errorBoundary)
     console.log('    ✓ Registered IErrorBoundary')
 
@@ -394,7 +388,7 @@ export class ServiceRegistry {
     const visit = (serviceName) => {
       if (visited.has(serviceName)) return
       if (visiting.has(serviceName)) {
-        throw new AppError(`Circular dependency detected involving ${serviceName}`, true, 500)
+        throw new BaseError(`Circular dependency detected involving ${serviceName}`, true, 500)
       }
       
       visiting.add(serviceName)
@@ -437,7 +431,7 @@ export class ServiceRegistry {
    */
   addService(serviceName, config) {
     if (this.isStarted) {
-      throw new AppError('Cannot add services after registry has started', true, 400)
+      throw new BaseError('Cannot add services after registry has started', true, 400)
     }
     
     this.serviceConfigs.set(serviceName, config)
@@ -451,7 +445,7 @@ export class ServiceRegistry {
    */
   removeService(serviceName) {
     if (this.isStarted) {
-      throw new AppError('Cannot remove services after registry has started', true, 400)
+      throw new BaseError('Cannot remove services after registry has started', true, 400)
     }
     
     return this.serviceConfigs.delete(serviceName)

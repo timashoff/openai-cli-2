@@ -8,7 +8,7 @@ import { configManager } from '../config/config-manager.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
 import cache from '../utils/cache.js'
 import { createSpinner } from '../utils/spinner.js'
-import { unifiedErrorHandler } from '../utils/unified-error-handler.js'
+import { errorHandler } from './error-system/index.js'
 import { outputHandler } from './output-handler.js'
 
 export function createChatRequest(app) {
@@ -34,7 +34,7 @@ export function createChatRequest(app) {
       return await handleChatRequest(data.content, cliManager, providerModel)
 
     } catch (error) {
-      unifiedErrorHandler.handleAndDisplayError(error, cliManager, { component: 'ChatRequest' })
+      errorHandler.handleError(error, { component: 'ChatRequest' })
       throw error
     }
   }
@@ -105,7 +105,7 @@ export function createChatRequest(app) {
         await streamProcessor.processStream(stream, controller.signal, chunkHandler)
       } catch (streamError) {
         // Handle stream-specific abort errors using unified handler
-        const processedError = unifiedErrorHandler.processError(streamError, { component: 'StreamProcessor' })
+        const processedError = errorHandler.processError(streamError, { component: 'StreamProcessor' })
         if (!processedError.shouldDisplay) {
           return // Silent abort - no error message
         }
@@ -133,11 +133,11 @@ export function createChatRequest(app) {
       }
 
       // Real errors need to be shown to user
-      const processedError = unifiedErrorHandler.processError(error, { component: 'ChatRequest' })
+      const processedError = errorHandler.processError(error, { component: 'ChatRequest' })
       if (spinner.isActive()) {
         spinner.stop('error')
       }
-      unifiedErrorHandler.displayError(processedError, cliManager)
+      errorHandler.displayError(processedError)
     } finally {
       // Cleanup: dispose spinner only
       // Processing state will be cleared by ApplicationLoop

@@ -5,7 +5,7 @@
  */
 import { databaseCommandService } from '../services/DatabaseCommandService.js'
 import { logger } from '../utils/logger.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 
 /**
  * Command entity structure
@@ -88,7 +88,7 @@ export class CommandRepository {
       logger.error(
         `CommandRepository: Failed to get all commands: ${error.message}`,
       )
-      throw new AppError(
+      throw new BaseError(
         `Failed to retrieve commands: ${error.message}`,
         false,
         500,
@@ -106,7 +106,7 @@ export class CommandRepository {
     const { useCache = this.cacheEnabled } = options
 
     if (!id || typeof id !== 'string') {
-      throw new AppError('Command ID must be a non-empty string', true, 400)
+      throw new BaseError('Command ID must be a non-empty string', true, 400)
     }
 
     this.stats.totalQueries++
@@ -128,7 +128,7 @@ export class CommandRepository {
       logger.error(
         `CommandRepository: Failed to find command ${id}: ${error.message}`,
       )
-      throw new AppError(`Failed to find command: ${error.message}`, false, 500)
+      throw new BaseError(`Failed to find command: ${error.message}`, false, 500)
     }
   }
 
@@ -142,7 +142,7 @@ export class CommandRepository {
     const { exactMatch = true, useCache = this.cacheEnabled } = options
 
     if (!keyword || typeof keyword !== 'string') {
-      throw new AppError('Keyword must be a non-empty string', true, 400)
+      throw new BaseError('Keyword must be a non-empty string', true, 400)
     }
 
     this.stats.totalQueries++
@@ -168,7 +168,7 @@ export class CommandRepository {
       logger.error(
         `CommandRepository: Failed to find command by keyword '${keyword}': ${error.message}`,
       )
-      throw new AppError(
+      throw new BaseError(
         `Failed to search commands: ${error.message}`,
         false,
         500,
@@ -245,7 +245,7 @@ export class CommandRepository {
     } catch (error) {
       this.stats.errors++
       logger.error(`CommandRepository: Search failed: ${error.message}`)
-      throw new AppError(
+      throw new BaseError(
         `Failed to search commands: ${error.message}`,
         false,
         500,
@@ -291,7 +291,7 @@ export class CommandRepository {
       logger.error(
         `CommandRepository: Failed to save command ${id}: ${error.message}`,
       )
-      throw new AppError(`Failed to save command: ${error.message}`, false, 500)
+      throw new BaseError(`Failed to save command: ${error.message}`, false, 500)
     }
   }
 
@@ -302,7 +302,7 @@ export class CommandRepository {
    */
   async delete(id) {
     if (!id || typeof id !== 'string') {
-      throw new AppError('Command ID must be a non-empty string', true, 400)
+      throw new BaseError('Command ID must be a non-empty string', true, 400)
     }
 
     try {
@@ -320,7 +320,7 @@ export class CommandRepository {
       logger.error(
         `CommandRepository: Failed to delete command ${id}: ${error.message}`,
       )
-      throw new AppError(
+      throw new BaseError(
         `Failed to delete command: ${error.message}`,
         false,
         500,
@@ -335,7 +335,7 @@ export class CommandRepository {
    */
   async migrateFromInstructions(instructions) {
     if (!instructions || typeof instructions !== 'object') {
-      throw new AppError('Instructions must be an object', true, 400)
+      throw new BaseError('Instructions must be an object', true, 400)
     }
 
     try {
@@ -351,7 +351,7 @@ export class CommandRepository {
     } catch (error) {
       this.stats.errors++
       logger.error(`CommandRepository: Migration failed: ${error.message}`)
-      throw new AppError(
+      throw new BaseError(
         `Failed to migrate commands: ${error.message}`,
         false,
         500,

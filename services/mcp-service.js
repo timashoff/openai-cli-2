@@ -1,5 +1,5 @@
 import { BaseService } from './base-service.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 
 /**
  * MCP operation types
@@ -304,7 +304,7 @@ export class MCPService extends BaseService {
         // Use MCP manager for external servers
         result = await this.mcpManager.callTool(serverName, toolName, args)
       } else {
-        throw new AppError(`MCP server not available: ${serverName}`, true, 503)
+        throw new BaseError(`MCP server not available: ${serverName}`, true, 503)
       }
       
       // Record successful operation
@@ -314,7 +314,7 @@ export class MCPService extends BaseService {
       
     } catch (error) {
       this.log('error', `MCP call failed: ${serverName}/${toolName} - ${error.message}`)
-      throw new AppError(`MCP operation failed: ${error.message}`, true, 500)
+      throw new BaseError(`MCP operation failed: ${error.message}`, true, 500)
     }
   }
 

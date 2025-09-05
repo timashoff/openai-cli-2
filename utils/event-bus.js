@@ -1,4 +1,4 @@
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 
 /**
@@ -60,7 +60,7 @@ export class EventBus {
     
     // Check max listeners limit
     if (subscribers.length >= this.maxListeners) {
-      throw new AppError(
+      throw new BaseError(
         `Maximum listeners (${this.maxListeners}) exceeded for event '${eventName}'`,
         true,
         429
@@ -144,7 +144,7 @@ export class EventBus {
    */
   async emit(eventName, data = null, options = {}) {
     if (this.isDisposed) {
-      throw new AppError('Cannot emit events on disposed EventBus', true, 500)
+      throw new BaseError('Cannot emit events on disposed EventBus', true, 500)
     }
 
     this.validateEventName(eventName)
@@ -199,7 +199,7 @@ export class EventBus {
    */
   use(middlewareFunc) {
     if (typeof middlewareFunc !== 'function') {
-      throw new AppError('Middleware must be a function', true, 400)
+      throw new BaseError('Middleware must be a function', true, 400)
     }
     this.middleware.push(middlewareFunc)
   }
@@ -248,7 +248,7 @@ export class EventBus {
    */
   setMaxListeners(max) {
     if (typeof max !== 'number' || max < 0) {
-      throw new AppError('Max listeners must be a non-negative number', true, 400)
+      throw new BaseError('Max listeners must be a non-negative number', true, 400)
     }
     this.maxListeners = max
   }
@@ -360,7 +360,7 @@ export class EventBus {
     this.validateEventName(eventName)
     
     if (typeof handler !== 'function') {
-      throw new AppError('Event handler must be a function', true, 400)
+      throw new BaseError('Event handler must be a function', true, 400)
     }
   }
 
@@ -370,7 +370,7 @@ export class EventBus {
    */
   validateEventName(eventName) {
     if (!eventName || typeof eventName !== 'string' || eventName.trim() === '') {
-      throw new AppError('Event name must be a non-empty string', true, 400)
+      throw new BaseError('Event name must be a non-empty string', true, 400)
     }
   }
 }

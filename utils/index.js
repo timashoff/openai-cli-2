@@ -9,7 +9,7 @@ import cache from './cache.js'
 // import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
 import { getAllSystemCommands } from './autocomplete.js'
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { sanitizeString } from './validation.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 
@@ -41,7 +41,7 @@ const getClipboardContent = async () => {
 
     // Validate clipboard content size
     if (clipboardContent.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
-      throw new AppError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
+      throw new BaseError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
     }
 
     // Return sanitized content
@@ -54,7 +54,7 @@ const getClipboardContent = async () => {
       return ''
     }
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('Clipboard operation timed out', true, 408)
+      throw new BaseError('Clipboard operation timed out', true, 408)
     }
     throw error
   }
@@ -69,7 +69,7 @@ const openInBrowser = async (url) => {
 
   // Validate URL format
   if (!url || typeof url !== 'string') {
-    throw new AppError('Invalid URL provided', true, 400)
+    throw new BaseError('Invalid URL provided', true, 400)
   }
 
   // Add https:// if no protocol specified
@@ -100,9 +100,9 @@ const openInBrowser = async (url) => {
     return true
   } catch (error) {
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('Browser operation timed out', true, 408)
+      throw new BaseError('Browser operation timed out', true, 408)
     }
-    throw new AppError(`Failed to open browser: ${error.message}`, true, 500)
+    throw new BaseError(`Failed to open browser: ${error.message}`, true, 500)
   }
 }
 

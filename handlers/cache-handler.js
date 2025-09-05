@@ -1,5 +1,5 @@
 import { BaseRequestHandler } from './base-handler.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { color } from '../config/color.js'
 import cacheManager from '../core/CacheManager.js'
 

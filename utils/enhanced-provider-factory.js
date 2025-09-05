@@ -1,5 +1,5 @@
 import { BaseProvider, OpenAIProvider, AnthropicProvider } from './provider-factory.js'
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 import { validateObject } from './validation.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
@@ -82,7 +82,7 @@ export class EnhancedProviderFactory {
    */
   registerProviderFactory(type, factory) {
     if (!factory.class || typeof factory.class !== 'function') {
-      throw new AppError('Provider factory must have a class constructor', true, 400)
+      throw new BaseError('Provider factory must have a class constructor', true, 400)
     }
 
     this.providerRegistry.set(type, {
@@ -119,7 +119,7 @@ export class EnhancedProviderFactory {
   async _createProviderInstance(type, config, options = {}) {
     const factory = this.providerRegistry.get(type)
     if (!factory) {
-      throw new AppError(`Unknown provider type: ${type}`, true, 404)
+      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
     }
 
     // Merge default config with provided config
@@ -182,7 +182,7 @@ export class EnhancedProviderFactory {
       }
     } catch (error) {
       factory.stats.errors++
-      throw new AppError(`Failed to create provider ${type}: ${error.message}`, true, 500)
+      throw new BaseError(`Failed to create provider ${type}: ${error.message}`, true, 500)
     }
   }
 
@@ -193,7 +193,7 @@ export class EnhancedProviderFactory {
    */
   addMiddleware(phase, middleware) {
     if (typeof middleware !== 'function') {
-      throw new AppError('Middleware must be a function', true, 400)
+      throw new BaseError('Middleware must be a function', true, 400)
     }
 
     this.middleware.push({ phase, middleware })
@@ -207,7 +207,7 @@ export class EnhancedProviderFactory {
    */
   addPlugin(name, plugin) {
     if (typeof plugin.initialize !== 'function') {
-      throw new AppError('Plugin must have an initialize function', true, 400)
+      throw new BaseError('Plugin must have an initialize function', true, 400)
     }
 
     this.plugins.set(name, plugin)
