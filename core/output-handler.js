@@ -1,4 +1,5 @@
 import { color } from '../config/color.js'
+import { UI_SYMBOLS } from '../config/constants.js'
 
 /**
  * OutputHandler - Single source of truth for ALL application output
@@ -134,5 +135,25 @@ export const outputHandler = {
   /**
    * Format info message (for commands to return)
    */
-  formatInfo: (text) => `${color.cyan}${text}${color.reset}`
+  formatInfo: (text) => `${color.cyan}${text}${color.reset}`,
+
+  /**
+   * Display context history dots after LLM responses
+   * Shows number of dialogs (user+assistant pairs), not individual messages
+   */
+  writeContextDots(stateManager) {
+    const contextHistory = stateManager.getContextHistory()
+    if (contextHistory.length > 0) {
+      // Count dialogs: each pair of messages (user+assistant) = 1 dialog
+      const dialogCount = Math.floor(contextHistory.length / 2)
+      if (dialogCount > 0) {
+        // const dots = UI_SYMBOLS.DOT.repeat(dialogCount)
+        const braillerDots = UI_SYMBOLS.BRAILLE_DOTS
+        // this.write(`${color.yellow}${dots}${color.reset}`)
+        this.write(
+          `${color.yellow}${braillerDots[dialogCount - 1]}${color.reset}`,
+        )
+      }
+    }
+  },
 }

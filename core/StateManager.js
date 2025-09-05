@@ -6,6 +6,7 @@
 import { logger } from '../utils/logger.js'
 import { createProvider } from '../utils/provider-factory.js'
 import { APP_CONFIG } from '../config/app-config.js'
+import { APP_CONSTANTS } from '../config/constants.js'
 const PROVIDERS = APP_CONFIG.PROVIDERS
 
 function createStateManager() {
@@ -37,7 +38,7 @@ function createStateManager() {
   // Context and conversation history
   const contextState = {
     contextHistory: [],
-    maxContextHistory: 10 // Default, can be overridden from config
+    maxContextHistory: APP_CONSTANTS.MAX_CONTEXT_HISTORY
   }
 
   // User session data

@@ -123,6 +123,9 @@ export function createChatRequest(app) {
 
         stateManager.addToContext('user', input)
         stateManager.addToContext('assistant', fullResponse)
+
+        // Display context dots after response
+        outputHandler.writeContextDots(stateManager)
       }
 
     } catch (error) {

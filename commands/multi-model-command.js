@@ -55,6 +55,7 @@ export const multiModelCommand = {
         cachedModels.length,
         successfulLiveModels,
         commandData.models.length,
+        app.stateManager,
       )
     } catch (error) {
       logger.error(`MultiModelCommand: Execution failed: ${error.message}`)
@@ -209,6 +210,7 @@ export const multiModelCommand = {
       // Phase 2: EVENT-DRIVEN processing - NO MORE CPU WASTE!
       let successfulCount = 0
       let currentSpinner = null
+      let winnerCompleted = false
 
       // Process models as they complete using async iterator - NO TIGHT LOOPS!
       for await (const completion of this.processModelsEventDriven(
@@ -245,14 +247,19 @@ export const multiModelCommand = {
           successfulCount++
         }
 
+        // Track winner completion for proper spinner synchronization
+        if (result.isWinner) {
+          winnerCompleted = true
+        }
+
         // Calculate remaining models - same logic as before!
         const totalProcessed = modelResults.size
         const remainingCount = liveModels.length - totalProcessed
 
-        // Show spinner for remaining models (same behavior as before)
+        // Show spinner for remaining models (only after winner completes)
         if (
           remainingCount > 0 &&
-          globalWinnerFound &&
+          winnerCompleted &&
           !controller.signal.aborted
         ) {
           currentSpinner = createSpinner()
@@ -268,6 +275,14 @@ export const multiModelCommand = {
         currentSpinner.stop('success')
         currentSpinner.dispose()
         outputHandler.clearLine()
+      }
+
+      // Add context management for multi-model responses  
+      const successfulResults = Array.from(modelResults.values()).filter(r => r.success && r.response)
+      if (successfulResults.length > 0 && !controller.signal.aborted) {
+        const allResponses = successfulResults.map(r => r.response).join('\n\n')
+        stateManager.addToContext('user', commandData.content)
+        stateManager.addToContext('assistant', allResponses)
       }
 
       return successfulCount
@@ -454,11 +469,14 @@ export const multiModelCommand = {
   /**
    * Display final summary
    */
-  displaySummary(cachedCount, liveCount, totalCount) {
+  displaySummary(cachedCount, liveCount, totalCount, stateManager) {
     if (totalCount > 1) {
       outputHandler.writeNewline()
       const respondedCount = cachedCount + liveCount
       outputHandler.write(`[${respondedCount}/${totalCount} models responded]`)
+      
+      // Display context dots after multi-model response
+      outputHandler.writeContextDots(stateManager)
     }
   },
 }
