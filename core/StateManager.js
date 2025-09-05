@@ -123,7 +123,7 @@ function createStateManager() {
       }
 
     } catch (error) {
-      logger.error(`StateManager: Provider switch failed: ${error.message}`)
+      logger.debug(`StateManager: Provider switch failed: ${error.message}`)
       throw error
     }
   }
@@ -153,7 +153,7 @@ function createStateManager() {
       return targetModel
 
     } catch (error) {
-      logger.error(`StateManager: Model switch failed: ${error.message}`)
+      logger.debug(`StateManager: Model switch failed: ${error.message}`)
       throw error
     }
   }
@@ -626,7 +626,7 @@ function createStateManager() {
         if (options.signal.aborted) {
           throw error // User cancelled - don't log as error
         }
-        logger.error(`StateManager: Chat completion failed for current model ${aiState.currentModel}:`, error)
+        logger.debug(`StateManager: Chat completion failed for current model ${aiState.currentModel}:`, error)
         throw error
       }
     }
@@ -647,7 +647,7 @@ function createStateManager() {
       if (options.signal.aborted) {
         throw error // User cancelled - don't log as error
       }
-      logger.error(`StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`, error)
+      logger.debug(`StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`, error)
       throw error
     }
   }
