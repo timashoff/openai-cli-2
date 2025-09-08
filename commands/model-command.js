@@ -2,7 +2,7 @@
  * model-command.js - Model switching command
  * Functional approach with clean interfaces (NO CLASSES per CLAUDE.md!)
  */
-import { execModel } from '../utils/model/execModel.js'
+import { createNavigationMenu } from '../utils/interactive_menu_new.js'
 import { outputHandler } from '../core/output-handler.js'
 
 export const ModelCommand = {
@@ -53,25 +53,24 @@ export const ModelCommand = {
       }
 
       // Interactive model selection
-      const result = await execModel(
-        currentModel,
-        availableModels,
-        context.ui.readline
-      )
+      const modelNames = availableModels.map(m => typeof m === 'string' ? m : m.id)
+      const selectedIndex = await createNavigationMenu('Select Model:', modelNames, 0, context)
 
       // Handle user cancellation (ESC)
-      if (result.cancelled) {
+      if (selectedIndex === -1) {
         return null
       }
 
+      const selectedModel = modelNames[selectedIndex]
+
       // Check if user selected the same model
-      if (result.model === currentModel) {
+      if (selectedModel === currentModel) {
         return outputHandler.formatWarning(`Already using ${currentModel}`)
       }
 
       // Perform the switch through clean interface
-      await context.models.switch(result.model)
-      return outputHandler.formatSuccess(`Switched to ${result.model}`)
+      await context.models.switch(selectedModel)
+      return outputHandler.formatSuccess(`Switched to ${selectedModel}`)
 
     } catch (error) {
       return outputHandler.formatError(error.message)

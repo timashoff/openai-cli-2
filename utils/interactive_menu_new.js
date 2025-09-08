@@ -3,14 +3,16 @@ import { APP_CONSTANTS } from '../config/constants.js'
 import readline from 'node:readline'
 import { outputHandler } from '../core/output-handler.js'
 
-export async function createNavigationMenu(title, options, initialIndex = 0, context) {
+export async function createNavigationMenu(title, options, initialIndex = 0, context = null) {
   const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
   return new Promise((resolve) => {
     let selectedIndex = initialIndex
     let currentPage = Math.floor(initialIndex / pageSize)
 
     // Pause ApplicationLoop readline interface to avoid conflicts
-    context.ui.pauseReadline()
+    if (context && context.ui) {
+      context.ui.pauseReadline()
+    }
 
     // Setup readline for key handling - РАБОЧИЙ КОД из interactive_menu.js
     readline.emitKeypressEvents(process.stdin)
@@ -66,7 +68,9 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       if (process.stdin.isTTY && !wasRawMode) {
         process.stdin.setRawMode(false)
       }
-      context.ui.resumeReadline()
+      if (context && context.ui) {
+        context.ui.resumeReadline()
+      }
       outputHandler.clearScreen()
       resolve(returnValue)
     }
@@ -143,10 +147,15 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
   })
 }
 
-export async function createTextInput(prompt, defaultValue = '', context) {
+export async function createTextInput(prompt, defaultValue = '', context = null) {
   const fullPrompt = defaultValue ? `${prompt} [${defaultValue}]: ` : `${prompt}: `
   
-  // Используем основной ApplicationLoop readline вместо создания временного
+  // Use main ApplicationLoop readline instead of creating temporary one
+  // TODO: REFACTOR - this is shitty validation code, needs refactoring in future
+  if (!context || !context.ui || !context.ui.readline) {
+    throw new Error('createTextInput requires context with ui.readline')
+  }
+  
   const result = await context.ui.readline.question(fullPrompt)
   
   const cleanResult = result.trim()

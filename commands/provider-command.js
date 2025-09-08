@@ -1,4 +1,4 @@
-import { execProvider } from '../utils/provider/execProvider.js'
+import { createNavigationMenu } from '../utils/interactive_menu_new.js'
 import { createSpinner } from '../utils/spinner.js'
 import { outputHandler } from '../core/output-handler.js'
 
@@ -56,16 +56,19 @@ export const ProviderCommand = {
       }
 
       // Interactive provider selection
-      const selectedProvider = await execProvider(
-        currentProviderKey, 
-        availableProviders, 
-        context.ui.readline
-      )
+      const providerOptions = availableProviders.map(p => {
+        const indicator = p.isCurrent ? ' (current)' : ''
+        return `${p.name}${indicator}`
+      })
+      
+      const selectedIndex = await createNavigationMenu('Select Provider:', providerOptions, 0, context)
 
       // Handle user cancellation (ESC)
-      if (!selectedProvider) {
-        return null // execProvider already shows cancellation message
+      if (selectedIndex === -1) {
+        return null
       }
+      
+      const selectedProvider = availableProviders[selectedIndex]
 
       // Check if user selected the same provider
       if (selectedProvider.key === currentProviderKey) {

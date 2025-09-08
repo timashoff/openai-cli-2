@@ -2,7 +2,7 @@
  * Toggle menu utility for checkbox-style selection
  * Allows users to toggle multiple items on/off with visual indicators
  */
-import { createInteractiveMenu } from './interactive_menu.js'
+import { createNavigationMenu } from './interactive_menu_new.js'
 import { color } from '../config/color.js'
 
 export async function createToggleMenu(title, items, initialSelection = null, actionButtons = ['Confirm', 'Back']) {
@@ -23,7 +23,7 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
       ...actionButtons
     ]
     
-    const selectedIndex = await createInteractiveMenu(title, menuOptions, 0)
+    const selectedIndex = await createNavigationMenu(title, menuOptions, 0)
     
     // Handle ESC or cancel
     if (selectedIndex === -1) {
