@@ -67,7 +67,6 @@ export function createCommandHandler(chatRequest, cacheManager) {
       if (hasCachedResult) {
         const cachedResult = await cacheManager.getCacheByModel(userInput, commandId || 'single', modelKey)
         logger.debug('CommandHandler: Single model cache hit - returning cached result')
-        app.cliManager.writeOutput(cachedResult)
         return cachedResult
       } else {
         logger.debug('CommandHandler: Cache miss - proceeding to LLM request')
