@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## JavaScript Project Rules
 - Always check for dead code before preparing commit messages
+- Use event-driven architecture for network requests (e.g. EventEmitter)
 - Use ESM modules, no require!
 - Remove unused imports and their source files/code
 - **FORBIDDEN to use classes!** Code must be written in functional paradigm:
