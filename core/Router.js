@@ -79,7 +79,7 @@ export class Router {
           return await this.commandHandler.handle(instructionData, applicationLoop.app)
         }
         // Fallback to direct ChatRequest
-        return await this.chatRequest.processChatRequest(instructionData, applicationLoop)
+        return await this.chatRequest.processChatRequest(instructionData)
 
       case this.REQUEST_TYPES.CHAT:
       default:
@@ -91,7 +91,7 @@ export class Router {
           isCached: false,
           isForced: analysis.flags.isForced
         })
-        return await this.chatRequest.processChatRequest(chatData, applicationLoop)
+        return await this.chatRequest.processChatRequest(chatData)
     }
   }
 

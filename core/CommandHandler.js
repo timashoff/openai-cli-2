@@ -77,7 +77,7 @@ export function createCommandHandler(chatRequest, cacheManager) {
     }
     
     // No cache or forced - send to ChatRequest
-    const result = await chatRequest.processChatRequest(data, app.cliManager)
+    const result = await chatRequest.processChatRequest(data)
     
     // Cache the result if needed using unified API
     if (isCached && result) {

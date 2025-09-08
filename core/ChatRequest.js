@@ -23,15 +23,21 @@ export function createChatRequest(app) {
     return null
   }
 
-  async function processChatRequest(data, cliManager) {
+  async function processChatRequest(data) {
     try {
       logger.debug('ChatRequest: Processing final chat request')
+
+      // Setup abort signal for outputHandler using app.stateManager
+      const controller = app.stateManager.getCurrentRequestController()
+      if (controller) {
+        outputHandler.setAbortSignal(controller.signal)
+      }
 
       // Extract specific provider and model if provided
       const providerModel = data.models.length ? extractProviderModel(data.models[0]) : null
 
       // Execute chat request with prepared content and provider model
-      return await handleChatRequest(data.content, cliManager, providerModel)
+      return await handleChatRequest(data.content, providerModel)
 
     } catch (error) {
       errorHandler.handleError(error, { component: 'ChatRequest' })
@@ -40,7 +46,7 @@ export function createChatRequest(app) {
   }
 
 
-  async function handleChatRequest(input, cliManager, providerModel = null) {
+  async function handleChatRequest(input, providerModel = null) {
     // Use StateManager directly instead of ServiceManager
     const stateManager = app.stateManager
 
@@ -95,7 +101,7 @@ export function createChatRequest(app) {
 
         // Output content directly
         if (content) {
-          process.stdout.write(content)
+          outputHandler.writeStream(content)
           response.push(content)
         }
       }
