@@ -1,15 +1,15 @@
 import { APP_CONSTANTS } from '../config/constants.js'
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 
 /**
  * Validates API key format
- * @param {string} apiKey - API key to validate
- * @param {string} provider - provider name
- * @returns {boolean} true if valid
+
+
+
  */
 export function validateApiKey(apiKey, provider) {
   if (!apiKey || typeof apiKey !== 'string') {
-    throw new AppError(`Invalid API key for ${provider}`, true, 401)
+    throw new BaseError(`Invalid API key for ${provider}`, true, 401)
   }
 
   let regex
@@ -29,7 +29,7 @@ export function validateApiKey(apiKey, provider) {
   }
 
   if (!regex.test(apiKey)) {
-    throw new AppError(`Invalid API key format for ${provider}`, true, 401)
+    throw new BaseError(`Invalid API key format for ${provider}`, true, 401)
   }
 
   return true
@@ -38,8 +38,8 @@ export function validateApiKey(apiKey, provider) {
 
 /**
  * Sanitizes error messages to prevent key exposure
- * @param {string} errorMessage - original error message
- * @returns {string} sanitized error message
+
+
  */
 export function sanitizeErrorMessage(errorMessage) {
   if (!errorMessage || typeof errorMessage !== 'string') {
@@ -87,7 +87,7 @@ export class RateLimiter {
     if (!this.canMakeRequest()) {
       this.violations++
       const backoffTime = this.getBackoffTime()
-      throw new AppError(`Rate limit exceeded. Please wait ${Math.ceil(backoffTime / 1000)} seconds before making another request.`, true, 429)
+      throw new BaseError(`Rate limit exceeded. Please wait ${Math.ceil(backoffTime / 1000)} seconds before making another request.`, true, 429)
     }
     
     this.requests.push(Date.now())
@@ -131,20 +131,20 @@ export class CSPChecker {
       
       // Check protocol
       if (!['https:'].includes(parsedUrl.protocol)) {
-        throw new AppError('Only HTTPS URLs are allowed', true, 400)
+        throw new BaseError('Only HTTPS URLs are allowed', true, 400)
       }
       
       // Check domain
       if (!this.allowedDomains.includes(parsedUrl.hostname)) {
-        throw new AppError(`Domain ${parsedUrl.hostname} is not allowed`, true, 403)
+        throw new BaseError(`Domain ${parsedUrl.hostname} is not allowed`, true, 403)
       }
       
       return true
     } catch (error) {
-      if (error instanceof AppError) {
+      if (error instanceof BaseError) {
         throw error
       }
-      throw new AppError('Invalid URL format', true, 400)
+      throw new BaseError('Invalid URL format', true, 400)
     }
   }
 

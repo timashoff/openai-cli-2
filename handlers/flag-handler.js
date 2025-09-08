@@ -22,14 +22,12 @@ export class FlagHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async canHandle(context) {
     return this.hasFlags(context.processedInput)
   }
 
   /**
-   * @override
    */
   async process(context) {
     const input = context.processedInput
@@ -61,7 +59,6 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Initialize flag definitions
-   * @private
    */
   initializeFlagDefinitions() {
     // Force flag
@@ -118,9 +115,8 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Check if input contains any flags
-   * @private
-   * @param {string} input - Input text
-   * @returns {boolean} True if flags are present
+
+
    */
   hasFlags(input) {
     return Array.from(this.flagDefinitions.values()).some(flagDef =>
@@ -134,9 +130,8 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Extract all flags from input
-   * @private
-   * @param {string} input - Input text
-   * @returns {Object} Extracted flags
+
+
    */
   extractAllFlags(input) {
     const extractedFlags = {}
@@ -153,11 +148,10 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Extract specific flag from input
-   * @private
-   * @param {string} input - Input text
-   * @param {string} flagName - Flag name
-   * @param {Object} flagDef - Flag definition
-   * @returns {any|null} Flag value or null if not found
+
+
+
+
    */
   extractFlag(input, flagName, flagDef) {
     for (const pattern of flagDef.patterns) {
@@ -180,10 +174,9 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Parse flag value according to type
-   * @private
-   * @param {string} value - Raw value string
-   * @param {Object} flagDef - Flag definition
-   * @returns {any} Parsed value
+
+
+
    */
   parseValue(value, flagDef) {
     switch (flagDef.type) {
@@ -213,10 +206,9 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Remove all flags from input
-   * @private
-   * @param {string} input - Original input
-   * @param {Object} extractedFlags - Extracted flags
-   * @returns {string} Clean input without flags
+
+
+
    */
   removeFlags(input, extractedFlags) {
     let cleanInput = input
@@ -243,8 +235,8 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Get flag definition by name
-   * @param {string} flagName - Flag name
-   * @returns {Object|null} Flag definition or null
+
+
    */
   getFlagDefinition(flagName) {
     return this.flagDefinitions.get(flagName) || null
@@ -252,7 +244,7 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Get all supported flags
-   * @returns {Array} Array of flag definitions
+
    */
   getSupportedFlags() {
     return Array.from(this.flagDefinitions.entries()).map(([name, def]) => ({
@@ -263,8 +255,8 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Add custom flag definition
-   * @param {string} flagName - Flag name
-   * @param {Object} flagDefinition - Flag definition
+
+
    */
   addFlag(flagName, flagDefinition) {
     const requiredFields = ['patterns', 'description', 'type']
@@ -286,8 +278,8 @@ export class FlagHandler extends BaseRequestHandler {
 
   /**
    * Remove flag definition
-   * @param {string} flagName - Flag name to remove
-   * @returns {boolean} True if removed
+
+
    */
   removeFlag(flagName) {
     const removed = this.flagDefinitions.delete(flagName)
@@ -298,7 +290,6 @@ export class FlagHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -320,7 +311,6 @@ export class FlagHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()

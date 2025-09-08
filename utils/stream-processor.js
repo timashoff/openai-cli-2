@@ -1,3 +1,5 @@
+import { streamingObserver, STREAMING_EVENTS } from '../patterns/StreamingObserver.js'
+
 /**
  * Processes streaming responses from different AI providers
  */
@@ -16,7 +18,7 @@ export class StreamProcessor {
    */
   forceTerminate() {
     this.isTerminated = true
-    
+
     // Cancel reader if active
     if (this.currentReader) {
       try {
@@ -25,11 +27,13 @@ export class StreamProcessor {
         // Ignore cancellation errors
       }
     }
-    
+
     // Close stream if active
     if (this.currentStream) {
       try {
-        this.currentStream.destroy?.()
+        if (this.currentStream.destroy) {
+          this.currentStream.destroy()
+        }
       } catch (e) {
         // Ignore destruction errors
       }
@@ -42,13 +46,20 @@ export class StreamProcessor {
   async processStream(stream, signal = null, onChunk = null) {
     this.isTerminated = false
     this.currentStream = stream
-    
+
     // Check for immediate termination
     if (this.isTerminated) {
       throw new Error('AbortError')
     }
-    
+
     const response = []
+    const startTime = Date.now()
+
+    // Emit stream started event
+    streamingObserver.emit(STREAMING_EVENTS.STREAM_STARTED, {
+      provider: this.providerKey,
+      startTime: startTime
+    })
 
     try {
       if (this.isClaudeProvider) {
@@ -56,6 +67,23 @@ export class StreamProcessor {
       } else {
         await this.processOpenAIStream(stream, response, signal, onChunk)
       }
+
+      // Emit stream finished event
+      streamingObserver.emit(STREAMING_EVENTS.STREAM_FINISHED, {
+        provider: this.providerKey,
+        duration: Date.now() - startTime,
+        totalTokens: response.length
+      })
+
+    } catch (error) {
+      // Emit stream cancelled/error event
+      if (error.message === 'AbortError') {
+        streamingObserver.emit(STREAMING_EVENTS.STREAM_CANCELLED, {
+          provider: this.providerKey,
+          duration: Date.now() - startTime
+        })
+      }
+      throw error
     } finally {
       this.currentStream = null
       this.currentReader = null
@@ -74,69 +102,69 @@ export class StreamProcessor {
     let done = false
     let buffer = ''
     let currentEvent = null
-    
+
     while (!done) {
       // Check for termination first
       if (this.isTerminated) {
         reader.cancel()
         throw new Error('AbortError')
       }
-      
+
       // Check for abort signal
       if (signal && signal.aborted) {
         reader.cancel()
         throw new Error('AbortError')
       }
-      
+
       const { value, done: readerDone } = await reader.read()
       done = readerDone
-      
+
       if (value) {
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
-        
+
         // Keep the last incomplete line in buffer
         buffer = lines.pop() || ''
-        
+
         for (const line of lines) {
           const trimmedLine = line.trim()
-          
+
           // Skip empty lines and comments
           if (!trimmedLine || trimmedLine.startsWith(':')) {
             continue
           }
-          
+
           // Handle event lines - КРИТИЧЕСКИ ВАЖНО!
           if (trimmedLine.startsWith('event: ')) {
             currentEvent = trimmedLine.substring(7).trim()
             continue
           }
-          
+
           if (trimmedLine.startsWith('data: ')) {
             const data = trimmedLine.substring(6).trim()
-            
+
             // Check for end of stream
             if (data === '[DONE]') {
               done = true
               break
             }
-            
+
             // Skip empty data
             if (!data) {
               continue
             }
-            
+
             try {
               const json = JSON.parse(data)
-              
+
               // HANDLE ERROR EVENTS - БЛЯДЬ НАКОНЕЦ-ТО!
               if (currentEvent === 'error' || json.type === 'error') {
-                const errorMessage = json.error?.message || json.message || 'Unknown Anthropic API error'
-                const errorType = json.error?.type || json.type || 'unknown_error'
+                const errorMessage = (json.error && json.error.message) || json.message || 'Unknown Anthropic API error'
+                const errorType = (json.error && json.error.type) || json.type || 'unknown_error'
                 reader.cancel()
                 throw new Error(`Anthropic API Error (${errorType}): ${errorMessage}`)
               }
-              
+
               // Handle content events
               if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
                 response.push(json.delta.text)
@@ -146,16 +174,16 @@ export class StreamProcessor {
                 response.push(json.delta.text)
                 if (onChunk) onChunk(json.delta.text)
               }
-              
+
               // Reset event after processing data
               currentEvent = null
-              
+
             } catch (e) {
               // If it's our intentional error throw, re-throw it
               if (e.message.includes('Anthropic API Error')) {
                 throw e
               }
-              
+
               // Only log parsing errors for unexpected data
               if (data !== '[DONE]') {
                 console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
@@ -177,20 +205,25 @@ export class StreamProcessor {
         if (this.isTerminated) {
           throw new Error('Stream processing aborted')
         }
-        
+
         // Check for abort signal
         if (signal && signal.aborted) {
           throw new Error('Stream processing aborted')
         }
-        
-        const content = chunk.choices[0]?.delta?.content
+
+        const content = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) ? chunk.choices[0].delta.content : null
         if (content) {
           response.push(content)
-          if (onChunk) onChunk(content)
+          // Only call onChunk if request is not aborted
+          // if (onChunk && (!signal || !signal.aborted)) {
+          if (onChunk && !signal.aborted) {
+            onChunk(content)
+          }
         }
       }
     } catch (error) {
-      if (this.isTerminated || (signal && signal.aborted)) {
+      // if (this.isTerminated || (signal && signal.aborted)) {
+      if (this.isTerminated ||  signal.aborted) {
         throw new Error('AbortError')
       }
       throw error

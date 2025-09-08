@@ -1,5 +1,5 @@
 import { APP_CONSTANTS } from './constants.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { validateString, validateNumber, validateChoice } from '../utils/validation.js'
 
 /**
@@ -66,7 +66,7 @@ export class ConfigManager {
       try {
         value = validator(value)
       } catch (error) {
-        throw new AppError(`Configuration validation failed for ${key}: ${error.message}`, true, 400)
+        throw new BaseError(`Configuration validation failed for ${key}: ${error.message}`, true, 400)
       }
     }
     
@@ -138,7 +138,7 @@ export class ConfigManager {
     }
     
     if (errors.length > 0) {
-      throw new AppError(`Configuration validation failed: ${errors.join(', ')}`, true, 400)
+      throw new BaseError(`Configuration validation failed: ${errors.join(', ')}`, true, 400)
     }
     
     return true

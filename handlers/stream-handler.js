@@ -1,7 +1,9 @@
 import { BaseRequestHandler } from './base-handler.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { color } from '../config/color.js'
 import { getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
+import cacheManager from '../core/CacheManager.js'
+import { outputHandler } from '../core/output-handler.js'
 
 /**
  * Handler for AI streaming operations and final request processing
@@ -18,8 +20,6 @@ export class StreamHandler extends BaseRequestHandler {
     /** @type {Object} */
     this.cache = dependencies.cache
     /** @type {Object} */
-    this.multiProviderTranslator = dependencies.multiProviderTranslator
-    /** @type {Object} */
     this.multiCommandProcessor = dependencies.multiCommandProcessor
     /** @type {Object} */
     this.fileManager = dependencies.fileManager
@@ -30,7 +30,6 @@ export class StreamHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    * Stream handler can handle any remaining input that wasn't processed by previous handlers
    */
   async canHandle(context) {
@@ -38,7 +37,6 @@ export class StreamHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async process(context) {
     try {
@@ -72,7 +70,7 @@ export class StreamHandler extends BaseRequestHandler {
       // Emit error event
       this.emitEvent('stream:error', {
         error: error.message,
-        input: context.processedInput.substring(0, 100)
+        input: context.processedInput ? context.processedInput.substring(0, 100) : 'unknown'
       })
       
       // Handle different error types
@@ -82,15 +80,28 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Determine processing strategy based on context
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {string} Processing strategy
+
+
    */
   determineProcessingStrategy(context) {
     const instruction = context.instructionInfo
     const command = context.command
     
-    // Multi-model streaming (universal multi-command support)
+    // Check for Mixed mode data from RequestRouter or Cache Handler
+    const uncachedModels = context.uncachedModels || context.routingResult?.uncachedModels
+    const cachedCount = context.cachedCount
+    
+    // Multi-model streaming - check uncached models from cache handler
+    if (uncachedModels && Array.isArray(uncachedModels) && uncachedModels.length > 1) {
+      return 'multi-command-uncached' // Only uncached models
+    }
+    
+    // Single uncached model from multi-model command
+    if (uncachedModels && Array.isArray(uncachedModels) && uncachedModels.length === 1) {
+      return 'single-stream-uncached' // Single uncached model with context about cached ones
+    }
+    
+    // Multi-model streaming (universal multi-command support) - fallback
     if (command?.models && Array.isArray(command.models) && command.models.length > 1) {
       return 'multi-command'
     }
@@ -112,13 +123,18 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Process request with determined strategy
-   * @private
-   * @param {Object} context - Processing context
-   * @param {string} strategy - Processing strategy
-   * @returns {Promise<Object>} Processing result
+
+
+
    */
   async processWithStrategy(context, strategy) {
     switch (strategy) {
+      case 'multi-command-uncached':
+        return await this.processMultiCommandUncached(context)
+        
+      case 'single-stream-uncached':
+        return await this.processSingleStreamUncached(context)
+        
       case 'multi-command':
         return await this.processMultiCommand(context)
         
@@ -132,19 +148,18 @@ export class StreamHandler extends BaseRequestHandler {
         return await this.processSingleStream(context)
         
       default:
-        throw new AppError(`Unknown processing strategy: ${strategy}`, true, 500)
+        throw new BaseError(`Unknown processing strategy: ${strategy}`, true, 500)
     }
   }
 
   /**
    * Process multi-command request (multiple models)
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Processing result
+
+
    */
   async processMultiCommand(context) {
     if (!this.multiCommandProcessor) {
-      throw new AppError('Multi-command processor not available', true, 503)
+      throw new BaseError('Multi-command processor not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -166,7 +181,7 @@ export class StreamHandler extends BaseRequestHandler {
           const providerLabel = provider.model ? 
             `${provider.name} (${provider.model})` : 
             provider.name
-          process.stdout.write(`\n${color.cyan}${providerLabel}${color.reset}:\n`)
+          outputHandler.write(`\n${color.cyan}${providerLabel}${color.reset}:`)
           
           return
         }
@@ -178,26 +193,26 @@ export class StreamHandler extends BaseRequestHandler {
           const providerLabel = result.model ? 
             `${result.provider} (${result.model})` : 
             result.provider
-          process.stdout.write(`\n${color.cyan}${providerLabel}${color.reset}:\n`)
+          outputHandler.write(`\n${color.cyan}${providerLabel}${color.reset}:`)
           
           if (result.error) {
-            process.stdout.write(`${color.red}Error: ${result.error}${color.reset}\n`)
+            outputHandler.writeError(`Error: ${result.error}`)
           }
         }
       }
       
       // Execute multi-command processing
-      const result = await this.multiCommandProcessor.executeMultiple(
-        context.processedInput,
-        context.abortController.signal,
-        models,
-        null,
-        onProviderComplete
-      )
+      const result = await this.multiCommandProcessor.executeMultiple({
+        instruction: instruction.content,
+        signal: context.abortController.signal,
+        models: models,
+        defaultModel: null,
+        onComplete: onProviderComplete
+      })
       
       // Add summary if multiple providers
       if (result.results.length > 1) {
-        process.stdout.write(`\n${color.grey}[${result.successful}/${result.total} models responded in ${result.elapsed}s]${color.reset}\n`)
+        outputHandler.write(`\n${color.grey}[${result.successful}/${result.total} models responded in ${result.elapsed}s]${color.reset}`)
       }
       
       // Cache the responses if cache info available
@@ -226,13 +241,12 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Process multi-provider request
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Processing result
+
+
    */
   async processMultiProvider(context) {
-    if (!this.multiProviderTranslator) {
-      throw new AppError('Multi-provider translator not available', true, 503)
+    if (!this.multiCommandProcessor) {
+      throw new BaseError('Multi-command processor not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -240,28 +254,28 @@ export class StreamHandler extends BaseRequestHandler {
     this.log('info', `Processing multi-provider request: ${instruction.commandType}`)
     
     try {
-      const result = await this.multiProviderTranslator.translateMultiple(
-        instruction.commandType,
-        instruction.instruction,
-        instruction.targetContent,
-        context.abortController.signal,
-        instruction.models
-      )
+      const result = await this.multiCommandProcessor.executeMultiple({
+        instruction: instruction.content,
+        signal: context.abortController.signal,
+        models: instruction.models,
+        defaultModel: null,
+        onComplete: null
+      })
       
-      const formattedResponse = this.multiProviderTranslator.formatMultiProviderResponse(result)
-      process.stdout.write(formattedResponse + '\n')
+      const formattedResponse = this.multiCommandProcessor.formatMultiResponse(result)
+      outputHandler.write(formattedResponse)
       
       // Cache the responses if cache info available
       if (context.cacheInfo?.shouldCache && this.cache) {
-        await this.cacheMultiProviderResponse(context, result.translations)
+        await this.cacheMultiCommandResponse(context, result.results)
       }
       
-      return this.createResult(result.translations, { 
+      return this.createResult(result.results, { 
         stopChain: true,
         metadata: {
           strategy: 'multi-provider',
-          providerCount: result.total,
-          successfulProviders: result.successful
+          modelCount: result.total,
+          successfulModels: result.successful
         }
       })
       
@@ -276,13 +290,12 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Process document translation request
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Processing result
+
+
    */
   async processDocument(context) {
-    if (!this.multiProviderTranslator || !this.fileManager) {
-      throw new AppError('Document processing services not available', true, 503)
+    if (!this.multiCommandProcessor || !this.fileManager) {
+      throw new BaseError('Document processing services not available', true, 503)
     }
     
     const instruction = context.instructionInfo
@@ -290,20 +303,22 @@ export class StreamHandler extends BaseRequestHandler {
     this.log('info', `Processing document translation: ${instruction.commandKey}`)
     
     try {
-      const result = await this.multiProviderTranslator.translateSingle(
-        instruction.instruction,
-        instruction.targetContent,
-        context.abortController.signal,
-        instruction.models
-      )
+      const result = await this.multiCommandProcessor.executeMultiple({
+        instruction: instruction.content,
+        signal: context.abortController.signal,
+        models: instruction.models || [],
+        defaultModel: null,
+        onComplete: null
+      })
       
-      if (result.result?.response) {
-        process.stdout.write(result.result.response + '\n')
+      if (result.results?.length > 0) {
+        const formattedResponse = this.multiCommandProcessor.formatMultiResponse(result)
+        outputHandler.write(formattedResponse)
         
         // Save to file
         const fileInfo = await this.fileManager.saveDocumentTranslation(
-          result.result.response,
-          instruction.targetContent,
+          formattedResponse,
+          instruction.userInput,
           { 
             command: instruction.commandKey, 
             timestamp: new Date().toISOString() 
@@ -326,7 +341,7 @@ export class StreamHandler extends BaseRequestHandler {
           }
         })
       } else {
-        console.log(`${color.red}Document translation failed${color.reset}`)
+        outputHandler.writeError('Document translation failed')
         return this.createResult(null, { stopChain: true })
       }
       
@@ -341,13 +356,12 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Process single stream request
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Processing result
+
+
    */
   async processSingleStream(context) {
     if (!this.providerService || !this.streamingService) {
-      throw new AppError('Streaming services not available', true, 503)
+      throw new BaseError('Streaming services not available', true, 503)
     }
     
     this.log('info', 'Processing single stream request')
@@ -356,7 +370,7 @@ export class StreamHandler extends BaseRequestHandler {
       // Get current provider
       const currentProvider = this.providerService.getCurrentProvider()
       if (!currentProvider || !currentProvider.provider) {
-        throw new AppError('No AI provider available', true, 503)
+        throw new BaseError('No AI provider available', true, 503)
       }
       
       // Prepare messages
@@ -379,7 +393,7 @@ export class StreamHandler extends BaseRequestHandler {
         model: currentProvider.model,
         onChunk: (chunk) => {
           if (!context.abortController.signal.aborted) {
-            process.stdout.write(chunk)
+            outputHandler.writeStream(chunk)
           }
         },
         signal: context.abortController.signal
@@ -416,9 +430,8 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Prepare messages for AI request
-   * @private
-   * @param {Object} context - Processing context
-   * @returns {Array} Messages array
+
+
    */
   prepareMessages(context) {
     const instruction = context.instructionInfo
@@ -437,19 +450,18 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Handle single stream response (caching and context)
-   * @private
-   * @param {Object} context - Processing context
-   * @param {string} response - AI response
-   * @param {Array} messages - Request messages
+
+
+
    */
   async handleSingleStreamResponse(context, response, messages) {
     const instruction = context.instructionInfo
     
-    if (instruction?.isTranslation) {
-      // Cache translation if cache info available
-      if (context.cacheInfo?.shouldCache && this.cache) {
-        await this.cacheSingleResponse(context, response)
-      }
+    // Use CacheManager for caching decision
+    const shouldCache = cacheManager.shouldCache(context.command, instruction, false)
+    
+    if (shouldCache && context.cacheInfo?.shouldCache) {
+      await this.cacheSingleResponse(context, response, true)
     } else {
       // Add to context history for chat
       if (context.services.addToContext) {
@@ -459,50 +471,40 @@ export class StreamHandler extends BaseRequestHandler {
         // Show context dots
         const historyLength = context.services.contextHistory?.length || 0
         const historyDots = '.'.repeat(historyLength)
-        process.stdout.write('\n' + color.yellow + historyDots + color.reset + '\n')
+        outputHandler.write('\n' + color.yellow + historyDots + color.reset)
       }
     }
   }
 
   /**
    * Cache single response
-   * @private
    */
   async cacheSingleResponse(context, response) {
-    if (this.cache?.set) {
-      await this.cache.set(context.cacheInfo.key, response)
-    }
+    await cacheManager.setCache(context.cacheInfo.key, response, true)
   }
 
   /**
    * Cache multi-provider response
-   * @private
    */
   async cacheMultiProviderResponse(context, responses) {
-    if (this.cache?.setMultipleResponses) {
-      await this.cache.setMultipleResponses(context.cacheInfo.key, responses)
-    }
+    await cacheManager.setMultipleResponses(context.cacheInfo.key, responses, true)
   }
 
   /**
    * Cache multi-command response
-   * @private
    */
   async cacheMultiCommandResponse(context, responses) {
-    if (this.cache?.setMultipleResponses) {
-      const formattedResponses = responses.map(r => ({
-        provider: r.provider,
-        model: r.model,
-        response: r.response,
-        error: r.error
-      }))
-      await this.cache.setMultipleResponses(context.cacheInfo.key, formattedResponses)
-    }
+    const formattedResponses = responses.map(r => ({
+      provider: r.provider,
+      model: r.model,
+      response: r.response,
+      error: r.error
+    }))
+    await cacheManager.setMultipleResponses(context.cacheInfo.key, formattedResponses, true)
   }
 
   /**
    * Cache document response
-   * @private
    */
   async cacheDocumentResponse(context, fileInfo, response) {
     if (this.cache?.setDocumentFile) {
@@ -512,10 +514,9 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Handle stream processing errors
-   * @private
-   * @param {Error} error - The error
-   * @param {Object} context - Processing context
-   * @returns {Object} Handler result
+
+
+
    */
   handleStreamError(error, context) {
     if (this.isAbortError(error)) {
@@ -524,7 +525,7 @@ export class StreamHandler extends BaseRequestHandler {
     }
     
     // Show user-friendly error
-    console.log(`${color.red}AI processing error: ${this.getUserFriendlyError(error)}${color.reset}`)
+    outputHandler.writeError(`AI processing error: ${this.getUserFriendlyError(error)}`)
     
     return this.createResult(null, { 
       stopChain: true,
@@ -534,14 +535,13 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Handle provider-specific errors
-   * @private
-   * @param {Error} error - Provider error
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Handler result
+
+
+
    */
   async handleProviderError(error, context) {
     if (error.message.includes('403') && error.message.includes('Country, region, or territory not supported')) {
-      console.log(`${color.yellow}Region blocked. Trying alternative provider...${color.reset}`)
+      outputHandler.writeWarning('Region blocked. Trying alternative provider...')
       
       // Try alternative provider
       if (this.providerService.tryAlternativeProvider) {
@@ -552,7 +552,7 @@ export class StreamHandler extends BaseRequestHandler {
             return await this.processSingleStream(context)
           }
         } catch (retryError) {
-          console.log(`${color.red}All providers failed.${color.reset}`)
+          outputHandler.writeError('All providers failed.')
         }
       }
     }
@@ -562,9 +562,8 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Check if error is an abort error
-   * @private
-   * @param {Error} error - Error to check
-   * @returns {boolean} True if abort error
+
+
    */
   isAbortError(error) {
     return error.name === 'AbortError' || 
@@ -575,9 +574,8 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Check if error is a provider error that can be handled
-   * @private
-   * @param {Error} error - Error to check
-   * @returns {boolean} True if handleable provider error
+
+
    */
   isProviderError(error) {
     return error.message.includes('403') && 
@@ -586,9 +584,8 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Convert technical errors to user-friendly messages
-   * @private
-   * @param {Error} error - Technical error
-   * @returns {string} User-friendly error message
+
+
    */
   getUserFriendlyError(error) {
     if (error.message.includes('timeout')) {
@@ -617,10 +614,9 @@ export class StreamHandler extends BaseRequestHandler {
 
   /**
    * Update stream statistics
-   * @private
-   * @param {string} strategy - Processing strategy
-   * @param {boolean} success - Whether operation succeeded
-   * @param {string} error - Error message if failed
+
+
+
    */
   updateStreamStats(strategy, success, error = null) {
     const key = success ? strategy : `${strategy}:error`
@@ -644,7 +640,6 @@ export class StreamHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -678,7 +673,6 @@ export class StreamHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
@@ -699,7 +693,135 @@ export class StreamHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
+   * Process multi-command request with only live models (Mixed режим)
+
+
+   */
+  async processMultiCommandUncached(context) {
+    if (!this.multiCommandProcessor) {
+      throw new BaseError('Multi-command processor not available', true, 503)
+    }
+    
+    const uncachedModels = context.uncachedModels || context.routingResult?.uncachedModels
+    const cachedCount = context.cachedCount || 0
+    
+    this.log('info', `Processing ${uncachedModels.length} uncached models (${cachedCount} already from cache)`)
+    
+    try {
+      // Create modified command with only uncached models
+      const uncachedCommand = {
+        ...context.command,
+        models: uncachedModels
+      }
+      
+      const startTime = Date.now()
+      
+      // Process uncached models through multiCommandProcessor
+      const result = await this.multiCommandProcessor.process(uncachedCommand)
+      
+      // Auto-save each uncached response to per-model cache
+      if (result.results && cacheManager.shouldCache(context.command)) {
+        for (const response of result.results) {
+          if (response.response && !response.error) {
+            await cacheManager.setCacheByModel(
+              context.processedInput,
+              context.command.id,
+              response.model,
+              response.response
+            )
+            
+            this.log('debug', `Cached response for model: ${response.model}`)
+          }
+        }
+      }
+      
+      // Show final statistics with mixed count
+      const totalTime = Date.now() - startTime
+      const successfulUncached = result.results.filter(r => r.response && !r.error).length
+      const totalModels = uncachedModels.length + cachedCount
+      
+      outputHandler.writeNewline()
+      outputHandler.write(`[${totalModels} models responded - ${cachedCount} from cache, ${successfulUncached} live in ${(totalTime/1000).toFixed(1)}s]`)
+      
+      return this.createResult(result.results, { 
+        stopChain: true,
+        metadata: {
+          totalModels,
+          cachedModels: cachedCount,
+          liveModels: successfulLive,
+          mixedMode: true
+        }
+      })
+      
+    } catch (error) {
+      this.log('error', `Multi-command live processing failed: ${error.message}`)
+      throw error
+    }
+  }
+  
+  /**
+   * Process single live model from multi-model command
+
+
+   */
+  async processSingleStreamUncached(context) {
+    const uncachedModels = context.uncachedModels || context.routingResult?.uncachedModels
+    const uncachedModel = uncachedModels[0]
+    const cachedCount = context.cachedCount || 0
+    
+    this.log('info', `Processing single uncached model: ${uncachedModel} (${cachedCount} already from cache)`)
+    
+    try {
+      // Create single-model command
+      const singleCommand = {
+        ...context.command,
+        models: [uncachedModel]
+      }
+      
+      const startTime = Date.now()
+      
+      // Process through regular single stream
+      const result = await this.processSingleStream({
+        ...context,
+        command: singleCommand
+      })
+      
+      // Auto-save response to per-model cache
+      if (result.result && cacheManager.shouldCache(context.command)) {
+        await cacheManager.setCacheByModel(
+          context.processedInput,
+          context.command.id,
+          uncachedModel,
+          result.result
+        )
+        
+        this.log('debug', `Cached response for model: ${uncachedModel}`)
+      }
+      
+      // Show final statistics
+      const totalTime = Date.now() - startTime
+      const totalModels = 1 + cachedCount
+      
+      outputHandler.writeNewline()
+      outputHandler.write(`[${totalModels} models responded - ${cachedCount} from cache, 1 live in ${(totalTime/1000).toFixed(1)}s]`)
+      
+      return this.createResult(result.result, {
+        stopChain: true,
+        metadata: {
+          totalModels,
+          cachedModels: cachedCount,
+          uncachedModels: 1,
+          mixedMode: true
+        }
+      })
+      
+    } catch (error) {
+      this.log('error', `Single stream live processing failed: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
    */
   dispose() {
     super.dispose()

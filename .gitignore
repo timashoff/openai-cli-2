@@ -71,6 +71,9 @@ Thumbs.db
 AI_responses/
 cache.json
 
+# AI CLI logs (additional protection)
+.ai-cli/
+
 # Backup files
 *.bak
 *.backup
@@ -78,3 +81,6 @@ cache.json
 
 # Test files
 test-output/
+
+# Develop
+.dev

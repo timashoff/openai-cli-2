@@ -2,6 +2,166 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# Global Development Rules
+
+## General Principles
+- Never hardcode!
+- Avoid complex regexp, use dictionaries/arrays/slices instead
+- Minimize regexp usage
+- Maintain a separate file for project-wide constants
+- Always follow KISS, DRY, YAGNI principles
+- Strictly follow Single Source of Truth principle
+- Implement new features modularly for easy improvement/removal
+- ALL comments in code EXCLUSIVELY in English
+- ALL logs and technical messages EXCLUSIVELY in English
+- ALL user messages EXCLUSIVELY in English
+- Design for i18n from the start, prepare architecture for multilingual support
+- NEVER LOG sensitive information (passwords, API keys, secrets)
+
+## JavaScript Project Rules
+- Always check for dead code before preparing commit messages
+- Use ESM modules, no require!
+- Remove unused imports and their source files/code
+- **FORBIDDEN to use classes!** Code must be written in functional paradigm:
+  - Factory functions
+  - Objects with methods
+  - Function composition
+  - Modules with exported functions
+  - Example: instead of `class User {}` use `const createUser = () => ({})`
+- Always write async code for I/O operations, HTTP requests etc. No event loop blocking! Use async/await instead of .then()
+- Minimal external dependencies! Use built-in Node.js capabilities when available
+- Never use express.js framework! Only fastify!
+- Don't replace original error messages with generic ones. Always show error.message for real error reasons. EXCEPTION: sanitize if error.message contains sensitive info
+- SQLite support is built into Node.js! Use node:sqlite instead of external dependencies
+- NEVER use optional chaining operator "?."
+- No legacy approaches like `const __dirname = path.dirname(fileURLToPath(import.meta.url))` - use modern `import.meta.dirname`
+- NO JSDoc comments! Don't clutter projects with this garbage
+
+## Git Commit Rules
+- DON'T add AI-generated lines like "🤖 Generated with [Claude Code](https://claude.ai/code)" to commit messages
+
+## Git Workflow and Branching
+- Using **Enhanced GitFlow** for development team
+- **Branch Structure**:
+  ```
+  master     ──●────●────●────●──  (releases only with tags)
+                │    │    │    │
+                v1.0 v1.1 v1.2 v2.0
+                │    │    │    │
+  develop    ──●────●────●────●──  (integration branch)
+              ╱ ╲  ╱ ╲  ╱ ╲  ╱ ╲
+  feature/A  ●───●╱   ╲╱   ╲╱   ╲
+  feature/B     ●─────●╱   ╲╱
+  feature/C          ●─────●╱
+  ```
+
+- **Workflow**:
+  1. **feature → develop**: Regular merge (preserves contributions)
+  2. **develop → master**: Squash merge + manual version tags
+
+- **Commands for development**:
+  ```bash
+  # Feature development
+  git checkout -b feature/my-feature
+  git commit -m "feat: implement awesome feature"
+  
+  # Merge to develop (regular - preserves GitHub contributions)
+  git checkout develop
+  git merge feature/my-feature
+  
+  # Release to master (when ready)
+  git checkout master
+  git merge --squash develop
+  git commit -m "release: v1.1.0 - description"
+  git tag -s v1.1.0 -m "Release v1.1.0"
+  git push origin master --tags
+  
+  # Sync develop with master after release
+  git checkout develop
+  git reset --hard master
+  git push origin develop --force
+  ```
+
+- **Advantages**:
+  - Simplicity: only basic git commands
+  - Flexibility: versions assigned manually when ready
+  - GitHub contributions: regular merge preserves developer activity
+  - Clean releases: squash merge only in master for clean release history
+  - GPG signatures: use -s flag for verified tags
+  - Control: full control over releases
+  - Minimalism: no external dependencies
+  - Motivation: visible activity in GitHub graph
+
+- **Commit types** (conventional commits):
+  - `feat:` - new functionality
+  - `fix:` - bug fix
+  - `docs:` - documentation changes
+  - `style:` - formatting, no code changes
+  - `refactor:` - code refactoring
+  - `test:` - adding tests (only when app is production-stable)
+  - `chore:` - build updates, auxiliary tools
+
+## Code Refactoring Rules
+
+### Basic Principles:
+- **DELETE** old code immediately after replacement - no deprecated, legacy or fallback!
+- Create git branch `refactor/feature-name` for each major refactoring
+- Git is the only backup, no additional backups in code
+
+### Legacy File Handling Rules:
+- When asked to **mark file as legacy** - means file is marked obsolete and **MUST NOT be used under any circumstances**!
+- Legacy files are kept for reference - to "remember" old logic and possibly transfer solutions to new code after updating
+- Renaming by adding `_legacy` suffix:
+  - `UnifiedCommandManager.js` → `UnifiedCommandManager_legacy.js`
+  - `UserService.ts` → `UserService_legacy.ts`
+- **NEVER import or use legacy files in new code!**
+- Legacy files are deleted only by explicit instruction
+
+### Major Refactoring Planning:
+1. **Create REFACTOR-ROADMAP.md** with detailed plan:
+   ```markdown
+   # Refactor Roadmap: [Feature Name]
+   
+   ## Current State Analysis
+   - Code locations to refactor
+   - Dependencies mapping
+   - Risk assessment
+   
+   ## Refactoring Steps
+   - [ ] Step 1: Implement new solution
+   - [ ] Step 2: Replace old code
+   - [ ] Step 3: Delete old code immediately
+   - [ ] Step 4: Test new implementation
+   
+   ## Business Logic Documentation
+   - Critical business rules that MUST be preserved
+   - Edge cases handling
+   - Expected behavior descriptions
+   ```
+
+2. **Create BUSINESS-LOGIC.md** to preserve critical logic:
+   ```markdown
+   # Business Logic Documentation
+   
+   ## Core Rules
+   - Rule 1: Description and implementation details
+   - Rule 2: Edge cases and expected behavior
+   
+   ## Test Cases
+   - Input/Output examples
+   - Edge case scenarios
+   ```
+
+### Checkpoints:
+- Ensure program starts, then contact user for full testing
+- Performance must not degrade
+- API compatibility must be maintained
+- Documentation updates synchronized with code
+
+---
+
+# Project-Specific Configuration
+
 ## Development Commands
 
 **Run the application:**

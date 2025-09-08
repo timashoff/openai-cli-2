@@ -1,6 +1,6 @@
 import { BaseRequestHandler } from './base-handler.js'
 import { CommandType } from '../utils/services-adapter.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { color } from '../config/color.js'
 
 /**
@@ -20,7 +20,6 @@ export class CommandHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async canHandle(context) {
     if (!this.commandService) {
@@ -40,7 +39,6 @@ export class CommandHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   async process(context) {
     try {
@@ -92,10 +90,9 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Execute command through command service
-   * @private
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Object} context - Processing context
-   * @returns {Promise<Object>} Command execution result
+
+
+
    */
   async executeCommand(parsedCommand, context) {
     // Create execution context for command service
@@ -127,11 +124,10 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Handle different types of command results
-   * @private
-   * @param {Object} result - Command execution result
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Object} context - Processing context
-   * @returns {Object} Handler result
+
+
+
+
    */
   handleCommandResult(result, parsedCommand, context) {
     if (!result.success) {
@@ -159,10 +155,9 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Handle system command result
-   * @private
-   * @param {Object} result - Command result
-   * @param {Object} parsedCommand - Parsed command
-   * @returns {Object} Handler result
+
+
+
    */
   handleSystemCommandResult(result, parsedCommand) {
     // System commands typically show output and stop processing
@@ -181,10 +176,9 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Handle AI command result
-   * @private
-   * @param {Object} result - Command result
-   * @param {Object} parsedCommand - Parsed command
-   * @returns {Object} Handler result
+
+
+
    */
   handleAICommandResult(result, parsedCommand) {
     // AI commands typically show output and stop processing
@@ -204,11 +198,10 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Handle instruction command result
-   * @private
-   * @param {Object} result - Command result
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Object} context - Processing context
-   * @returns {Object} Handler result
+
+
+
+
    */
   handleInstructionCommandResult(result, parsedCommand, context) {
     // Instruction commands need further processing by AI
@@ -234,11 +227,10 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Update command statistics
-   * @private
-   * @param {string} commandType - Command type
-   * @param {string} commandName - Command name
-   * @param {boolean} success - Whether command succeeded
-   * @param {string} error - Error message if failed
+
+
+
+
    */
   updateCommandStats(commandType, commandName, success, error = null) {
     const key = `${commandType}:${commandName}`
@@ -270,9 +262,8 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Convert technical errors to user-friendly messages
-   * @private
-   * @param {Error} error - Technical error
-   * @returns {string} User-friendly error message
+
+
    */
   getUserFriendlyError(error) {
     if (error.message.includes('not found') || error.message.includes('404')) {
@@ -297,7 +288,7 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Get command execution statistics
-   * @returns {Object} Command statistics
+
    */
   getCommandStats() {
     const stats = {
@@ -324,7 +315,6 @@ export class CommandHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getStats() {
     const baseStats = super.getStats()
@@ -337,7 +327,6 @@ export class CommandHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   getHealthStatus() {
     const baseHealth = super.getHealthStatus()
@@ -358,7 +347,7 @@ export class CommandHandler extends BaseRequestHandler {
 
   /**
    * Get available command types and their status
-   * @returns {Object} Command type status
+
    */
   getCommandTypeStatus() {
     if (!this.commandService) {
@@ -383,7 +372,6 @@ export class CommandHandler extends BaseRequestHandler {
   }
 
   /**
-   * @override
    */
   dispose() {
     super.dispose()

@@ -4,12 +4,11 @@ import { exec } from 'node:child_process'
 import util from 'node:util'
 import { platform } from 'node:os'
 
-import { execModel } from './model/execModel.js'
 import cache from './cache.js'
-import { API_PROVIDERS } from '../config/api_providers.js'
+// import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
 import { getAllSystemCommands } from './autocomplete.js'
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { sanitizeString } from './validation.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 
@@ -32,18 +31,18 @@ const getClipboardContent = async () => {
       throw new Error(`Unsupported platform: ${os}`)
   }
   try {
-    const { stdout } = await execution(command, { 
+    const { stdout } = await execution(command, {
       timeout: 5000, // 5 second timeout for clipboard operations
       maxBuffer: APP_CONSTANTS.MAX_INPUT_LENGTH // Limit buffer size
     })
-    
+
     const clipboardContent = stdout.trim()
-    
+
     // Validate clipboard content size
     if (clipboardContent.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
-      throw new AppError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
+      throw new BaseError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
     }
-    
+
     // Return sanitized content
     return sanitizeString(clipboardContent)
   } catch (error) {
@@ -54,7 +53,7 @@ const getClipboardContent = async () => {
       return ''
     }
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('Clipboard operation timed out', true, 408)
+      throw new BaseError('Clipboard operation timed out', true, 408)
     }
     throw error
   }
@@ -66,17 +65,17 @@ const getClipboardContent = async () => {
 const openInBrowser = async (url) => {
   const os = platform()
   let command
-  
+
   // Validate URL format
   if (!url || typeof url !== 'string') {
-    throw new AppError('Invalid URL provided', true, 400)
+    throw new BaseError('Invalid URL provided', true, 400)
   }
-  
+
   // Add https:// if no protocol specified
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = `https://${url}`
   }
-  
+
   // Platform-specific commands
   switch (os) {
     case 'darwin':
@@ -91,18 +90,18 @@ const openInBrowser = async (url) => {
     default:
       throw new Error(`Unsupported platform: ${os}`)
   }
-  
+
   try {
-    await execution(command, { 
+    await execution(command, {
       timeout: 5000, // 5 second timeout for browser operations
       maxBuffer: 1024 * 1024 // 1MB buffer limit
     })
     return true
   } catch (error) {
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('Browser operation timed out', true, 408)
+      throw new BaseError('Browser operation timed out', true, 408)
     }
-    throw new AppError(`Failed to open browser: ${error.message}`, true, 500)
+    throw new BaseError(`Failed to open browser: ${error.message}`, true, 500)
   }
 }
 
@@ -116,8 +115,8 @@ function completer(line) {
 
 /**
  * Calculate elapsed time in seconds from start time
- * @param {number} startTime - Start time in milliseconds (from Date.now())
- * @returns {string} - Elapsed time in seconds with 1 decimal place, or 'N/A' if no start time
+
+
  */
 const getElapsedTime = (startTime) => {
   if (!startTime) return 'N/A'
@@ -133,16 +132,16 @@ const clearTerminalLine = () => {
 
 /**
  * Show status message with icon and elapsed time
- * @param {string} type - Status type: 'success' or 'error'
- * @param {string} time - Elapsed time string (e.g. '1.2s')
- * @param {string} message - Optional additional message
+
+
+
  */
 const showStatus = (type, time, message = '') => {
   const icon = type === 'success' ? '✓' : '☓'
   const statusColor = type === 'success' ? color.green : color.red
-  
+
   const statusText = `${statusColor}${icon}${color.reset} ${time}s`
-  
+
   if (message) {
     process.stdout.write(statusText + '\n')
     process.stdout.write(message + '\n')
@@ -151,11 +150,7 @@ const showStatus = (type, time, message = '') => {
   }
 }
 
-const rl = readline.createInterface({ 
-  input, 
-  output,
-  completer
-})
+// Removed global readline interface - conflicts with CLIManager.rl
+// Use CLIManager.rl as the single readline interface in the application
 
-
-export { rl, getClipboardContent, execModel, cache, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }
+export { getClipboardContent, cache, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }

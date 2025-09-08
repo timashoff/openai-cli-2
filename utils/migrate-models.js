@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
-import { getDatabase } from './database-manager.js'
+import { databaseCommandService } from '../services/DatabaseCommandService.js'
 
 /**
  * Migration script to add default models to existing commands
  */
 async function migrateModels() {
   try {
-    const db = getDatabase()
     
     // Define model configurations for existing commands
     const modelConfigurations = {
@@ -32,7 +31,7 @@ async function migrateModels() {
     }
     
     // Get all commands
-    const commands = db.getAllCommands()
+    const commands = databaseCommandService.getCommands()
     
     console.log('Migrating models for existing commands...')
     
@@ -47,7 +46,10 @@ async function migrateModels() {
       const models = modelConfigurations[commandId]
       if (models) {
         // Update command with models
-        db.saveCommand(commandId, command.key, command.description, command.instruction, models)
+        databaseCommandService.saveCommand(commandId, {
+          ...command,
+          models: models
+        })
         console.log(`- ${commandId}: added ${models.length} model(s) - ${models.map(m => `${m.provider}:${m.model}`).join(', ')}`)
       } else {
         console.log(`- ${commandId}: no default models configured, leaving empty`)

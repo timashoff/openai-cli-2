@@ -1,4 +1,4 @@
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 import { validateString, validateObject } from './validation.js'
 import { RateLimiter, CSPChecker } from './security.js'
@@ -29,7 +29,7 @@ export class BaseProvider {
     const required = ['name', 'baseURL', 'apiKeyEnv']
     for (const field of required) {
       if (!this.config[field]) {
-        throw new AppError(`Provider config missing required field: ${field}`, true, 400)
+        throw new BaseError(`Provider config missing required field: ${field}`, true, 400)
       }
     }
   }
@@ -40,7 +40,7 @@ export class BaseProvider {
   getApiKey() {
     const apiKey = process.env[this.config.apiKeyEnv]
     if (!apiKey) {
-      throw new AppError(`API key not found in environment variable: ${this.config.apiKeyEnv}`, true, 401)
+      throw new BaseError(`API key not found in environment variable: ${this.config.apiKeyEnv}`, true, 401)
     }
     return apiKey
   }
@@ -52,7 +52,7 @@ export class BaseProvider {
     this.stats.requests++
     this.stats.totalResponseTime += responseTime
     this.stats.lastRequest = Date.now()
-    
+
     if (error) {
       this.stats.errors++
     }
@@ -64,11 +64,11 @@ export class BaseProvider {
   getStats() {
     return {
       ...this.stats,
-      averageResponseTime: this.stats.requests > 0 
-        ? this.stats.totalResponseTime / this.stats.requests 
+      averageResponseTime: this.stats.requests > 0
+        ? this.stats.totalResponseTime / this.stats.requests
         : 0,
-      errorRate: this.stats.requests > 0 
-        ? (this.stats.errors / this.stats.requests) * 100 
+      errorRate: this.stats.requests > 0
+        ? (this.stats.errors / this.stats.requests) * 100
         : 0
     }
   }
@@ -107,56 +107,57 @@ export class OpenAIProvider extends BaseProvider {
         timeout: this.config.timeout || 180000
       })
     } catch (error) {
-      throw new AppError(`Failed to initialize OpenAI client: ${error.message}`, true, 500)
+      throw new BaseError(`Failed to initialize OpenAI client: ${error.message}`, true, 500)
     }
   }
 
   async listModels() {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
     try {
       const response = await this.client.models.list()
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response.data.sort((a, b) => a.id.localeCompare(b.id))
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      throw new AppError(`Failed to list models: ${error.message}`, true, 500)
+      throw new BaseError(`Failed to list models: ${error.message}`, true, 500)
     }
   }
 
   async createChatCompletion(model, messages, options = {}) {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
+    // Extract signal for AbortController, but don't pass it to API
+    const { signal, ...apiOptions } = options
+
     try {
-      // Extract signal for AbortController, but don't pass it to API
-      const { signal, ...apiOptions } = options
-      
       const response = await this.client.chat.completions.create({
         model,
         messages,
         stream: apiOptions.stream || true,
         ...apiOptions
-      }, { signal }) // Pass signal to the request options, not API parameters
-      
+      }, signal ? { signal } : {}) // Pass signal to the request options only if it exists
+
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      
-      // Handle abortion gracefully - don't treat as error
-      if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        throw error // Re-throw as-is, don't wrap in AppError
+
+      // Check if user cancelled request
+      // if (signal && signal.aborted) {
+      if (signal.aborted) {
+        throw new Error('AbortError') // Special error type for silent handling
       }
-      
-      throw new AppError(`Failed to create chat completion: ${error.message}`, true, 500)
+
+      throw new BaseError(`Failed to create chat completion: ${error.message}`, true, 500)
     }
   }
 
@@ -185,13 +186,13 @@ export class AnthropicProvider extends BaseProvider {
     // For Anthropic, we don't need to initialize a client library
     // We'll use fetch directly, but we validate the API key here
     if (!this.apiKey) {
-      throw new AppError('Anthropic API key is required', true, 401)
+      throw new BaseError('Anthropic API key is required', true, 401)
     }
   }
 
   async makeRequest(url, options = {}) {
     this.cspChecker.validateUrl(url)
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -201,45 +202,42 @@ export class AnthropicProvider extends BaseProvider {
         ...options.headers
       }
     })
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       throw new Error(error.error?.message || 'API request failed')
     }
-    
+
     return response
   }
 
   async listModels() {
-    this.rateLimiter.recordRequest()
-    const startTime = Date.now()
-    
-    try {
-      const response = await this.makeRequest('https://api.anthropic.com/v1/models')
-      const data = await response.json()
-      
-      const responseTime = Date.now() - startTime
-      this.recordRequest(responseTime)
-      
-      return data.data.sort((a, b) => a.id.localeCompare(b.id))
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      this.recordRequest(responseTime, error)
-      throw new AppError(`Failed to list Anthropic models: ${error.message}`, true, 500)
-    }
+    // Anthropic doesn't have a public models endpoint, return static list
+    //🚨 hardcode detected!
+    const staticModels = [
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-3-haiku-20240307'
+    ]
+
+    // Return models in the same format as other providers for consistency
+    return staticModels.map(id => ({ id }))
   }
 
   async createChatCompletion(model, messages, options = {}) {
     this.rateLimiter.recordRequest()
     const startTime = Date.now()
-    
+
+    // Extract signal for AbortController, but don't pass it to API
+    const { signal, ...apiOptions } = options
+
     try {
-      // Extract signal for AbortController, but don't pass it to API
-      const { signal, ...apiOptions } = options
-      
       const response = await this.makeRequest('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        signal, // Pass signal to fetch options
+        //🚨 the code is strange (signal && { signal })
+        ...(signal && { signal }), // Pass signal to fetch options only if it exists
         body: JSON.stringify({
           model,
           messages,
@@ -248,21 +246,22 @@ export class AnthropicProvider extends BaseProvider {
           ...apiOptions
         })
       })
-      
+
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime)
-      
+
       return response.body
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      
-      // Handle abortion gracefully - don't treat as error
-      if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        throw error // Re-throw as-is, don't wrap in AppError
+
+      // Check if user cancelled request
+      // if (signal && signal.aborted) {
+      if (signal.aborted) {
+        throw new Error('AbortError') // Special error type for silent handling
       }
-      
-      throw new AppError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
+
+      throw new BaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
     }
   }
 
@@ -301,9 +300,9 @@ export class ProviderFactory {
    */
   registerProvider(type, ProviderClass) {
     if (typeof ProviderClass !== 'function') {
-      throw new AppError('Provider must be a constructor function', true, 400)
+      throw new BaseError('Provider must be a constructor function', true, 400)
     }
-    
+
     this.providers.set(type, ProviderClass)
     logger.debug(`Provider type ${type} registered`)
   }
@@ -314,20 +313,20 @@ export class ProviderFactory {
   createProvider(type, config) {
     const ProviderClass = this.providers.get(type)
     if (!ProviderClass) {
-      throw new AppError(`Unknown provider type: ${type}`, true, 404)
+      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
     }
-    
+
     validateObject(config, 'provider config')
-    
+
     try {
       const instance = new ProviderClass(config)
       const instanceId = `${type}:${config.name || 'default'}`
       this.instances.set(instanceId, instance)
-      
+
       logger.debug(`Provider instance created: ${instanceId}`)
       return instance
     } catch (error) {
-      throw new AppError(`Failed to create provider ${type}: ${error.message}`, true, 500)
+      throw new BaseError(`Failed to create provider ${type}: ${error.message}`, true, 500)
     }
   }
 
@@ -350,11 +349,11 @@ export class ProviderFactory {
    */
   getProviderStats() {
     const stats = {}
-    
+
     for (const [id, provider] of this.instances) {
       stats[id] = provider.getStats()
     }
-    
+
     return stats
   }
 
@@ -382,16 +381,16 @@ export class ProviderFactory {
   validateProviderConfig(type, config) {
     const ProviderClass = this.providers.get(type)
     if (!ProviderClass) {
-      throw new AppError(`Unknown provider type: ${type}`, true, 404)
+      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
     }
-    
+
     // Create temporary instance for validation
     try {
       const tempInstance = new ProviderClass(config)
       tempInstance.validateConfig()
       return true
     } catch (error) {
-      throw new AppError(`Provider config validation failed: ${error.message}`, true, 400)
+      throw new BaseError(`Provider config validation failed: ${error.message}`, true, 400)
     }
   }
 }

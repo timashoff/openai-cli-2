@@ -6,14 +6,14 @@
 
 # Console AI Assistant
 
-A command-line tool for interacting with AI providers (OpenAI, DeepSeek), designed to use large language models directly in your terminal. It includes command templates, response caching (stored in your home directory), switching between AI providers and their models, and **MCP (Model Context Protocol) integration** for web content extraction.
+A command-line tool for interacting with AI providers (OpenAI, DeepSeek), designed to use large language models directly in your terminal. It includes command templates, switching between AI providers and their models, and **MCP (Model Context Protocol) integration** for web content extraction.
 
 ## Features
 
 - **Multi-Provider Support:** Easily switch between OpenAI and DeepSeek.
 - **Model Selection:** List and choose from all available models of the selected provider.
-- **Smart Caching:** Translation requests are cached locally to save on API costs and deliver instant replies for repeat queries.
-- **Force Refresh:** Bypass the cache and fetch a fresh response from the AI model using the `--force` or `-f` flag.
+- **~~Smart Caching~~ Disabled:** Caching system is temporarily disabled - all requests are live.
+- **~~Force Refresh~~ Disabled:** --force/-f flags are parsed but ignored (cache disabled).
 - **Request Cancellation:** Abort a long-running or unwanted API call by pressing `Esc`.
 - **Clipboard Integration:** Insert your clipboard contents into the prompt with the `$$` token.
 - **Contextual Chat:** Keeps a conversation history for coherent multi-turn dialogue (for non-translation queries).
@@ -90,10 +90,8 @@ ai
 3. **User Input:** Acts like a chat interface.
 4. **Command Handling:**
    - **System commands** (`help`, `model`, `provider`, `exit`) run locally.
-   - **Translation commands** (`rr`, `ee`, etc.) first check the local cache:
-     • If found, returns instantly with `[from cache]`.
-     • If not, it queries the API and caches the result.
-   - **General chat** (any other input) is sent to the API along with the current conversation history for context. These responses are **not** cached.
+   - **Translation commands** (`rr`, `ee`, etc.) are sent directly to the API (caching disabled).
+   - **General chat** (any other input) is sent to the API along with the current conversation history for context.
 5. **Streaming Responses:** The AI’s reply streams in real time; press `Esc` to interrupt.
 6. **Clearing Context:** Entering an empty line clears the conversation context to avoid hitting token limits when you switch topics.
 7. **Full Screen Clear:** Hitting Enter twice clears both the context and your terminal screen (you can scroll up to see previous answers).
@@ -125,11 +123,7 @@ Special Features:
   ```
   > code $$
   ```
-- Force Request (`--force` or `-f`): Bypass cache and get a fresh API response.
-  Example:
-  ```
-  > rr Hello, world! --force
-  ```
+- ~~Force Request (`--force` or `-f`)~~ Disabled: Flags are parsed but ignored (caching disabled).
 
 ## For Developers: Adding a New Command
 
@@ -155,14 +149,14 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 # Консольный ИИ-Ассистент
 
-Инструмент командной строки для взаимодействия с ИИ-провайдерами (OpenAI, DeepSeek), предназначен для использования больших языковых моделей в терминале. Включает шаблоны-команды, кеширование ответов в корневой папке пользователя, переключение между провайдерами ИИ и их моделями, а также **интеграцию MCP (Model Context Protocol)** для извлечения веб-контента.
+Инструмент командной строки для взаимодействия с ИИ-провайдерами (OpenAI, DeepSeek), предназначен для использования больших языковых моделей в терминале. Включает шаблоны-команды, переключение между провайдерами ИИ и их моделями, а также **интеграцию MCP (Model Context Protocol)** для извлечения веб-контента.
 
 ## Возможности
 
 - **Поддержка нескольких провайдеров:** Легкое перекление между OpenAI и DeepSeek.
 - **Выбор модели:** Список всех доступных моделей от выбранного провайдера.
-- **Интеллектуальное кеширование:** Запросы на перевод кешируются локально для экономии затрат на API и предоставления мгновенных ответов на повторные запросы.
-- **Принудительный запрос:** Обходит кеш и получить свежий ответ от ИИ-модели можно используя флаг `--force` или `-f`.
+- **~~Интеллектуальное кеширование~~ Отключено:** Система кеширования временно отключена - все запросы живые.
+- **~~Принудительный запрос~~ Отключен:** Флаги --force/-f парсятся, но игнорируются (кеш отключен).
 - **Отмена запроса:** Отмена затянувшегося или ненужного запроса к API нажатием клавиши `Esc`.
 - **Интеграция с буфером обмена:** Добавление содержимого буфера обмена с помощью маркера `$$` в запросе.
 - **Контекстный чат:** Сохраняет историю разговора для последовательного диалога (для запросов, не являющихся переводом).
@@ -252,10 +246,8 @@ node bin/app.js
 3.  **Ввод пользователя:** Общение как в обычном чате.
 4.  **Обработка команд:**
     - **Системные команды** (`help`, `model`, `provider`, `exit`) выполняются напрямую.
-    - **Команды перевода** (`rr`, `ee` и т.д.) сначала проверяют локальный кеш.
-        - Если ответ найден в кеше, он возвращается мгновенно с пометкой `[from cache]`.
-        - В противном случае отправляется запрос к API, и ответ сохраняется в кеш.
-    - **Общий чат** (любой другой ввод) отправляется в API вместе с историей текущего разговора для предоставления контекста. Эти ответы *не* кешируются.
+    - **Команды перевода** (`rr`, `ee` и т.д.) отправляются напрямую в API (кеширование отключено).
+    - **Общий чат** (любой другой ввод) отправляется в API вместе с историей текущего разговора для предоставления контекста.
 5.  **Потоковая передача ответа:** Ответ ИИ передается в ваш терминал в режиме реального времени, его можно прервать через `Esc`.
 6.  **Ввод пустой строки** очищает контекст, дабы не перегружать API токенами в случае резкой смены темы запросов
 7.  **Ввод пустой строки дважды** помимо очещение исторического контекста, очищает экран пользователя. Чтобы увидеть стырые ответы можно проскролить терминал вверх
@@ -295,15 +287,14 @@ node bin/app.js
 > code $$
 ```
 
-#### Принудительный запрос (`--force` или `-f`)
+#### ~~Принудительный запрос (`--force` или `-f`)~~ Отключен
 
-Чтобы обойти кеш, добавьте флаг `--force` или `-f` в конец вашего запроса.
+~~Чтобы обойти кеш, добавьте флаг `--force` или `-f` в конец вашего запроса.~~ **Кеширование отключено** - все запросы выполняются в live режиме.
 
-**Пример:**
+**Флаги парсятся, но игнорируются:**
 ```
-> rr Hello, world! --force
+> rr Hello, world! --force  # работает как обычный запрос
 ```
-Это отправит новый запрос к API и перезапишет предыдущую запись в кеше.
 
 ---
 
@@ -331,14 +322,14 @@ node bin/app.js
 
 # 控制台 AI 助手
 
-一个命令行工具，用于与 AI 提供商（OpenAI、DeepSeek）交互，旨在直接在终端使用大型语言模型。它包含命令模板、响应缓存（存储在用户主目录）、在不同 AI 提供商及其模型之间切换的功能，以及 **MCP（模型上下文协议）集成**，用于网页内容提取。
+一个命令行工具，用于与 AI 提供商（OpenAI、DeepSeek）交互，旨在直接在终端使用大型语言模型。它包含命令模板、在不同 AI 提供商及其模型之间切换的功能，以及 **MCP（模型上下文协议）集成**，用于网页内容提取。
 
 ## 功能
 
 - **多提供商支持**：可在 OpenAI 和 DeepSeek 间自由切换。
 - **模型选择**：列出并选择所选提供商的所有可用模型。
-- **智能缓存**：针对翻译请求进行本地缓存，节省 API 调用费用并对重复查询即时响应。
-- **强制刷新**：使用 `--force` 或 `-f` 标志绕过缓存，强制向 AI 模型请求新回复。
+- **~~智能缓存~~ 已禁用**：缓存系统暂时禁用 - 所有请求均为实时请求。
+- **~~强制刷新~~ 已禁用**：--force/-f 标志被解析但忽略（缓存已禁用）。
 - **请求取消**：按下 Esc 可中断长时间运行或不需要的 API 调用。
 - **剪贴板集成**：在提示中使用 `$$` 令牌插入剪贴板内容。
 - **上下文对话**：保存会话历史，支持连贯的多轮对话（针对非翻译查询）。
@@ -414,10 +405,8 @@ ai
 3. **用户输入**：表现为一个聊天界面。
 4. **命令处理**：
    - **系统命令**（`help`、`model`、`provider`、`exit`）在本地执行。
-   - **翻译命令**（例如 `rr`, `ee` 等）首先检查本地缓存：
-     • 若命中缓存，立即返回并标注 `[from cache]`。
-     • 否则调用 API，获取结果后再缓存。
-   - **普通对话**（除翻译外的任何输入）连同当前对话上下文发送给 API，响应不做缓存。
+   - **翻译命令**（例如 `rr`, `ee` 等）直接发送给 API（缓存已禁用）。
+   - **普通对话**（除翻译外的任何输入）连同当前对话上下文发送给 API。
 5. **流式响应**：AI 回复实时流入；按 Esc 可中断。
 6. **清除上下文**：输入空行可清除会话上下文，避免切换话题时触及 token 限制。
 7. **全屏清空**：连续两次按回车既清空上下文，也清屏（可向上滚动查看历史答案）。
@@ -450,11 +439,7 @@ ai
   ```
   > code $$
   ```
-- 强制请求 (`--force` 或 `-f`)：绕过缓存，强制获取最新 API 响应。
-  示例：
-  ```
-  > rr Hello, world! --force
-  ```
+- ~~强制请求 (`--force` 或 `-f`)~~ 已禁用：标志被解析但忽略（缓存已禁用）。
 
 ## 开发者：添加新命令
 

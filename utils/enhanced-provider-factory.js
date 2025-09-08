@@ -1,5 +1,5 @@
 import { BaseProvider, OpenAIProvider, AnthropicProvider } from './provider-factory.js'
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 import { validateObject } from './validation.js'
 import { API_PROVIDERS } from '../config/api_providers.js'
@@ -17,23 +17,19 @@ export class EnhancedProviderFactory {
     this.config = {
       defaultTimeout: 180000,
       defaultRetries: 3,
-      healthCheckInterval: 300000, // 5 minutes
       instancePoolSize: 5
     }
     this.stats = {
       providersCreated: 0,
       providersDestroyed: 0,
-      healthChecks: 0,
       middlewareExecutions: 0
     }
     
     this.initializeBuiltinProviders()
-    this.startHealthMonitoring()
   }
 
   /**
    * Initialize built-in providers with enhanced configuration
-   * @private
    */
   initializeBuiltinProviders() {
     // Register provider factories with enhanced features using API_PROVIDERS config
@@ -81,12 +77,12 @@ export class EnhancedProviderFactory {
 
   /**
    * Register a provider factory with metadata
-   * @param {string} type - Provider type
-   * @param {Object} factory - Provider factory configuration
+
+
    */
   registerProviderFactory(type, factory) {
     if (!factory.class || typeof factory.class !== 'function') {
-      throw new AppError('Provider factory must have a class constructor', true, 400)
+      throw new BaseError('Provider factory must have a class constructor', true, 400)
     }
 
     this.providerRegistry.set(type, {
@@ -106,8 +102,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Create provider with Builder pattern and middleware
-   * @param {string} type - Provider type
-   * @returns {ProviderBuilder} Builder instance
+
+
    */
   createProvider(type) {
     return new ProviderBuilder(this, type)
@@ -115,16 +111,15 @@ export class EnhancedProviderFactory {
 
   /**
    * Create provider instance with middleware pipeline
-   * @private
-   * @param {string} type - Provider type
-   * @param {Object} config - Provider configuration
-   * @param {Object} options - Creation options
-   * @returns {Object} Provider instance
+
+
+
+
    */
   async _createProviderInstance(type, config, options = {}) {
     const factory = this.providerRegistry.get(type)
     if (!factory) {
-      throw new AppError(`Unknown provider type: ${type}`, true, 404)
+      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
     }
 
     // Merge default config with provided config
@@ -187,18 +182,18 @@ export class EnhancedProviderFactory {
       }
     } catch (error) {
       factory.stats.errors++
-      throw new AppError(`Failed to create provider ${type}: ${error.message}`, true, 500)
+      throw new BaseError(`Failed to create provider ${type}: ${error.message}`, true, 500)
     }
   }
 
   /**
    * Add middleware to the creation pipeline
-   * @param {string} phase - Middleware phase (before-create, after-create, etc.)
-   * @param {Function} middleware - Middleware function
+
+
    */
   addMiddleware(phase, middleware) {
     if (typeof middleware !== 'function') {
-      throw new AppError('Middleware must be a function', true, 400)
+      throw new BaseError('Middleware must be a function', true, 400)
     }
 
     this.middleware.push({ phase, middleware })
@@ -207,12 +202,12 @@ export class EnhancedProviderFactory {
 
   /**
    * Add plugin for extending functionality
-   * @param {string} name - Plugin name
-   * @param {Object} plugin - Plugin configuration
+
+
    */
   addPlugin(name, plugin) {
     if (typeof plugin.initialize !== 'function') {
-      throw new AppError('Plugin must have an initialize function', true, 400)
+      throw new BaseError('Plugin must have an initialize function', true, 400)
     }
 
     this.plugins.set(name, plugin)
@@ -222,8 +217,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Get provider instance by ID
-   * @param {string} instanceId - Instance ID
-   * @returns {Object|null} Provider instance data
+
+
    */
   getInstance(instanceId) {
     const instanceData = this.instanceRegistry.get(instanceId)
@@ -235,8 +230,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Get all instances of a specific type
-   * @param {string} type - Provider type
-   * @returns {Array} Array of instances
+
+
    */
   getInstancesByType(type) {
     const instances = []
@@ -250,9 +245,9 @@ export class EnhancedProviderFactory {
 
   /**
    * Get provider with load balancing
-   * @param {string} type - Provider type
-   * @param {Object} criteria - Selection criteria
-   * @returns {Object|null} Best provider instance
+
+
+
    */
   getBestProvider(type, criteria = {}) {
     const instances = this.getInstancesByType(type)
@@ -267,8 +262,8 @@ export class EnhancedProviderFactory {
 
   /**
    * Destroy provider instance
-   * @param {string} instanceId - Instance ID
-   * @returns {boolean} Success status
+
+
    */
   async destroyInstance(instanceId) {
     const instanceData = this.instanceRegistry.get(instanceId)
@@ -306,7 +301,7 @@ export class EnhancedProviderFactory {
 
   /**
    * Get comprehensive factory statistics
-   * @returns {Object} Factory statistics
+
    */
   getFactoryStats() {
     const providerStats = {}
@@ -329,42 +324,6 @@ export class EnhancedProviderFactory {
     }
   }
 
-  /**
-   * Perform health check on all instances
-   * @returns {Object} Health check results
-   */
-  async performHealthCheck() {
-    this.stats.healthChecks++
-    const results = {
-      overall: true,
-      timestamp: new Date(),
-      instances: {},
-      issues: []
-    }
-
-    for (const [instanceId, data] of this.instanceRegistry) {
-      try {
-        const isHealthy = await this._checkInstanceHealth(data.instance)
-        results.instances[instanceId] = {
-          healthy: isHealthy,
-          uptime: Date.now() - data.createdAt,
-          lastUsed: data.lastUsed,
-          requests: data.stats.requests
-        }
-
-        if (!isHealthy) {
-          results.overall = false
-          results.issues.push(`Instance ${instanceId} is unhealthy`)
-        }
-      } catch (error) {
-        results.instances[instanceId] = { healthy: false, error: error.message }
-        results.overall = false
-        results.issues.push(`Health check failed for ${instanceId}: ${error.message}`)
-      }
-    }
-
-    return results
-  }
 
   /**
    * Private helper methods
@@ -427,29 +386,7 @@ export class EnhancedProviderFactory {
     }
   }
 
-  async _checkInstanceHealth(instance) {
-    try {
-      if (instance.healthCheck) {
-        return await instance.healthCheck()
-      }
-      
-      // Basic health check - try to list models
-      await instance.listModels()
-      return true
-    } catch (error) {
-      return false
-    }
-  }
 
-  startHealthMonitoring() {
-    setInterval(async () => {
-      try {
-        await this.performHealthCheck()
-      } catch (error) {
-        logger.error('Health monitoring error:', error)
-      }
-    }, this.config.healthCheckInterval)
-  }
 
   /**
    * Dispose factory and all instances

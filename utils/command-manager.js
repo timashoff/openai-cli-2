@@ -1,4 +1,4 @@
-import { AppError } from './error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 import { validateString, validateObject } from './validation.js'
 
@@ -69,11 +69,11 @@ export class CommandManager {
    */
   registerCommand(command) {
     if (!(command instanceof BaseCommand)) {
-      throw new AppError('Command must be an instance of BaseCommand', true, 400)
+      throw new BaseError('Command must be an instance of BaseCommand', true, 400)
     }
     
     if (this.commands.has(command.name)) {
-      throw new AppError(`Command ${command.name} is already registered`, true, 400)
+      throw new BaseError(`Command ${command.name} is already registered`, true, 400)
     }
     
     this.commands.set(command.name, command)
@@ -81,7 +81,7 @@ export class CommandManager {
     // Register aliases
     for (const alias of command.aliases) {
       if (this.aliases.has(alias)) {
-        throw new AppError(`Alias ${alias} is already registered`, true, 400)
+        throw new BaseError(`Alias ${alias} is already registered`, true, 400)
       }
       this.aliases.set(alias, command.name)
     }
@@ -117,13 +117,13 @@ export class CommandManager {
     const command = this.getCommand(commandName)
     
     if (!command) {
-      throw new AppError(`Command ${commandName} not found`, true, 404)
+      throw new BaseError(`Command ${commandName} not found`, true, 404)
     }
     
     try {
       // Validate arguments
       if (!command.validateArgs(args)) {
-        throw new AppError(`Invalid arguments for command ${commandName}`, true, 400)
+        throw new BaseError(`Invalid arguments for command ${commandName}`, true, 400)
       }
       
       // Add to history

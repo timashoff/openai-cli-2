@@ -12,8 +12,8 @@ import { StreamHandler } from './stream-handler.js'
 export class HandlerChainFactory {
   /**
    * Create the standard request processing chain
-   * @param {Object} dependencies - Shared dependencies for all handlers
-   * @returns {Array} Array of configured handlers in processing order
+
+
    */
   static createRequestChain(dependencies) {
     // Verify required dependencies
@@ -35,27 +35,26 @@ export class HandlerChainFactory {
       console.warn(`Handler chain: Optional dependencies missing: ${missingOptional.join(', ')} - some features may be limited`)
     }
 
-    // Essential handler chain - includes CommandHandler for translation commands
+    // Full handler chain - ACTIVATED for Phase 4.2
     const handlers = [
       // 1. Process clipboard markers first (modifies input)
       new ClipboardHandler(dependencies),
       
-      // 2. Process commands - CRITICAL for translation functionality (aa, rr, etc.)
+      // 2. Process flags (force, etc.)
+      new FlagHandler(dependencies), 
+      
+      // 3. Process commands - CRITICAL for translation functionality (aa, rr, etc.)
       new CommandHandler(dependencies),
       
-      // 3. Final AI streaming (always handles remaining requests) 
+      // 4. Handle MCP (web content, search, etc.)
+      new MCPHandler(dependencies),
+      
+      // 5. Check cache for responses
+      new CacheHandler(dependencies),
+      
+      // 6. Final AI streaming (always handles remaining requests) 
       new StreamHandler(dependencies)
     ]
-    
-    // Full handler chain - will be activated later
-    // const handlers = [
-    //   new ClipboardHandler(dependencies),
-    //   new FlagHandler(dependencies), 
-    //   new CommandHandler(dependencies),
-    //   new MCPHandler(dependencies),
-    //   new CacheHandler(dependencies),
-    //   new StreamHandler(dependencies)
-    // ]
 
     // Link handlers in chain
     for (let i = 0; i < handlers.length - 1; i++) {
@@ -67,9 +66,9 @@ export class HandlerChainFactory {
 
   /**
    * Create a minimal chain for testing or specific use cases
-   * @param {Object} dependencies - Shared dependencies
-   * @param {string[]} handlerTypes - Types of handlers to include
-   * @returns {Array} Array of configured handlers
+
+
+
    */
   static createCustomChain(dependencies, handlerTypes) {
     const handlerMap = {
@@ -99,8 +98,8 @@ export class HandlerChainFactory {
 
   /**
    * Validate handler chain configuration
-   * @param {Array} handlers - Array of handlers to validate
-   * @returns {Object} Validation result
+
+
    */
   static validateChain(handlers) {
     if (!Array.isArray(handlers) || handlers.length === 0) {
@@ -155,8 +154,8 @@ export class HandlerChainFactory {
 
   /**
    * Get handler statistics from chain
-   * @param {Array} handlers - Array of handlers
-   * @returns {Object} Combined statistics
+
+
    */
   static getChainStats(handlers) {
     const stats = {
@@ -179,8 +178,8 @@ export class HandlerChainFactory {
 
   /**
    * Get health status from chain
-   * @param {Array} handlers - Array of handlers
-   * @returns {Object} Combined health status
+
+
    */
   static getChainHealth(handlers) {
     const health = {
@@ -216,7 +215,7 @@ export class HandlerChainFactory {
 
   /**
    * Dispose of all handlers in chain
-   * @param {Array} handlers - Array of handlers to dispose
+
    */
   static disposeChain(handlers) {
     handlers.forEach(handler => {

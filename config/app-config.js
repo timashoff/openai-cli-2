@@ -6,7 +6,6 @@
 export const APP_CONFIG = {
   // Network and API Configuration
   TIMEOUTS: {
-    API_REQUEST: 180000,        // 3 minutes for API requests
     PROVIDER_INIT: 30000,       // 30 seconds for provider initialization
     CLIPBOARD_ACCESS: 5000,     // 5 seconds for clipboard operations
     HEALTH_CHECK: 10000,        // 10 seconds for health checks
@@ -27,7 +26,6 @@ export const APP_CONFIG = {
 
   // Content and Size Limits
   LIMITS: {
-    MAX_INPUT_LENGTH: 100000,   // Maximum user input length
     MAX_OUTPUT_LENGTH: 50000,   // Maximum AI response length
     MAX_CONTEXT_HISTORY: 20,    // Maximum context history items
     MAX_CACHE_ENTRIES: 1000,    // Maximum cache entries
@@ -85,6 +83,25 @@ export const APP_CONFIG = {
     PROGRESS_UPDATE_INTERVAL: 500, // Progress update interval
     MIN_DISPLAY_TIME: 1000,     // Minimum display time for messages
     ANIMATION_DURATION: 300,    // UI animation duration
+
+    // Help Command Table Layout
+    HELP_TABLE: {
+      COLUMN_WIDTHS: {
+        KEYS: 14,
+        DESCRIPTION: 36,
+        CACHE: 5,
+        MODELS: 6
+      },
+      SEPARATORS: {
+        COLUMN: '│',
+        ROW: '─'
+      },
+      FORMATTING: {
+        ROW_INDENT: 0,        // отступ строк данных
+        SEPARATOR_SPACES: 0,  // пробелов после каждого разделителя
+        SEPARATOR_COUNT: 0,    // количество разделителей между колонками
+      }
+    }
   },
 
   // Security Configuration
@@ -106,25 +123,44 @@ export const APP_CONFIG = {
     ENABLE_EXPERIMENTAL_FEATURES: false, // Enable experimental features
   },
 
+  // System prompts for different behaviors
+  SYSTEM_PROMPTS: {
+    // DISABLE_MARKDOWN: "CRITICAL INSTRUCTION: You are FORBIDDEN from using ANY formatting symbols. NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO numbered lists (1., 2.), NO bullet points (-, *), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.",
+    DISABLE_MARKDOWN: "CRITICAL INSTRUCTION: You are FORBIDDEN from using formatting symbols: NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.",
+  },
+
   // Provider-Specific Configuration
   PROVIDERS: {
-    OPENAI: {
-      DEFAULT_MODEL: 'gpt-4o-mini',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    deepseek: {
+      name: 'DeepSeek',
+      baseURL: 'https://api.deepseek.com/v1',
+      apiKeyEnv: 'DEEPSEEK_API_KEY',
+      defaultModel: 'deepseek-chat',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
+      markdown: false,
     },
-    DEEPSEEK: {
-      DEFAULT_MODEL: 'deepseek-chat',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    openai: {
+      name: 'OpenAI',
+      baseURL: 'https://api.openai.com/v1',
+      apiKeyEnv: 'OPENAI_API_KEY',
+      defaultModel: 'gpt-5-mini',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
+      markdown: true,
     },
-    ANTHROPIC: {
-      DEFAULT_MODEL: 'claude-3-5-sonnet-20241022',
-      MAX_TOKENS: 4096,
-      TEMPERATURE: 0.7,
-      STREAMING: true,
+    anthropic: {
+      name: 'Anthropic',
+      baseURL: 'https://api.anthropic.com/v1',
+      apiKeyEnv: 'ANTHROPIC_API_KEY',
+      isClaude: true,
+      defaultModel: 'claude-3-5-sonnet-20241022',
+      maxTokens: 4096,
+      temperature: 0.7,
+      streaming: true,
+      markdown: true,
     },
   },
 
@@ -150,99 +186,96 @@ export const APP_CONFIG = {
 
 /**
  * Get configuration value with environment override
- * @param {string} path - Configuration path (e.g., 'TIMEOUTS.API_REQUEST')
- * @param {string} environment - Environment name (development, production, test)
- * @returns {any} Configuration value
+ * UNUSED - replaced with direct APP_CONFIG access for better performance
  */
-export function getConfig(path, environment = process.env.NODE_ENV || 'development') {
-  const pathParts = path.split('.')
-  
-  // Get base value
-  let value = APP_CONFIG
-  for (const part of pathParts) {
-    if (value && typeof value === 'object' && part in value) {
-      value = value[part]
-    } else {
-      throw new Error(`Configuration path '${path}' not found`)
-    }
-  }
-  
-  // Apply environment override if exists
-  if (APP_CONFIG.ENVIRONMENTS[environment]) {
-    let envOverride = APP_CONFIG.ENVIRONMENTS[environment]
-    for (const part of pathParts) {
-      if (envOverride && typeof envOverride === 'object' && part in envOverride) {
-        envOverride = envOverride[part]
-      } else {
-        envOverride = null
-        break
-      }
-    }
-    
-    if (envOverride !== null && envOverride !== undefined) {
-      return envOverride
-    }
-  }
-  
-  return value
-}
+// export function getConfig(path, environment = process.env.NODE_ENV || 'development') {
+//   const pathParts = path.split('.')
+
+//   // Get base value
+//   let value = APP_CONFIG
+//   for (const part of pathParts) {
+//     if (value && typeof value === 'object' && part in value) {
+//       value = value[part]
+//     } else {
+//       throw new Error(`Configuration path '${path}' not found`)
+//     }
+//   }
+
+//   // Apply environment override if exists
+//   if (APP_CONFIG.ENVIRONMENTS[environment]) {
+//     let envOverride = APP_CONFIG.ENVIRONMENTS[environment]
+//     for (const part of pathParts) {
+//       if (envOverride && typeof envOverride === 'object' && part in envOverride) {
+//         envOverride = envOverride[part]
+//       } else {
+//         envOverride = null
+//         break
+//       }
+//     }
+
+//     if (envOverride !== null && envOverride !== undefined) {
+//       return envOverride
+//     }
+//   }
+
+//   return value
+// }
 
 /**
  * Validate configuration values
- * @param {Object} config - Configuration object to validate
- * @returns {Array} Array of validation errors
+ * UNUSED - validation function not called anywhere in codebase
  */
-export function validateConfig(config = APP_CONFIG) {
-  const errors = []
-  
-  try {
-    // Validate timeouts are positive numbers
-    for (const [key, value] of Object.entries(config.TIMEOUTS)) {
-      if (typeof value !== 'number' || value <= 0) {
-        errors.push(`TIMEOUTS.${key} must be a positive number, got: ${value}`)
-      }
-    }
-    
-    // Validate limits are positive numbers
-    for (const [key, value] of Object.entries(config.LIMITS)) {
-      if (typeof value !== 'number' || value <= 0) {
-        errors.push(`LIMITS.${key} must be a positive number, got: ${value}`)
-      }
-    }
-    
-    // Validate retry configuration
-    if (config.RETRY.BACKOFF_MULTIPLIER <= 1) {
-      errors.push('RETRY.BACKOFF_MULTIPLIER must be greater than 1')
-    }
-    
-    if (config.RETRY.JITTER_FACTOR < 0 || config.RETRY.JITTER_FACTOR > 1) {
-      errors.push('RETRY.JITTER_FACTOR must be between 0 and 1')
-    }
-    
-    // Validate performance thresholds
-    if (config.PERFORMANCE.MEMORY_USAGE_THRESHOLD <= 0 || config.PERFORMANCE.MEMORY_USAGE_THRESHOLD > 1) {
-      errors.push('PERFORMANCE.MEMORY_USAGE_THRESHOLD must be between 0 and 1')
-    }
-    
-  } catch (error) {
-    errors.push(`Configuration validation error: ${error.message}`)
-  }
-  
-  return errors
-}
+// export function validateConfig(config = APP_CONFIG) {
+//   const errors = []
+
+//   try {
+//     // Validate timeouts are positive numbers
+//     for (const [key, value] of Object.entries(config.TIMEOUTS)) {
+//       if (typeof value !== 'number' || value <= 0) {
+//         errors.push(`TIMEOUTS.${key} must be a positive number, got: ${value}`)
+//       }
+//     }
+
+//     // Validate limits are positive numbers
+//     for (const [key, value] of Object.entries(config.LIMITS)) {
+//       if (typeof value !== 'number' || value <= 0) {
+//         errors.push(`LIMITS.${key} must be a positive number, got: ${value}`)
+//       }
+//     }
+
+//     // Validate retry configuration
+//     if (config.RETRY.BACKOFF_MULTIPLIER <= 1) {
+//       errors.push('RETRY.BACKOFF_MULTIPLIER must be greater than 1')
+//     }
+
+//     if (config.RETRY.JITTER_FACTOR < 0 || config.RETRY.JITTER_FACTOR > 1) {
+//       errors.push('RETRY.JITTER_FACTOR must be between 0 and 1')
+//     }
+
+//     // Validate performance thresholds
+//     if (config.PERFORMANCE.MEMORY_USAGE_THRESHOLD <= 0 || config.PERFORMANCE.MEMORY_USAGE_THRESHOLD > 1) {
+//       errors.push('PERFORMANCE.MEMORY_USAGE_THRESHOLD must be between 0 and 1')
+//     }
+
+//   } catch (error) {
+//     errors.push(`Configuration validation error: ${error.message}`)
+//   }
+
+//   return errors
+// }
 
 /**
  * Get all configuration as a flattened object
- * @param {string} environment - Environment name
- * @returns {Object} Flattened configuration
+
+
  */
 export function getFlatConfig(environment = process.env.NODE_ENV || 'development') {
   const flattened = {}
-  
+
   function flatten(obj, prefix = '') {
     for (const [key, value] of Object.entries(obj)) {
       const newKey = prefix ? `${prefix}.${key}` : key
-      
+
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         flatten(value, newKey)
       } else {
@@ -250,14 +283,14 @@ export function getFlatConfig(environment = process.env.NODE_ENV || 'development
       }
     }
   }
-  
+
   // Apply environment overrides
   const config = { ...APP_CONFIG }
   if (config.ENVIRONMENTS[environment]) {
     // Merge environment overrides (deep merge would be better)
     Object.assign(config, config.ENVIRONMENTS[environment])
   }
-  
+
   flatten(config)
   return flattened
 }

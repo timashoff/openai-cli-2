@@ -1,20 +1,26 @@
-import { SYS_INSTRUCTIONS } from '../config/instructions.js'
+import { databaseCommandService } from '../services/DatabaseCommandService.js'
+import { getAllSystemCommandNames } from '../config/system-commands.js'
 
 /**
- * Get all system commands
- * @returns {string[]} array of all system commands
+ * Get all commands: system commands + user commands from database
+ * Follows Single Source of Truth principle
  */
 function getAllSystemCommands() {
-  const commands = []
+  // 1. System commands from config (help, model, provider, exit, cmd + aliases)
+  const systemCommands = getAllSystemCommandNames()
   
-  for (const prop in SYS_INSTRUCTIONS) {
-    const instruction = SYS_INSTRUCTIONS[prop]
-    if (instruction.key && Array.isArray(instruction.key)) {
-      commands.push(...instruction.key)
+  // 2. User commands from database (aa, rr, gg, etc.)
+  const userCommands = databaseCommandService.getCommands()
+  const userCommandKeys = []
+  
+  for (const command of Object.values(userCommands)) {
+    if (command.key && Array.isArray(command.key)) {
+      userCommandKeys.push(...command.key)
     }
   }
   
-  return commands.sort()
+  // 3. Combine both (no duplicates because system commands removed from DB)
+  return [...systemCommands, ...userCommandKeys].sort()
 }
 
 

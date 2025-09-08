@@ -1,6 +1,6 @@
 import { BaseService } from './base-service.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
-import { AppError } from '../utils/error-handler.js'
+import { BaseError } from '../core/error-system/index.js'
 import { UI_SYMBOLS } from '../config/constants.js'
 import { getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
 
@@ -32,14 +32,12 @@ export class StreamingService extends BaseService {
   }
 
   /**
-   * @override
    */
   getRequiredDependencies() {
     return ['eventBus', 'logger']
   }
 
   /**
-   * @override
    */
   async onInitialize() {
     this.setupEventListeners()
@@ -47,7 +45,6 @@ export class StreamingService extends BaseService {
   }
 
   /**
-   * @override
    */
   async onDispose() {
     await this.stopAllStreams()
@@ -57,13 +54,13 @@ export class StreamingService extends BaseService {
 
   /**
    * Start streaming response from provider
-   * @param {Object} options - Streaming options
-   * @param {ReadableStream} options.stream - Stream from provider
-   * @param {string} options.providerKey - Provider identifier
-   * @param {string} options.model - Model name
-   * @param {Function} options.onChunk - Chunk callback function
-   * @param {AbortSignal} options.signal - Abort signal
-   * @returns {Promise<string[]>} Complete response chunks
+
+
+
+
+
+
+
    */
   async startStream(options) {
     this.ensureReady()
@@ -121,7 +118,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Stop current streaming operation
-   * @param {string} reason - Reason for stopping
+
    */
   async stopCurrentStream(reason = 'user_request') {
     if (!this.isStreaming) return
@@ -160,7 +157,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Get current streaming status
-   * @returns {Object} Streaming status information
+
    */
   getStreamingStatus() {
     return {
@@ -174,12 +171,11 @@ export class StreamingService extends BaseService {
 
   /**
    * Process stream with comprehensive error handling
-   * @private
-   * @param {ReadableStream} stream - Input stream
-   * @param {AbortSignal} signal - Abort signal
-   * @param {Function} onChunk - Chunk handler
-   * @param {StreamSession} session - Stream session
-   * @returns {Promise<string[]>} Response chunks
+
+
+
+
+
    */
   async processStreamWithErrorHandling(stream, signal, onChunk, session) {
     const response = []
@@ -223,10 +219,9 @@ export class StreamingService extends BaseService {
 
   /**
    * Handle individual stream chunk
-   * @private
-   * @param {string} sessionId - Stream session ID
-   * @param {string} chunk - Response chunk
-   * @param {Function} onChunk - External chunk handler
+
+
+
    */
   async handleChunk(sessionId, chunk, onChunk) {
     const session = this.activeSessions.get(sessionId)
@@ -261,9 +256,8 @@ export class StreamingService extends BaseService {
 
   /**
    * Handle stream errors
-   * @private
-   * @param {string} sessionId - Stream session ID
-   * @param {Error} error - Stream error
+
+
    */
   handleStreamError(sessionId, error) {
     const session = this.activeSessions.get(sessionId)
@@ -285,9 +279,8 @@ export class StreamingService extends BaseService {
 
   /**
    * Create abort promise for immediate cancellation
-   * @private
-   * @param {AbortSignal} signal - Abort signal
-   * @returns {Promise} Promise that rejects on abort
+
+
    */
   createAbortPromise(signal) {
     return new Promise((_, reject) => {
@@ -304,11 +297,10 @@ export class StreamingService extends BaseService {
 
   /**
    * Create new stream session
-   * @private
-   * @param {string} sessionId - Session ID
-   * @param {string} providerKey - Provider key
-   * @param {string} model - Model name
-   * @returns {StreamSession} Stream session object
+
+
+
+
    */
   createStreamSession(sessionId, providerKey, model) {
     const session = {
@@ -330,8 +322,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Cleanup stream resources
-   * @private
-   * @param {string} sessionId - Session ID
+
    */
   cleanupStream(sessionId) {
     this.activeSessions.delete(sessionId)
@@ -347,9 +338,8 @@ export class StreamingService extends BaseService {
 
   /**
    * Stop specific stream session
-   * @private
-   * @param {string} sessionId - Session ID
-   * @param {string} reason - Stop reason
+
+
    */
   async stopStreamSession(sessionId, reason) {
     const session = this.activeSessions.get(sessionId)
@@ -369,7 +359,6 @@ export class StreamingService extends BaseService {
 
   /**
    * Setup keyboard event handlers
-   * @private
    */
   setupKeyHandlers() {
     // This will be handled by the main application
@@ -378,12 +367,10 @@ export class StreamingService extends BaseService {
 
   /**
    * Setup event listeners for service communication
-   * @private
    */
   setupEventListeners() {
-    this.eventBus?.on('keyboard:escape', () => {
-      this.stopCurrentStream('escape_key')
-    })
+    // ESC handling removed - ApplicationLoop is Single Source of Truth for ESC
+    // StreamingService will be stopped via AbortController, not direct event listening
 
     this.eventBus?.on('application:shutdown', () => {
       this.stopAllStreams()
@@ -392,8 +379,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Generate unique session ID
-   * @private
-   * @returns {string} Session ID
+
    */
   generateSessionId() {
     return `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -401,8 +387,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Get current active session
-   * @private
-   * @returns {Object|null} Current session or null
+
    */
   getCurrentSession() {
     for (const session of this.activeSessions.values()) {
@@ -415,27 +400,26 @@ export class StreamingService extends BaseService {
 
   /**
    * Validate stream options
-   * @private
-   * @param {Object} options - Stream options
-   * @returns {Object} Validated options
+
+
    */
   validateStreamOptions(options) {
     if (!options) {
-      throw new AppError('Stream options are required', true, 400)
+      throw new BaseError('Stream options are required', true, 400)
     }
 
     const { stream, providerKey, model } = options
     
     if (!stream) {
-      throw new AppError('Stream is required', true, 400)
+      throw new BaseError('Stream is required', true, 400)
     }
 
     if (!providerKey || typeof providerKey !== 'string') {
-      throw new AppError('Provider key must be a non-empty string', true, 400)
+      throw new BaseError('Provider key must be a non-empty string', true, 400)
     }
 
     if (!model || typeof model !== 'string') {
-      throw new AppError('Model must be a non-empty string', true, 400)
+      throw new BaseError('Model must be a non-empty string', true, 400)
     }
 
     return options
@@ -443,9 +427,8 @@ export class StreamingService extends BaseService {
 
   /**
    * Check if error is an abort error
-   * @private
-   * @param {Error} error - Error to check
-   * @returns {boolean} True if abort error
+
+
    */
   isAbortError(error) {
     return error.name === 'AbortError' || 
@@ -455,7 +438,6 @@ export class StreamingService extends BaseService {
   }
 
   /**
-   * @override
    */
   getCustomMetrics() {
     return {
@@ -468,8 +450,7 @@ export class StreamingService extends BaseService {
 
   /**
    * Get session statistics
-   * @private
-   * @returns {Object} Session stats
+
    */
   getSessionStats() {
     const sessions = Array.from(this.activeSessions.values())

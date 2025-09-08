@@ -1,22 +1,16 @@
 import { createContainer, ServiceLifetime } from '../utils/di-container.js'
 import { createEventBus } from '../utils/event-bus.js'
-import { createErrorBoundary } from '../utils/error-boundary.js'
-import { AppError } from '../utils/error-handler.js'
+import { errorBoundary, BaseError } from '../core/error-system/index.js'
 
 // Import all service classes
 import { BaseService } from './base-service.js'
 import { StreamingService } from './streaming-service.js'
-import { ProviderService } from './provider-service.js'
-import { CommandService } from './command-service.js'
+import { AIProviderService } from './ai-provider-service.js'
+import { InputProcessingService } from './input-processing-service.js'
 import { MCPService } from './mcp-service.js'
 
 /**
  * Service registration configuration
- * @typedef {Object} ServiceConfig
- * @property {Function} serviceClass - Service constructor class
- * @property {ServiceLifetime} lifetime - Service lifetime
- * @property {string[]} dependencies - Array of dependency service names
- * @property {Object} options - Additional service options
  */
 
 /**
@@ -41,8 +35,8 @@ export class ServiceRegistry {
 
   /**
    * Initialize the service registry and all core services
-   * @param {Object} externalDependencies - External dependencies to inject
-   * @returns {Promise<void>}
+
+
    */
   async initialize(externalDependencies = {}) {
     if (this.isInitialized) {
@@ -63,7 +57,7 @@ export class ServiceRegistry {
       await this.initializeCoreServices()
       
       this.isInitialized = true
-      console.log('✅ ServiceRegistry initialized successfully')
+      console.log('✓ ServiceRegistry initialized successfully')
       
       // Emit initialization event
       const eventBus = this.container.tryResolve('IEventBus')
@@ -75,18 +69,18 @@ export class ServiceRegistry {
       }
       
     } catch (error) {
-      console.error('❌ ServiceRegistry initialization failed:', error.message)
-      throw new AppError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
+      console.error('✗ ServiceRegistry initialization failed:', error.message)
+      throw new BaseError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
     }
   }
 
   /**
    * Start all registered services
-   * @returns {Promise<void>}
+
    */
   async start() {
     if (!this.isInitialized) {
-      throw new AppError('ServiceRegistry must be initialized before starting', true, 500)
+      throw new BaseError('ServiceRegistry must be initialized before starting', true, 500)
     }
 
     if (this.isStarted) {
@@ -110,7 +104,7 @@ export class ServiceRegistry {
       }
       
       this.isStarted = true
-      console.log('✅ All services started successfully')
+      console.log('✓ All services started successfully')
       
       // Emit start event
       const eventBus = this.container.tryResolve('IEventBus')
@@ -122,15 +116,15 @@ export class ServiceRegistry {
       }
       
     } catch (error) {
-      console.error('❌ Service startup failed:', error.message)
+      console.error('✗ Service startup failed:', error.message)
       await this.shutdown() // Cleanup on failure
-      throw new AppError(`Service startup failed: ${error.message}`, true, 500)
+      throw new BaseError(`Service startup failed: ${error.message}`, true, 500)
     }
   }
 
   /**
    * Shutdown all services gracefully
-   * @returns {Promise<void>}
+
    */
   async shutdown() {
     if (!this.isStarted) return
@@ -159,13 +153,13 @@ export class ServiceRegistry {
     this.isStarted = false
     this.isInitialized = false
     
-    console.log('✅ All services shut down')
+    console.log('✓ All services shut down')
   }
 
   /**
    * Get service instance by name
-   * @param {string} serviceName - Service name
-   * @returns {BaseService|null} Service instance or null
+
+
    */
   getService(serviceName) {
     return this.container.tryResolve(serviceName)
@@ -173,7 +167,7 @@ export class ServiceRegistry {
 
   /**
    * Get all active services
-   * @returns {Map<string, BaseService>} Map of active services
+
    */
   getActiveServices() {
     return new Map(this.activeServices)
@@ -181,7 +175,7 @@ export class ServiceRegistry {
 
   /**
    * Get service registry health status
-   * @returns {Object} Health status
+
    */
   getHealthStatus() {
     const serviceHealths = {}
@@ -209,7 +203,7 @@ export class ServiceRegistry {
 
   /**
    * Get service metrics for monitoring
-   * @returns {Object} Service metrics
+
    */
   getMetrics() {
     const metrics = {
@@ -239,7 +233,6 @@ export class ServiceRegistry {
 
   /**
    * Setup core services configuration
-   * @private
    */
   setupCoreServices() {
     // Core infrastructure services
@@ -266,14 +259,14 @@ export class ServiceRegistry {
     })
 
     this.serviceConfigs.set('IProviderService', {
-      serviceClass: ProviderService,
+      serviceClass: AIProviderService,
       lifetime: ServiceLifetime.SINGLETON,
       dependencies: ['IEventBus'],
       options: {}
     })
 
     this.serviceConfigs.set('ICommandService', {
-      serviceClass: CommandService,
+      serviceClass: InputProcessingService,
       lifetime: ServiceLifetime.SINGLETON,
       dependencies: ['IEventBus'],
       options: {}
@@ -289,8 +282,7 @@ export class ServiceRegistry {
 
   /**
    * Register external dependencies with the container
-   * @private
-   * @param {Object} externalDependencies - External dependencies
+
    */
   async registerExternalDependencies(externalDependencies) {
     console.log('  📦 Registering external dependencies...')
@@ -304,7 +296,6 @@ export class ServiceRegistry {
 
   /**
    * Register all services with the DI container
-   * @private
    */
   async registerAllServices() {
     console.log('  🔗 Registering services with DI container...')
@@ -314,12 +305,7 @@ export class ServiceRegistry {
     this.container.registerInstance('IEventBus', eventBus)
     console.log('    ✓ Registered IEventBus')
 
-    // Register ErrorBoundary (special case)
-    const errorBoundary = createErrorBoundary({
-      eventBus: eventBus,
-      logger: console, // Will be replaced with structured logger later
-      config: null
-    })
+    // Register ErrorBoundary (global instance)
     this.container.registerInstance('IErrorBoundary', errorBoundary)
     console.log('    ✓ Registered IErrorBoundary')
 
@@ -374,7 +360,6 @@ export class ServiceRegistry {
 
   /**
    * Initialize core services
-   * @private
    */
   async initializeCoreServices() {
     console.log('  🔄 Initializing core services...')
@@ -393,8 +378,7 @@ export class ServiceRegistry {
 
   /**
    * Calculate service start order based on dependencies
-   * @private
-   * @returns {string[]} Service names in start order
+
    */
   calculateStartOrder() {
     const visited = new Set()
@@ -404,7 +388,7 @@ export class ServiceRegistry {
     const visit = (serviceName) => {
       if (visited.has(serviceName)) return
       if (visiting.has(serviceName)) {
-        throw new AppError(`Circular dependency detected involving ${serviceName}`, true, 500)
+        throw new BaseError(`Circular dependency detected involving ${serviceName}`, true, 500)
       }
       
       visiting.add(serviceName)
@@ -431,9 +415,8 @@ export class ServiceRegistry {
 
   /**
    * Convert interface name to camelCase property name
-   * @private
-   * @param {string} interfaceName - Interface name (e.g., 'IMyService')
-   * @returns {string} camelCase name (e.g., 'myService')
+
+
    */
   camelCaseName(interfaceName) {
     // Remove 'I' prefix and convert to camelCase
@@ -443,12 +426,12 @@ export class ServiceRegistry {
 
   /**
    * Add custom service to registry
-   * @param {string} serviceName - Service name
-   * @param {ServiceConfig} config - Service configuration
+
+
    */
   addService(serviceName, config) {
     if (this.isStarted) {
-      throw new AppError('Cannot add services after registry has started', true, 400)
+      throw new BaseError('Cannot add services after registry has started', true, 400)
     }
     
     this.serviceConfigs.set(serviceName, config)
@@ -457,12 +440,12 @@ export class ServiceRegistry {
 
   /**
    * Remove service from registry
-   * @param {string} serviceName - Service name
-   * @returns {boolean} True if service was removed
+
+
    */
   removeService(serviceName) {
     if (this.isStarted) {
-      throw new AppError('Cannot remove services after registry has started', true, 400)
+      throw new BaseError('Cannot remove services after registry has started', true, 400)
     }
     
     return this.serviceConfigs.delete(serviceName)
@@ -470,8 +453,8 @@ export class ServiceRegistry {
 
   /**
    * Check if service is registered
-   * @param {string} serviceName - Service name
-   * @returns {boolean} True if service is registered
+
+
    */
   hasService(serviceName) {
     return this.serviceConfigs.has(serviceName)
@@ -479,8 +462,8 @@ export class ServiceRegistry {
 
   /**
    * Get service configuration
-   * @param {string} serviceName - Service name
-   * @returns {ServiceConfig|null} Service config or null
+
+
    */
   getServiceConfig(serviceName) {
     return this.serviceConfigs.get(serviceName) || null
@@ -488,7 +471,7 @@ export class ServiceRegistry {
 
   /**
    * Get all registered service names
-   * @returns {string[]} Array of service names
+
    */
   getServiceNames() {
     return Array.from(this.serviceConfigs.keys())
@@ -497,8 +480,8 @@ export class ServiceRegistry {
 
 /**
  * Create and configure service registry
- * @param {Object} externalDependencies - External dependencies to inject
- * @returns {Promise<ServiceRegistry>} Configured service registry
+
+
  */
 export async function createServiceRegistry(externalDependencies = {}) {
   const registry = new ServiceRegistry()
@@ -514,8 +497,8 @@ export let globalServiceRegistry = null
 
 /**
  * Initialize global service registry
- * @param {Object} externalDependencies - External dependencies
- * @returns {Promise<ServiceRegistry>} Global service registry
+
+
  */
 export async function initializeGlobalRegistry(externalDependencies = {}) {
   if (globalServiceRegistry) {
@@ -531,7 +514,7 @@ export async function initializeGlobalRegistry(externalDependencies = {}) {
 
 /**
  * Shutdown global service registry
- * @returns {Promise<void>}
+
  */
 export async function shutdownGlobalRegistry() {
   if (globalServiceRegistry) {

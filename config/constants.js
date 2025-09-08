@@ -1,15 +1,15 @@
 // Application constants
 export const APP_CONSTANTS = {
   // Limits
-  MAX_INPUT_LENGTH: 10000, // Maximum length of user input
-  MAX_CONTEXT_HISTORY: 10, // Maximum number of messages in context
+  MAX_INPUT_LENGTH: 30000, // Maximum length of user input
+  MAX_CONTEXT_HISTORY: 16, // Maximum number of messages in context
   MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
   MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
   MAX_LINKS_TO_DISPLAY: 20, // Maximum number of links to display from web pages
   MAX_CONTENT_LENGTH: 25000, // Maximum length of content to extract from web pages
 
   // Timeouts
-  API_TIMEOUT: 100000, // 100 seconds for API requests
+  API_TIMEOUT: 180000, // 180 seconds for API requests
   PROVIDER_INIT_TIMEOUT: 30000, // 30 seconds for provider initialization
   CLIPBOARD_TIMEOUT: 5000, // 5 seconds for clipboard operations
   CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
@@ -18,21 +18,29 @@ export const APP_CONSTANTS = {
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
   TYPING_DELAY: 10, // Delay between characters when typing response
   CLEAR_TIMEOUT: 100, // Timeout for screen clear
+
+  // Multi-model execution
+  MULTI_MODEL_WAIT_THRESHOLD: 1000, // Don't show "Waiting..." if gap < 1 second
   RAPID_CHECK_INTERVAL: 5, // Interval for rapid abort checking in ms
   ATTEMPT_DURATION: 5000, // Duration of one attempt in ms (5 seconds)
 
   // Paths
   CACHE_DIR_NAME: 'AI_responses',
   CACHE_FILE_NAME: 'cache.json',
-  
+
+  // Feature flags
+  CACHE_ENABLED: false, // Temporarily disabled - will implement history/conversation saving later
+
   // Special markers
   CLIPBOARD_MARKER: '$$',
   FORCE_FLAGS: [' --force', ' -f'],
-  
+
   // UI Configuration
   MENU_PAGE_SIZE: 10, // Number of options to display on one page in interactive menu
   MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
-  
+  FIELD_VALUE_MAX_LENGTH: 30, // Max length for field values display
+  MENU_FIELD_NAME_WIDTH: 12, // Fixed width for field names (longest is "Description": 11 chars)
+
   // Default provider
   DEFAULT_PROVIDER: 'openai',
 
@@ -99,16 +107,13 @@ export const CLIPBOARD_COMMANDS = {
   [SUPPORTED_PLATFORMS.WIN32]: 'powershell.exe -command "Get-Clipboard"',
 }
 
-
-
-
 // Symbols for interface
 export const UI_SYMBOLS = {
   SPINNER: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
   CHECK: '✓',
   CROSS: '☓',
   ARROW: '▶',
-  DOT: '•',
+  DOT: '⣀',
+  BRAILLE_DOTS: ['⡀', '⣀', '⣠', '⣤', '⣴', '⣶', '⣾', '⣿'],
   ELLIPSIS: '...',
 }
-

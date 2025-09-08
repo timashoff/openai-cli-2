@@ -1,5 +1,5 @@
 import { logger } from './logger.js'
-import { errorHandler } from './error-handler.js'
+import { errorHandler } from '../core/error-system/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 
 /**
