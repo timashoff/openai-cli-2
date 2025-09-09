@@ -37,6 +37,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - NEVER use optional chaining operator "?."
 - No legacy approaches like `const __dirname = path.dirname(fileURLToPath(import.meta.url))` - use modern `import.meta.dirname`
 - NO JSDoc comments! Don't clutter projects with this garbage
+- NEVER use switch/case constructs! Replace them with functional approach:
+  - Object dictionaries with functions
+  - Map structures
+  - Arrays with find/filter methods
+  - Example: instead of `switch(type) { case 'a': return handleA() }` use `const handlers = { a: handleA }; return handlers[type]()`
 
 ## Git Commit Rules
 - DON'T add AI-generated lines like "🤖 Generated with [Claude Code](https://claude.ai/code)" to commit messages
