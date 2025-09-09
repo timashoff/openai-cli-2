@@ -11,7 +11,7 @@ import { color } from '../../config/color.js'
 import { databaseCommandService } from '../../services/DatabaseCommandService.js'
 import { createSpinner } from '../../utils/spinner.js'
 import { APP_CONSTANTS } from '../../config/constants.js'
-import { getAllSystemCommandNames } from '../../config/system-commands.js'
+import { getAllSystemCommandNames } from '../../utils/system-commands.js'
 
 /**
  * Collection editing actions

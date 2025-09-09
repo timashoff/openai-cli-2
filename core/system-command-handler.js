@@ -3,7 +3,7 @@
  * Functional approach with clean interfaces (NO CLASSES per CLAUDE.md!)
  */
 import { logger } from '../utils/logger.js'
-import { getSystemCommand, isSystemCommand } from '../config/system-commands.js'
+import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './output-handler.js'
 import {APP_CONFIG} from '../config/app-config.js'
 const PROVIDERS = APP_CONFIG.PROVIDERS
@@ -127,13 +127,6 @@ export const systemCommandHandler = {
     }
   },
 
-  /**
-   * Check if input is a system command
-   */
-  isSystemCommand(input) {
-    const commandName = input.trim().split(' ')[0].toLowerCase()
-    return isSystemCommand(commandName)
-  },
 
   /**
    * Get available system commands
