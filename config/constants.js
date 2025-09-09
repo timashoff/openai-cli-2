@@ -6,10 +6,8 @@ export const APP_CONSTANTS = {
   MAX_CONTENT_LENGTH: 25000, // Maximum length of content to extract from web pages
 
   API_TIMEOUT: 180000, // 180 seconds for API requests
-  CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
 
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
-  TYPING_DELAY: 10, // Delay between characters when typing response
   CLEAR_TIMEOUT: 100, // Timeout for screen clear
 
   CACHE_ENABLED: false, // Temporarily disabled - will implement history/conversation saving later

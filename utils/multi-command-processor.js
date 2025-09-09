@@ -5,7 +5,7 @@ import { logger } from './logger.js'
 import { getElapsedTime, clearTerminalLine } from './index.js'
 import { StreamProcessor } from './stream-processor.js'
 import { UI_SYMBOLS } from '../config/constants.js'
-import { configManager } from '../config/config-manager.js'
+import { APP_CONSTANTS } from '../config/constants.js'
 import { streamingObserver, STREAMING_EVENTS } from '../patterns/StreamingObserver.js'
 import { outputHandler } from '../core/output-handler.js'
 
@@ -800,7 +800,7 @@ export class MultiCommandProcessor {
       outputHandler.writeRaw(
         `${color.reset}${UI_SYMBOLS.SPINNER[i++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s${color.reset}`
       )
-    }, configManager.get('spinnerInterval'))
+    }, APP_CONSTANTS.SPINNER_INTERVAL)
     this.isShowingSpinner = true
   }
 
