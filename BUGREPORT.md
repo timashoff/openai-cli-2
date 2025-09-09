@@ -60,3 +60,70 @@ commands/cmd/
 
 **Status:** Planned (deferred until next major changes)
 **Priority:** Medium (code maintainability)
+
+---
+
+## Bug ID: BUG-1736244000
+
+**Discovered:** 2025-01-07 UTC
+
+### Issue: Multi-model streaming race condition - output interleaving (INTERMITTENT)
+
+**Description:**
+When using multi-model commands (like `rr`), concurrent streaming responses from different models **sporadically** interfere with each other, causing output from second model to appear in the middle of first model's response, making responses unreadable. 
+
+**⚠️ Intermittent bug** - occurs only when second model responds significantly faster than first model during streaming.
+
+**Example output:**
+```
+> rr $
+[Clipboard content inserted (505 chars)]
+✓ 3.3s
+
+[deepseek-chat]
+Перевод на русский язык:
+
+1. "отделить от" - означает разделить, выделить одну часть из целого  
+2. "перенести из в" - переместить из одного места
+[gpt-5-nano]
+- Рефакторинг: разделить конфигурацию системных команд от бизнес-логики
+- Переместить утилитные функции из config/system-commands.js в utils/system-commands.js
+...complete gpt-5-nano response...
+checkmark 14.0s
+
+/файла в другое  
+3. "содержать только" - иметь в составе исключительно указанное  
+...continuation of deepseek-chat response...
+checkmark 20.2s
+
+[2/2 models responded]
+```
+
+**Root cause:**
+- Concurrent streaming outputs from different models are NOT isolated
+- Second model captures stdout/stderr while first model is still streaming  
+- No output buffering or synchronization for multi-model responses
+- **Timing-dependent race condition** - depends on model response speed differential
+- System load, network latency, and response size affect occurrence probability
+
+**Technical details:**
+- **Intermittent race condition** - classic concurrent programming hazard
+- First model starts streaming its response
+- Second model completes faster and interrupts first model's output stream
+- First model's incomplete response continues after second model finishes  
+- Results in completely broken, unreadable mixed output
+- **Debugging complexity** - difficult to reproduce consistently due to timing dependency
+- **Production risk** - users may dismiss as random glitch, but can break important responses
+
+**Location:**
+- Multi-model response streaming implementation
+- stdout/stderr synchronization in concurrent model processing
+- Output buffering logic for streaming responses
+
+**Affected operations:**
+- All multi-model commands (rr, tt, etc.)
+- Any command that triggers multiple AI providers with streaming responses
+
+**Priority:** High (breaks response readability + intermittent nature makes it dangerous)
+
+**Status:** Open
