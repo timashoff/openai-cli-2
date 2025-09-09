@@ -99,6 +99,72 @@ checkmark 20.2s
 [2/2 models responded]
 ```
 
+**Additional example with 3 models:**
+```
+> aa привет
+✓ 5.3s
+
+[deepseek-chat]
+Of course. Here are multiple English translations of "привет" (the informal Russian greeting), categorized as you requested.
+
+**1. Standard (usual case)**
+*   Hello
+*   Hi
+
+**2. Natural-sounding (idiomatic, how a native speaker might say it)**
+*   Hey
+*   Hey there
+*   What's up?
+*   How's it going?
+
+**3. Formal**
+*   Hello
+*   Greetings
+
+[claude-3-5-sonnet-20241022]
+Error: Failed to create Anthropic chat completion: fetch failed
+x 10.5s
+
+*   Good day
+
+**4. Informal (as used in messaging apps)**
+*   Hey
+*   Hi
+*   Yo
+*   Sup
+*   'sup
+checkmark 12.4s
+
+Waiting for 1 more model...
+✓ 2.7s
+
+[gpt-5-nano]
+Here are multiple English translations of "привет," categorized as you asked. Note: in Russian, "привет" is casual; for formal situations use "Здравствуйте."
+
+1) Standard (usual case)
+- Hello.
+- Hello there.
+
+2) Natural-sounding (idiomatic, how a native speaker might say it)
+- Hey there.
+- Hi there.
+- Hey!
+
+3) Formal
+- Greetings.
+- Good day.
+- Salutations.
+
+4) Informal (as used in messaging apps)
+- Hey!
+- Hi!
+- Yo!
+- What's up?
+checkmark 15.0s
+
+[3/3 models responded]
+```
+
 **Root cause:**
 - Concurrent streaming outputs from different models are NOT isolated
 - Second model captures stdout/stderr while first model is still streaming  
