@@ -164,40 +164,26 @@ export class ErrorBoundary {
 
 ## ⚡ Phase 2: Core Improvements (MEDIUM Priority)
 
-### 🔄 2.1 Chain of Responsibility for processAIInput
-**Goal**: Replace the massive 550-line method with handler chain
+### ✅ 2.1 Legacy Code Cleanup - handlers/ directory
+**Status**: ✅ COMPLETED  
+**Goal**: Removed entire handlers/ directory with legacy class-based code
 
-**Handlers to create**:
-- `ClipboardHandler` - Process $$ clipboard markers
-- `ForceHandler` - Handle --force and -f flags  
-- `CommandHandler` - Detect and route commands
-- `MCPHandler` - Process MCP-eligible inputs
-- `CacheHandler` - Check cache before API calls
-- `StreamHandler` - Handle streaming responses
-- `ContextHandler` - Manage conversation context
+**Deleted legacy files**:
+- `base-handler.js` - 379 lines of legacy BaseRequestHandler class
+- `clipboard-handler.js` - Legacy clipboard processing with classes
+- `command-handler.js` - Legacy command handler with classes  
+- `cache-handler.js` - Legacy cache handler with classes
+- `flag-handler.js` - Legacy flag handler with classes
+- `mcp-handler.js` - Legacy MCP handler with classes
+- `simple-command-handler.js` - Legacy simple handler with classes
 
-**Implementation**:
-```javascript
-// utils/request-handlers/base-handler.js
-export class BaseRequestHandler {
-  setNext(handler) {
-    this.nextHandler = handler
-    return handler
-  }
+**Architecture violations fixed**:
+- ❌ Classes usage (forbidden by CLAUDE.md)
+- ❌ JSDoc comments (forbidden by CLAUDE.md) 
+- ❌ Over-engineered Chain of Responsibility pattern
+- ❌ 100% dead code (never imported/used)
 
-  async handle(request, context) {
-    if (await this.canHandle(request, context)) {
-      return await this.process(request, context)
-    }
-    
-    if (this.nextHandler) {
-      return await this.nextHandler.handle(request, context)
-    }
-    
-    return null
-  }
-}
-```
+**Result**: Removed ~2000+ lines of dead legacy code violating project principles
 
 ### 🔄 2.2 Improved Provider Factory
 **File**: `utils/provider-factory-v2.js`  

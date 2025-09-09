@@ -110,7 +110,7 @@
 
 - [x] **3.8 Cache Architecture Refactoring:** ✅ **ЗАВЕРШЕНО (19.08.2025)**
   - [x] Создан централизованный `core/CacheManager.js` (Single Source of Truth)
-  - [x] Рефакторинг `handlers/cache-handler.js` - использует CacheManager
+  - [x] УСТАРЕЛО: `handlers/cache-handler.js` УДАЛЕН (legacy код) ✅
   - [x] Рефакторинг `core/AIProcessor.js` - централизованные cache решения
   - [x] Рефакторинг `core/RequestRouter.js` - убрана дублированная cache логика
   - [x] Рефакторинг `core/Application.js` - единая точка кеширования
