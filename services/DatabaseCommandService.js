@@ -12,7 +12,7 @@ import path from 'node:path'
 import { logger } from '../utils/logger.js'
 import { emitStateEvent, STATE_EVENTS, stateObserver } from '../patterns/StateObserver.js'
 
-const dbPath = path.join(import.meta.dirname, '../config/commands.db')
+const dbPath = path.join(import.meta.dirname, '../db/commands.db')
 
 export class DatabaseCommandService {
   constructor() {

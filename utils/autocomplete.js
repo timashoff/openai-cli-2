@@ -1,5 +1,5 @@
 import { databaseCommandService } from '../services/DatabaseCommandService.js'
-import { getAllSystemCommandNames } from '../config/system-commands.js'
+import { getAllSystemCommandNames } from './system-commands.js'
 
 /**
  * Get all commands: system commands + user commands from database

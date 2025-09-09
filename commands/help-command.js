@@ -1,7 +1,7 @@
 import { color } from '../config/color.js'
 import { SYSTEM_COMMANDS } from '../config/system-commands.js'
 import { databaseCommandService } from '../services/DatabaseCommandService.js'
-import { APP_CONFIG } from '../config/app-config.js'
+import { UI_CONFIG } from '../config/constants.js'
 
 export const HelpCommand = {
   /**
@@ -29,9 +29,9 @@ export const HelpCommand = {
 
       // System Commands Section
       output += `${color.blue}━━━ System Commands ━━━${color.reset}\n`
-      const tableConfig = APP_CONFIG.UI.HELP_TABLE.COLUMN_WIDTHS
-      const separator = APP_CONFIG.UI.HELP_TABLE.SEPARATORS.COLUMN
-      const formatting = APP_CONFIG.UI.HELP_TABLE.FORMATTING
+      const tableConfig = UI_CONFIG.HELP_TABLE.COLUMN_WIDTHS
+      const separator = UI_CONFIG.HELP_TABLE.SEPARATORS.COLUMN
+      const formatting = UI_CONFIG.HELP_TABLE.FORMATTING
       const indent = ' '.repeat(formatting.ROW_INDENT)
 
       Object.entries(SYSTEM_COMMANDS).forEach(([commandKey, config]) => {
@@ -49,10 +49,10 @@ export const HelpCommand = {
           output += `${color.blue}━━━ User Commands ━━━${color.reset}\n`
 
           // Table headers
-          const tableConfig = APP_CONFIG.UI.HELP_TABLE.COLUMN_WIDTHS
-          const separator = APP_CONFIG.UI.HELP_TABLE.SEPARATORS.COLUMN
-          const rowSep = APP_CONFIG.UI.HELP_TABLE.SEPARATORS.ROW
-          const formatting = APP_CONFIG.UI.HELP_TABLE.FORMATTING
+          const tableConfig = UI_CONFIG.HELP_TABLE.COLUMN_WIDTHS
+          const separator = UI_CONFIG.HELP_TABLE.SEPARATORS.COLUMN
+          const rowSep = UI_CONFIG.HELP_TABLE.SEPARATORS.ROW
+          const formatting = UI_CONFIG.HELP_TABLE.FORMATTING
 
           const keysHeader = 'Keys'.padEnd(tableConfig.KEYS)
           const descHeader = 'Description'.padEnd(tableConfig.DESCRIPTION)

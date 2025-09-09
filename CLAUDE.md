@@ -37,6 +37,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - NEVER use optional chaining operator "?."
 - No legacy approaches like `const __dirname = path.dirname(fileURLToPath(import.meta.url))` - use modern `import.meta.dirname`
 - NO JSDoc comments! Don't clutter projects with this garbage
+- NEVER use switch/case constructs! Replace them with functional approach:
+  - Object dictionaries with functions
+  - Map structures
+  - Arrays with find/filter methods
+  - Example: instead of `switch(type) { case 'a': return handleA() }` use `const handlers = { a: handleA }; return handlers[type]()`
 
 ## Git Commit Rules
 - DON'T add AI-generated lines like "🤖 Generated with [Claude Code](https://claude.ai/code)" to commit messages
@@ -302,7 +307,6 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 **MCP Manager:** `utils/mcp-manager.js` handles MCP server lifecycle:
 - Built-in server initialization and management
 - Tool calling interface for MCP operations
-- Server configuration from `config/mcp-servers.json`
 
 **Built-in MCP Servers:**
 - `utils/fetch-mcp-server.js` - Advanced webpage content extraction with article detection
@@ -327,4 +331,3 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - `utils/intent-detector.js` - Automatic intent detection for MCP routing
 - `utils/fetch-mcp-server.js` - Built-in webpage content extraction server
 - `utils/search-mcp-server.js` - Built-in web search server
-- `config/mcp-servers.json` - MCP server configuration

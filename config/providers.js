@@ -1,0 +1,33 @@
+export const PROVIDERS = {
+  deepseek: {
+    name: 'DeepSeek',
+    baseURL: 'https://api.deepseek.com/v1',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+    defaultModel: 'deepseek-chat',
+    maxTokens: 4096,
+    temperature: 0.7,
+    streaming: true,
+    markdown: false,
+  },
+  openai: {
+    name: 'OpenAI',
+    baseURL: 'https://api.openai.com/v1',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    defaultModel: 'gpt-5-mini',
+    maxTokens: 4096,
+    temperature: 0.7,
+    streaming: true,
+    markdown: true,
+  },
+  anthropic: {
+    name: 'Anthropic',
+    baseURL: 'https://api.anthropic.com/v1',
+    apiKeyEnv: 'ANTHROPIC_API_KEY',
+    isClaude: true,
+    defaultModel: 'claude-3-5-sonnet-20241022',
+    maxTokens: 4096,
+    temperature: 0.7,
+    streaming: true,
+    markdown: true,
+  },
+}
