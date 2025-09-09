@@ -1,12 +1,7 @@
-/**
- * system-command-handler.js - Handles system commands (help, exit, provider, model, cmd)
- * Functional approach with clean interfaces (NO CLASSES per CLAUDE.md!)
- */
 import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './output-handler.js'
-import {APP_CONFIG} from '../config/app-config.js'
-const PROVIDERS = APP_CONFIG.PROVIDERS
+import { PROVIDERS } from '../config/providers.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -19,18 +14,22 @@ const createCleanContext = (applicationLoop) => {
   return {
     // UI interfaces - for user interaction only
     ui: {
-      get readline() { return applicationLoop.rl },
+      get readline() {
+        return applicationLoop.rl
+      },
       exitApp: () => applicationLoop.exitApp(),
       pauseReadline: () => applicationLoop.pauseReadline(),
-      resumeReadline: () => applicationLoop.resumeReadline()
+      resumeReadline: () => applicationLoop.resumeReadline(),
     },
 
     // ESC handler interfaces - for dynamic ESC handling
     esc: {
-      register: (handler, description) => applicationLoop.registerEscHandler(handler, description),
-      unregister: (handlerId) => applicationLoop.unregisterEscHandler(handlerId),
+      register: (handler, description) =>
+        applicationLoop.registerEscHandler(handler, description),
+      unregister: (handlerId) =>
+        applicationLoop.unregisterEscHandler(handlerId),
       clear: () => applicationLoop.clearAllEscHandlers(),
-      getHandlers: () => applicationLoop.getEscHandlers()
+      getHandlers: () => applicationLoop.getEscHandlers(),
     },
 
     // Provider interfaces - for AI provider management
@@ -42,10 +41,10 @@ const createCleanContext = (applicationLoop) => {
           .map(([key, config]) => ({
             key,
             name: config.name,
-            isCurrent: false // Will be set by command
+            isCurrent: false, // Will be set by command
           }))
       },
-      switch: async (key) => app.stateManager.switchProvider(key)
+      switch: async (key) => app.stateManager.switchProvider(key),
     },
 
     // Model interfaces - for AI model management
@@ -58,15 +57,15 @@ const createCleanContext = (applicationLoop) => {
       },
       switch: async (model) => {
         return await app.stateManager.switchModel(model)
-      }
+      },
     },
 
     // State interfaces - for application state
     state: {
       getAIState: () => app.stateManager.getAIState(),
       updateProvider: (data) => app.stateManager.updateAIProvider(data),
-      updateModel: (model) => app.stateManager.updateModel(model)
-    }
+      updateModel: (model) => app.stateManager.updateModel(model),
+    },
   }
 }
 
@@ -90,15 +89,19 @@ export const systemCommandHandler = {
         const CommandModule = await import(systemCommand.module)
 
         // Try default export first, then named export
-        const CommandClass = CommandModule.default || CommandModule[systemCommand.handler]
+        const CommandClass =
+          CommandModule.default || CommandModule[systemCommand.handler]
         if (!CommandClass) {
           throw new Error(`Command not found: ${systemCommand.handler}`)
         }
 
         // Support both classes (legacy) and functional objects
-        const commandInstance = typeof CommandClass === 'function' && CommandClass.prototype && CommandClass.prototype.constructor
-          ? new CommandClass()
-          : CommandClass
+        const commandInstance =
+          typeof CommandClass === 'function' &&
+          CommandClass.prototype &&
+          CommandClass.prototype.constructor
+            ? new CommandClass()
+            : CommandClass
 
         // Create clean context interfaces (NO GOD OBJECT!)
         const context = createCleanContext(applicationLoop)
@@ -118,7 +121,6 @@ export const systemCommandHandler = {
       applicationLoop.writeError(errorMsg)
       logger.warn(errorMsg)
       return null
-
     } catch (error) {
       const errorMsg = `System command execution failed: ${error.message}`
       applicationLoop.writeError(errorMsg)
@@ -126,7 +128,6 @@ export const systemCommandHandler = {
       return null
     }
   },
-
 
   /**
    * Get available system commands
@@ -144,27 +145,33 @@ export const systemCommandHandler = {
     if (systemCommand) {
       try {
         const CommandModule = await import(systemCommand.module)
-        const Command = CommandModule.default || CommandModule[systemCommand.handler]
+        const Command =
+          CommandModule.default || CommandModule[systemCommand.handler]
 
         // Support both classes (legacy) and functional objects
-        const commandInstance = typeof Command === 'function' && Command.prototype && Command.prototype.constructor
-          ? new Command()
-          : Command
+        const commandInstance =
+          typeof Command === 'function' &&
+          Command.prototype &&
+          Command.prototype.constructor
+            ? new Command()
+            : Command
 
-        return commandInstance.getHelp ? commandInstance.getHelp() : {
-          description: systemCommand.description,
-          usage: systemCommand.usage,
-          aliases: systemCommand.aliases
-        }
+        return commandInstance.getHelp
+          ? commandInstance.getHelp()
+          : {
+              description: systemCommand.description,
+              usage: systemCommand.usage,
+              aliases: systemCommand.aliases,
+            }
       } catch (error) {
         logger.error(`Error loading command ${commandName}:`, error)
         return {
           description: systemCommand.description,
           usage: systemCommand.usage,
-          aliases: systemCommand.aliases
+          aliases: systemCommand.aliases,
         }
       }
     }
     return null
-  }
+  },
 }

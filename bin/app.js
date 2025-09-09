@@ -9,9 +9,7 @@ import { createCommandHandler } from '../core/CommandHandler.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { CacheManager } from '../core/CacheManager.js'
 import { getStateManager } from '../core/StateManager.js'
-import { APP_CONFIG } from '../config/app-config.js'
-
-const PROVIDERS = APP_CONFIG.PROVIDERS
+import { PROVIDERS } from '../config/providers.js'
 
 async function initializeDefaultProvider(stateManager) {
   // Get available provider keys (with API keys set)

@@ -1,4 +1,3 @@
-// Application constants
 export const APP_CONSTANTS = {
   MAX_INPUT_LENGTH: 30000, // Maximum length of user input
   MAX_CONTEXT_HISTORY: 16, // Maximum number of messages in context
@@ -13,6 +12,11 @@ export const APP_CONSTANTS = {
   CACHE_ENABLED: false, // Temporarily disabled - will implement history/conversation saving later
 
   CLIPBOARD_MARKER: '$$',
+
+  SYSTEM_PROMPTS: {
+    DISABLE_MARKDOWN:
+      'CRITICAL INSTRUCTION: You are FORBIDDEN from using formatting symbols: NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.',
+  },
 
   MENU_PAGE_SIZE: 10, // Number of options to display on one page in interactive menu
   MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
@@ -57,4 +61,24 @@ export const UI_SYMBOLS = {
   CROSS: '☓',
   BRAILLE_DOTS: ['⡀', '⣀', '⣠', '⣤', '⣴', '⣶', '⣾', '⣿'],
   ARROW: '▶',
+}
+
+export const UI_CONFIG = {
+  HELP_TABLE: {
+    COLUMN_WIDTHS: {
+      KEYS: 14,
+      DESCRIPTION: 36,
+      CACHE: 5,
+      MODELS: 6,
+    },
+    SEPARATORS: {
+      COLUMN: '│',
+      ROW: '─',
+    },
+    FORMATTING: {
+      ROW_INDENT: 0,
+      SEPARATOR_SPACES: 0,
+      SEPARATOR_COUNT: 0,
+    },
+  },
 }
