@@ -9,7 +9,6 @@ import { color } from '../config/color.js'
 import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
 import { getElapsedTime, clearTerminalLine } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
-import { configManager } from '../config/config-manager.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from './error-system/index.js'
 import { getAllSystemCommands } from '../utils/autocomplete.js'
@@ -282,8 +281,8 @@ export class ApplicationLoop {
     try {
       userInput = sanitizeString(userInput)
       
-      if (userInput.length > configManager.get('maxInputLength')) {
-        console.log(`${color.red}Error: Input too long (max ${configManager.get('maxInputLength')} characters)${color.reset}`)
+      if (userInput.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
+        console.log(`${color.red}Error: Input too long (max ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)${color.reset}`)
         return false
       }
       

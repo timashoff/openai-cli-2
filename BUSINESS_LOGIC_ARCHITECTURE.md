@@ -78,7 +78,7 @@ CREATE TABLE commands (
 
 ### Управление командами:
 - **cmd/кмд** → CommandEditor меню для добавления/редактирования команд
-- Команды хранятся в `/config/commands.db` (SQLite)
+- Команды хранятся в `/db/commands.db` (SQLite)
 - Миграция из `config/instructions.js` при первом запуске
 - **~~Per-command cache control~~ ОТКЛЮЧЕНО** - кеширование временно отключено:
   - ❌ Cache система отключена через CACHE_ENABLED: false флаг в constants.js
@@ -888,12 +888,11 @@ StateObserver pattern for reactive updates:
 - **utils/spinner.js**: Unified spinner system
 
 ### Configuration:
-- **config/commands.db**: SQLite database with user commands
+- **db/commands.db**: SQLite database with user commands
 - **config/system-commands.js**: System command configuration
 - **config/app-config.js**: Provider and application configuration
 - **config/constants.js**: App constants and UI symbols
 - **config/color.js**: Color scheme definitions
-- **config/mcp-servers.json**: MCP server configurations
 
 ## 🚀 Architecture Status (2025)
 

@@ -5,7 +5,7 @@
 import { logger } from '../utils/logger.js'
 import { InputProcessingService } from '../services/input-processing-service.js'
 import { systemCommandHandler } from './system-command-handler.js'
-import { isSystemCommand } from '../config/system-commands.js'
+import { isSystemCommand } from '../utils/system-commands.js'
 
 export class Router {
   constructor(dependencies = {}) {

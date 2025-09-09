@@ -1,5 +1,5 @@
 import { color } from '../config/color.js'
-import { APP_CONSTANTS } from '../config/constants.js'
+import { APP_CONSTANTS, UI_SYMBOLS } from '../config/constants.js'
 import readline from 'node:readline'
 import { outputHandler } from '../core/output-handler.js'
 
@@ -45,7 +45,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       // Output options
       for (let i = start; i < end; i++) {
         const isSelected = i === selectedIndex
-        const prefix = isSelected ? color.green + '▶ ' : '  '
+        const prefix = isSelected ? color.green + UI_SYMBOLS.ARROW + ' ' : '  '
         const suffix = isSelected ? color.reset : ''
         const textColor = isSelected ? color.yellow : color.reset
 

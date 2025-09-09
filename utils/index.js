@@ -8,27 +8,18 @@ import cache from './cache.js'
 // import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
 import { getAllSystemCommands } from './autocomplete.js'
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 import { sanitizeString } from './validation.js'
-import { APP_CONSTANTS } from '../config/constants.js'
+import { APP_CONSTANTS, CLIPBOARD_COMMANDS, BROWSER_COMMANDS } from '../config/constants.js'
 
 const execution = util.promisify(exec)
 
 const getClipboardContent = async () => {
   const os = platform()
-  let command
-  switch (os) {
-    case 'darwin':
-      command = 'pbpaste'
-      break
-    case 'linux':
-      command = 'xclip -selection clipboard -o'
-      break
-    case 'win32':
-      command = 'powershell.exe -command "Get-Clipboard"'
-      break
-    default:
-      throw new Error(`Unsupported platform: ${os}`)
+  const command = CLIPBOARD_COMMANDS[os]
+  
+  if (!command) {
+    throw createBaseError(`Unsupported platform: ${os}`, true, 400)
   }
   try {
     const { stdout } = await execution(command, {
@@ -40,7 +31,7 @@ const getClipboardContent = async () => {
 
     // Validate clipboard content size
     if (clipboardContent.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
-      throw new BaseError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
+      throw createBaseError(`Clipboard content too large (${clipboardContent.length} > ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)`, true, 400)
     }
 
     // Return sanitized content
@@ -53,7 +44,7 @@ const getClipboardContent = async () => {
       return ''
     }
     if (error.code === 'ETIMEDOUT') {
-      throw new BaseError('Clipboard operation timed out', true, 408)
+      throw createBaseError('Clipboard operation timed out', true, 408)
     }
     throw error
   }
@@ -64,11 +55,10 @@ const getClipboardContent = async () => {
  */
 const openInBrowser = async (url) => {
   const os = platform()
-  let command
 
   // Validate URL format
   if (!url || typeof url !== 'string') {
-    throw new BaseError('Invalid URL provided', true, 400)
+    throw createBaseError('Invalid URL provided', true, 400)
   }
 
   // Add https:// if no protocol specified
@@ -77,19 +67,12 @@ const openInBrowser = async (url) => {
   }
 
   // Platform-specific commands
-  switch (os) {
-    case 'darwin':
-      command = `open "${url}"`
-      break
-    case 'linux':
-      command = `xdg-open "${url}"`
-      break
-    case 'win32':
-      command = `start "${url}"`
-      break
-    default:
-      throw new Error(`Unsupported platform: ${os}`)
+  const browserCmd = BROWSER_COMMANDS[os]
+  if (!browserCmd) {
+    throw createBaseError(`Unsupported platform: ${os}`, true, 400)
   }
+  
+  const command = `${browserCmd} "${url}"`
 
   try {
     await execution(command, {
@@ -99,9 +82,9 @@ const openInBrowser = async (url) => {
     return true
   } catch (error) {
     if (error.code === 'ETIMEDOUT') {
-      throw new BaseError('Browser operation timed out', true, 408)
+      throw createBaseError('Browser operation timed out', true, 408)
     }
-    throw new BaseError(`Failed to open browser: ${error.message}`, true, 500)
+    throw createBaseError(`Failed to open browser: ${error.message}`, true, 500)
   }
 }
 

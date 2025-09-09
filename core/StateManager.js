@@ -1,23 +1,17 @@
-/**
- * StateManager - Centralized state management and operations for AI application
- * Single Source of Truth for state AND operations
- */
-
 import { logger } from '../utils/logger.js'
 import { createProvider } from '../utils/provider-factory.js'
-import { APP_CONFIG } from '../config/app-config.js'
+import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-const PROVIDERS = APP_CONFIG.PROVIDERS
 
 function createStateManager() {
   // Private state with closures
   const aiState = {
-    currentProvider: null,        // Current provider instance
-    currentProviderKey: '',       // Current provider key (openai, deepseek, etc)
-    currentModel: '',             // Current model ID
-    availableModels: [],          // Models for current provider
-    providers: new Map(),         // All initialized providers
-    initialized: false            // Service initialization status
+    currentProvider: null, // Current provider instance
+    currentProviderKey: '', // Current provider key (openai, deepseek, etc)
+    currentModel: '', // Current model ID
+    availableModels: [], // Models for current provider
+    providers: new Map(), // All initialized providers
+    initialized: false, // Service initialization status
   }
 
   // Operation state tracking
@@ -25,20 +19,20 @@ function createStateManager() {
     isProcessingRequest: false,
     isTypingResponse: false,
     isRetryingProvider: false,
-    shouldReturnToPrompt: false
+    shouldReturnToPrompt: false,
   }
 
   // Request management
   const requestState = {
     currentRequestController: null,
     currentSpinnerInterval: null,
-    currentStreamProcessor: null
+    currentStreamProcessor: null,
   }
 
   // Context and conversation history
   const contextState = {
     contextHistory: [],
-    maxContextHistory: APP_CONSTANTS.MAX_CONTEXT_HISTORY
+    maxContextHistory: APP_CONSTANTS.MAX_CONTEXT_HISTORY,
   }
 
   // User session data
@@ -76,7 +70,7 @@ function createStateManager() {
       providerData = {
         instance: providerInstance,
         config: providerConfig,
-        models: models
+        models: models,
       }
       aiState.providers.set(providerId, providerData)
     }
@@ -99,11 +93,19 @@ function createStateManager() {
       if (!selectedModel) {
         // Use default model from config first, then fall back to first available
         const defaultModel = PROVIDERS[providerId].defaultModel
-        if (defaultModel && providerData.models.some(m => (typeof m === 'string' ? m === defaultModel : m.id === defaultModel))) {
+        if (
+          defaultModel &&
+          providerData.models.some((m) =>
+            typeof m === 'string' ? m === defaultModel : m.id === defaultModel,
+          )
+        ) {
           selectedModel = defaultModel
         } else if (providerData.models.length > 0) {
           // Fall back to first available model
-          selectedModel = typeof providerData.models[0] === 'string' ? providerData.models[0] : providerData.models[0].id
+          selectedModel =
+            typeof providerData.models[0] === 'string'
+              ? providerData.models[0]
+              : providerData.models[0].id
         }
       }
 
@@ -113,16 +115,17 @@ function createStateManager() {
         key: providerId,
         model: selectedModel,
         models: providerData.models,
-        config: providerData.config
+        config: providerData.config,
       })
 
-      logger.debug(`StateManager: Successfully switched to ${providerId} with ${providerData.models.length} models`)
+      logger.debug(
+        `StateManager: Successfully switched to ${providerId} with ${providerData.models.length} models`,
+      )
       return {
         provider: providerData.instance,
         model: selectedModel,
-        models: providerData.models
+        models: providerData.models,
       }
-
     } catch (error) {
       logger.debug(`StateManager: Provider switch failed: ${error.message}`)
       throw error
@@ -139,20 +142,25 @@ function createStateManager() {
       }
 
       // Verify model exists
-      const modelExists = aiState.availableModels.some(m => {
-        return typeof m === 'string' ? m === targetModel : (m.id === targetModel || m.name === targetModel)
+      const modelExists = aiState.availableModels.some((m) => {
+        return typeof m === 'string'
+          ? m === targetModel
+          : m.id === targetModel || m.name === targetModel
       })
 
       if (!modelExists) {
-        throw new Error(`Model ${targetModel} not available for current provider`)
+        throw new Error(
+          `Model ${targetModel} not available for current provider`,
+        )
       }
 
       // Update current model
       updateModel(targetModel)
 
-      logger.debug(`StateManager: Successfully switched to model ${targetModel}`)
+      logger.debug(
+        `StateManager: Successfully switched to model ${targetModel}`,
+      )
       return targetModel
-
     } catch (error) {
       logger.debug(`StateManager: Model switch failed: ${error.message}`)
       throw error
@@ -177,7 +185,7 @@ function createStateManager() {
       aiState.providers.set(providerInfo.key, {
         instance: providerInfo.instance,
         config: providerInfo.config,
-        models: providerInfo.models || []
+        models: providerInfo.models || [],
       })
     }
 
@@ -189,7 +197,7 @@ function createStateManager() {
     notifyListeners('ai-provider-changed', {
       previous: previousProvider,
       current: providerInfo.key,
-      model: providerInfo.model
+      model: providerInfo.model,
     })
   }
 
@@ -207,7 +215,7 @@ function createStateManager() {
 
     notifyListeners('model-changed', {
       previous: previousModel,
-      current: modelId
+      current: modelId,
     })
   }
 
@@ -226,7 +234,7 @@ function createStateManager() {
     return {
       instance: aiState.currentProvider,
       key: aiState.currentProviderKey,
-      model: aiState.currentModel
+      model: aiState.currentModel,
     }
   }
 
@@ -301,7 +309,7 @@ function createStateManager() {
 
     notifyListeners('processing-state-changed', {
       isProcessing,
-      hasController: !!requestState.currentRequestController
+      hasController: !!requestState.currentRequestController,
     })
   }
 
@@ -417,7 +425,7 @@ function createStateManager() {
   function clearRequestController() {
     requestState.currentRequestController = null
     notifyListeners('controller-cleared', {
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
   }
 
@@ -427,19 +435,19 @@ function createStateManager() {
   function clearAllOperations() {
     // Clear all request and operation state
     clearRequestState()
-    
+
     // Reset operation flags
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
     operationState.isRetryingProvider = false
     operationState.shouldReturnToPrompt = false
-    
+
     // Notify listeners - DatabaseCommandService should listen to this event
     // and handle its own cache invalidation (Single Source of Truth principle)
     notifyListeners('all-operations-cleared', {
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
-    
+
     logger.debug('StateManager: All operations cleared and state reset')
   }
 
@@ -453,13 +461,15 @@ function createStateManager() {
 
     // Trim history if too long
     if (contextState.contextHistory.length > contextState.maxContextHistory) {
-      contextState.contextHistory = contextState.contextHistory.slice(-contextState.maxContextHistory)
+      contextState.contextHistory = contextState.contextHistory.slice(
+        -contextState.maxContextHistory,
+      )
     }
 
     notifyListeners('context-updated', {
       role,
       content,
-      historyLength: contextState.contextHistory.length
+      historyLength: contextState.contextHistory.length,
     })
   }
 
@@ -486,7 +496,8 @@ function createStateManager() {
 
     // Trim current history if needed
     if (contextState.contextHistory.length > maxLength) {
-      contextState.contextHistory = contextState.contextHistory.slice(-maxLength)
+      contextState.contextHistory =
+        contextState.contextHistory.slice(-maxLength)
     }
   }
 
@@ -541,11 +552,14 @@ function createStateManager() {
    */
   function notifyListeners(event, data) {
     if (listeners.has(event)) {
-      listeners.get(event).forEach(callback => {
+      listeners.get(event).forEach((callback) => {
         try {
           callback(data)
         } catch (error) {
-          console.error(`StateManager listener error for event ${event}:`, error)
+          console.error(
+            `StateManager listener error for event ${event}:`,
+            error,
+          )
         }
       })
     }
@@ -562,7 +576,7 @@ function createStateManager() {
       operationState: getOperationState(),
       contextHistory: getContextHistory(),
       userSession: getUserSession(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
   }
 
@@ -593,24 +607,35 @@ function createStateManager() {
    * Check if application is currently busy
    */
   function isBusy() {
-    return operationState.isProcessingRequest ||
-           operationState.isTypingResponse ||
-           operationState.isRetryingProvider
+    return (
+      operationState.isProcessingRequest ||
+      operationState.isTypingResponse ||
+      operationState.isRetryingProvider
+    )
   }
 
   // === Create AI completion (main operation) ===
 
-  async function createChatCompletion(messages, options = {}, providerModel = null) {
+  async function createChatCompletion(
+    messages,
+    options = {},
+    providerModel = null,
+  ) {
     // Determine provider key for markdown setting
-    const providerKey = providerModel ? providerModel.provider : aiState.currentProviderKey
-    
+    const providerKey = providerModel
+      ? providerModel.provider
+      : aiState.currentProviderKey
+
     // Check if markdown should be disabled for this provider
-    const providerConfig = APP_CONFIG.PROVIDERS[providerKey]
+    const providerConfig = PROVIDERS[providerKey]
     if (providerConfig && !providerConfig.markdown) {
       // Add system prompt to disable markdown
       messages = [
-        { role: 'system', content: APP_CONFIG.SYSTEM_PROMPTS.DISABLE_MARKDOWN },
-        ...messages
+        {
+          role: 'system',
+          content: APP_CONSTANTS.SYSTEM_PROMPTS.DISABLE_MARKDOWN,
+        },
+        ...messages,
       ]
     }
 
@@ -621,13 +646,20 @@ function createStateManager() {
       }
 
       try {
-        return await aiState.currentProvider.createChatCompletion(aiState.currentModel, messages, options)
+        return await aiState.currentProvider.createChatCompletion(
+          aiState.currentModel,
+          messages,
+          options,
+        )
       } catch (error) {
         // if (options.signal && options.signal.aborted) {
         if (options.signal.aborted) {
           throw error // User cancelled - don't log as error
         }
-        logger.debug(`StateManager: Chat completion failed for current model ${aiState.currentModel}:`, error)
+        logger.debug(
+          `StateManager: Chat completion failed for current model ${aiState.currentModel}:`,
+          error,
+        )
         throw error
       }
     }
@@ -636,23 +668,31 @@ function createStateManager() {
     const targetProviderKey = providerModel.provider
     const targetModel = providerModel.model
 
-    logger.debug(`StateManager: Using specific provider ${targetProviderKey} with model ${targetModel}`)
+    logger.debug(
+      `StateManager: Using specific provider ${targetProviderKey} with model ${targetModel}`,
+    )
 
     // Use common initialization logic (no global state change)
     const providerData = await ensureProviderInitialized(targetProviderKey)
 
     try {
-      return await providerData.instance.createChatCompletion(targetModel, messages, options)
+      return await providerData.instance.createChatCompletion(
+        targetModel,
+        messages,
+        options,
+      )
     } catch (error) {
       // if (options.signal && options.signal.aborted) {
       if (options.signal.aborted) {
         throw error // User cancelled - don't log as error
       }
-      logger.debug(`StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`, error)
+      logger.debug(
+        `StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`,
+        error,
+      )
       throw error
     }
   }
-
 
   // Return the functional object (NO CLASS!)
   return {
@@ -716,7 +756,7 @@ function createStateManager() {
     // Utilities
     getStateSnapshot,
     reset,
-    isBusy
+    isBusy,
   }
 }
 

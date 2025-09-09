@@ -1,5 +1,5 @@
 import { APP_CONSTANTS } from '../config/constants.js'
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 
 /**
  * Validates API key format
@@ -9,7 +9,7 @@ import { BaseError } from '../core/error-system/index.js'
  */
 export function validateApiKey(apiKey, provider) {
   if (!apiKey || typeof apiKey !== 'string') {
-    throw new BaseError(`Invalid API key for ${provider}`, true, 401)
+    throw createBaseError(`Invalid API key for ${provider}`, true, 401)
   }
 
   let regex
@@ -29,7 +29,7 @@ export function validateApiKey(apiKey, provider) {
   }
 
   if (!regex.test(apiKey)) {
-    throw new BaseError(`Invalid API key format for ${provider}`, true, 401)
+    throw createBaseError(`Invalid API key format for ${provider}`, true, 401)
   }
 
   return true
@@ -87,7 +87,7 @@ export class RateLimiter {
     if (!this.canMakeRequest()) {
       this.violations++
       const backoffTime = this.getBackoffTime()
-      throw new BaseError(`Rate limit exceeded. Please wait ${Math.ceil(backoffTime / 1000)} seconds before making another request.`, true, 429)
+      throw createBaseError(`Rate limit exceeded. Please wait ${Math.ceil(backoffTime / 1000)} seconds before making another request.`, true, 429)
     }
     
     this.requests.push(Date.now())
@@ -131,12 +131,12 @@ export class CSPChecker {
       
       // Check protocol
       if (!['https:'].includes(parsedUrl.protocol)) {
-        throw new BaseError('Only HTTPS URLs are allowed', true, 400)
+        throw createBaseError('Only HTTPS URLs are allowed', true, 400)
       }
       
       // Check domain
       if (!this.allowedDomains.includes(parsedUrl.hostname)) {
-        throw new BaseError(`Domain ${parsedUrl.hostname} is not allowed`, true, 403)
+        throw createBaseError(`Domain ${parsedUrl.hostname} is not allowed`, true, 403)
       }
       
       return true
@@ -144,7 +144,7 @@ export class CSPChecker {
       if (error instanceof BaseError) {
         throw error
       }
-      throw new BaseError('Invalid URL format', true, 400)
+      throw createBaseError('Invalid URL format', true, 400)
     }
   }
 

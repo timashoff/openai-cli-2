@@ -1,50 +1,28 @@
-// Application constants
 export const APP_CONSTANTS = {
-  // Limits
   MAX_INPUT_LENGTH: 30000, // Maximum length of user input
   MAX_CONTEXT_HISTORY: 16, // Maximum number of messages in context
-  MAX_CACHE_ENTRIES: 1000, // Maximum number of cache entries
-  MAX_CACHE_ENTRY_SIZE: 1024 * 1024, // Maximum size of one cache entry (1MB)
   MAX_LINKS_TO_DISPLAY: 20, // Maximum number of links to display from web pages
   MAX_CONTENT_LENGTH: 25000, // Maximum length of content to extract from web pages
 
-  // Timeouts
   API_TIMEOUT: 180000, // 180 seconds for API requests
-  PROVIDER_INIT_TIMEOUT: 30000, // 30 seconds for provider initialization
-  CLIPBOARD_TIMEOUT: 5000, // 5 seconds for clipboard operations
-  CACHE_TTL: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
 
-  // Spinner and animation sizes
   SPINNER_INTERVAL: 100, // Spinner update interval in ms
-  TYPING_DELAY: 10, // Delay between characters when typing response
   CLEAR_TIMEOUT: 100, // Timeout for screen clear
 
-  // Multi-model execution
-  MULTI_MODEL_WAIT_THRESHOLD: 1000, // Don't show "Waiting..." if gap < 1 second
-  RAPID_CHECK_INTERVAL: 5, // Interval for rapid abort checking in ms
-  ATTEMPT_DURATION: 5000, // Duration of one attempt in ms (5 seconds)
-
-  // Paths
-  CACHE_DIR_NAME: 'AI_responses',
-  CACHE_FILE_NAME: 'cache.json',
-
-  // Feature flags
   CACHE_ENABLED: false, // Temporarily disabled - will implement history/conversation saving later
 
-  // Special markers
   CLIPBOARD_MARKER: '$$',
-  FORCE_FLAGS: [' --force', ' -f'],
 
-  // UI Configuration
+  SYSTEM_PROMPTS: {
+    DISABLE_MARKDOWN:
+      'CRITICAL INSTRUCTION: You are FORBIDDEN from using formatting symbols: NO asterisks (*), NO underscores (_), NO hash symbols (#), NO backticks (`), NO bold, NO italic. Output MUST be completely plain text only. This is NON-NEGOTIABLE.',
+  },
+
   MENU_PAGE_SIZE: 10, // Number of options to display on one page in interactive menu
   MENU_CANCELLED_INDEX: -1, // Index returned when menu is cancelled
   FIELD_VALUE_MAX_LENGTH: 30, // Max length for field values display
   MENU_FIELD_NAME_WIDTH: 12, // Fixed width for field names (longest is "Description": 11 chars)
 
-  // Default provider
-  DEFAULT_PROVIDER: 'openai',
-
-  // Regular expressions for validation
   REGEX: {
     API_KEY_OPENAI: /^sk-[a-zA-Z0-9\-_]{20,}$/,
     API_KEY_DEEPSEEK: /^sk-[a-zA-Z0-9\-_]{20,}$/,
@@ -52,26 +30,6 @@ export const APP_CONSTANTS = {
   },
 }
 
-// Error constants
-export const ERROR_CODES = {
-  // User errors
-  INVALID_INPUT: 'INVALID_INPUT',
-  MISSING_PARAMETER: 'MISSING_PARAMETER',
-  INVALID_API_KEY: 'INVALID_API_KEY',
-
-  // System errors
-  API_TIMEOUT: 'API_TIMEOUT',
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  CACHE_ERROR: 'CACHE_ERROR',
-  FILE_SYSTEM_ERROR: 'FILE_SYSTEM_ERROR',
-
-  // Security
-  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-}
-
-// Logging constants
 export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
@@ -79,41 +37,48 @@ export const LOG_LEVELS = {
   DEBUG: 'debug',
 }
 
-// HTTP statuses
-export const HTTP_STATUS = {
-  OK: 200,
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  TIMEOUT: 408,
-  TOO_MANY_REQUESTS: 429,
-  INTERNAL_SERVER_ERROR: 500,
-  BAD_GATEWAY: 502,
-  SERVICE_UNAVAILABLE: 503,
-}
-
-// Supported operating systems
 export const SUPPORTED_PLATFORMS = {
   DARWIN: 'darwin', // macOS
   LINUX: 'linux',
   WIN32: 'win32', // Windows
 }
 
-// Clipboard commands by platform
 export const CLIPBOARD_COMMANDS = {
   [SUPPORTED_PLATFORMS.DARWIN]: 'pbpaste',
   [SUPPORTED_PLATFORMS.LINUX]: 'xclip -selection clipboard -o',
   [SUPPORTED_PLATFORMS.WIN32]: 'powershell.exe -command "Get-Clipboard"',
 }
 
-// Symbols for interface
+export const BROWSER_COMMANDS = {
+  [SUPPORTED_PLATFORMS.DARWIN]: 'open',
+  [SUPPORTED_PLATFORMS.LINUX]: 'xdg-open',
+  [SUPPORTED_PLATFORMS.WIN32]: 'start',
+}
+
 export const UI_SYMBOLS = {
   SPINNER: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
   CHECK: '✓',
   CROSS: '☓',
-  ARROW: '▶',
-  DOT: '⣀',
   BRAILLE_DOTS: ['⡀', '⣀', '⣠', '⣤', '⣴', '⣶', '⣾', '⣿'],
-  ELLIPSIS: '...',
+  ARROW: '▶',
+}
+
+export const UI_CONFIG = {
+  HELP_TABLE: {
+    COLUMN_WIDTHS: {
+      KEYS: 14,
+      DESCRIPTION: 36,
+      CACHE: 5,
+      MODELS: 6,
+    },
+    SEPARATORS: {
+      COLUMN: '│',
+      ROW: '─',
+    },
+    FORMATTING: {
+      ROW_INDENT: 0,
+      SEPARATOR_SPACES: 0,
+      SEPARATOR_COUNT: 0,
+    },
+  },
 }

@@ -1,6 +1,6 @@
 import { BaseService } from './base-service.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 import { UI_SYMBOLS } from '../config/constants.js'
 import { getElapsedTime, clearTerminalLine, showStatus } from '../utils/index.js'
 
@@ -405,21 +405,21 @@ export class StreamingService extends BaseService {
    */
   validateStreamOptions(options) {
     if (!options) {
-      throw new BaseError('Stream options are required', true, 400)
+      throw createBaseError('Stream options are required', true, 400)
     }
 
     const { stream, providerKey, model } = options
     
     if (!stream) {
-      throw new BaseError('Stream is required', true, 400)
+      throw createBaseError('Stream is required', true, 400)
     }
 
     if (!providerKey || typeof providerKey !== 'string') {
-      throw new BaseError('Provider key must be a non-empty string', true, 400)
+      throw createBaseError('Provider key must be a non-empty string', true, 400)
     }
 
     if (!model || typeof model !== 'string') {
-      throw new BaseError('Model must be a non-empty string', true, 400)
+      throw createBaseError('Model must be a non-empty string', true, 400)
     }
 
     return options

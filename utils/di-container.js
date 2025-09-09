@@ -1,4 +1,4 @@
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 
 /**
  * Service lifetime enumeration
@@ -90,7 +90,7 @@ export class DIContainer {
     this.validateName(name)
     
     if (instance === null || instance === undefined) {
-      throw new BaseError(`Instance cannot be null or undefined for service '${name}'`, true, 400)
+      throw createBaseError(`Instance cannot be null or undefined for service '${name}'`, true, 400)
     }
 
     this.services.set(name, {
@@ -113,7 +113,7 @@ export class DIContainer {
    */
   resolve(name) {
     if (this.isDisposed) {
-      throw new BaseError('Cannot resolve services from disposed container', true, 500)
+      throw createBaseError('Cannot resolve services from disposed container', true, 500)
     }
 
     return this.resolveInternal(name)
@@ -195,12 +195,12 @@ export class DIContainer {
     // Check for circular dependency
     if (this.resolutionStack.has(name)) {
       const cycle = Array.from(this.resolutionStack).join(' -> ') + ` -> ${name}`
-      throw new BaseError(`Circular dependency detected: ${cycle}`, true, 500)
+      throw createBaseError(`Circular dependency detected: ${cycle}`, true, 500)
     }
 
     const descriptor = this.services.get(name)
     if (!descriptor) {
-      throw new BaseError(`Service '${name}' is not registered`, true, 404)
+      throw createBaseError(`Service '${name}' is not registered`, true, 404)
     }
 
     // Return existing singleton instance
@@ -253,7 +253,7 @@ export class DIContainer {
       // Otherwise, call as regular function
       return descriptor.factory(...dependencies)
     } catch (error) {
-      throw new BaseError(
+      throw createBaseError(
         `Error creating instance of service '${descriptor.name}': ${error.message}`,
         true,
         500
@@ -278,15 +278,15 @@ export class DIContainer {
     this.validateName(name)
 
     if (typeof factory !== 'function') {
-      throw new BaseError(`Factory must be a function for service '${name}'`, true, 400)
+      throw createBaseError(`Factory must be a function for service '${name}'`, true, 400)
     }
 
     if (!Object.values(ServiceLifetime).includes(lifetime)) {
-      throw new BaseError(`Invalid service lifetime '${lifetime}' for service '${name}'`, true, 400)
+      throw createBaseError(`Invalid service lifetime '${lifetime}' for service '${name}'`, true, 400)
     }
 
     if (!Array.isArray(dependencies)) {
-      throw new BaseError(`Dependencies must be an array for service '${name}'`, true, 400)
+      throw createBaseError(`Dependencies must be an array for service '${name}'`, true, 400)
     }
 
     for (const dep of dependencies) {
@@ -301,7 +301,7 @@ export class DIContainer {
    */
   validateName(name, type = 'service name') {
     if (!name || typeof name !== 'string' || name.trim() === '') {
-      throw new BaseError(`Invalid ${type}: must be non-empty string`, true, 400)
+      throw createBaseError(`Invalid ${type}: must be non-empty string`, true, 400)
     }
   }
 
