@@ -307,7 +307,6 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 **MCP Manager:** `utils/mcp-manager.js` handles MCP server lifecycle:
 - Built-in server initialization and management
 - Tool calling interface for MCP operations
-- Server configuration from `config/mcp-servers.json`
 
 **Built-in MCP Servers:**
 - `utils/fetch-mcp-server.js` - Advanced webpage content extraction with article detection
@@ -332,4 +331,3 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - `utils/intent-detector.js` - Automatic intent detection for MCP routing
 - `utils/fetch-mcp-server.js` - Built-in webpage content extraction server
 - `utils/search-mcp-server.js` - Built-in web search server
-- `config/mcp-servers.json` - MCP server configuration

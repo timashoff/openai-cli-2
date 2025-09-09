@@ -893,7 +893,6 @@ StateObserver pattern for reactive updates:
 - **config/app-config.js**: Provider and application configuration
 - **config/constants.js**: App constants and UI symbols
 - **config/color.js**: Color scheme definitions
-- **config/mcp-servers.json**: MCP server configurations
 
 ## 🚀 Architecture Status (2025)
 
