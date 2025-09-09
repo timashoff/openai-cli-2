@@ -378,7 +378,7 @@ export class MultiCommandProcessor {
         return // No models available
       }
 
-      logger.debug(`▶️ Starting stream for ${nextModel.provider.name} (index: ${nextModel.index})`)
+      logger.debug(`${UI_SYMBOLS.ARROW}️ Starting stream for ${nextModel.provider.name} (index: ${nextModel.index})`)
       startModelStream(nextModel)
     }
 

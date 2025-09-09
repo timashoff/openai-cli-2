@@ -1,6 +1,7 @@
 import { createContainer, ServiceLifetime } from '../utils/di-container.js'
 import { createEventBus } from '../utils/event-bus.js'
 import { errorBoundary, createBaseError } from '../core/error-system/index.js'
+import { UI_SYMBOLS } from '../config/constants.js'
 
 // Import all service classes
 import { BaseService } from './base-service.js'
@@ -97,7 +98,7 @@ export class ServiceRegistry {
       for (const serviceName of startOrder) {
         const service = this.container.tryResolve(serviceName)
         if (service && typeof service.initialize === 'function') {
-          console.log(`  ▶️  Starting ${serviceName}...`)
+          console.log(`  ${UI_SYMBOLS.ARROW}️  Starting ${serviceName}...`)
           await service.initialize()
           this.activeServices.set(serviceName, service)
         }
