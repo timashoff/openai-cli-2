@@ -109,10 +109,3 @@ export function getAllSystemCommandNames() {
   
   return names
 }
-
-/**
- * Get unique system commands (without aliases)
- */
-export function getUniqueSystemCommands() {
-  return Object.keys(SYSTEM_COMMANDS)
-}
