@@ -1,10 +1,8 @@
 /**
- * Error Boundary - Circuit Breaker pattern with automatic fault detection
+ * Error Boundary - Functional circuit breaker pattern with fault detection
  * Prevents cascading failures and provides automatic recovery mechanisms
  */
-import * as ErrorTypes from './ErrorTypes.js'
-
-const { BaseError } = ErrorTypes
+import { createBaseError, isBaseError } from './ErrorTypes.js'
 import { errorRecovery, RecoveryStrategy } from './ErrorRecovery.js'
 import { logger } from '../../utils/logger.js'
 
@@ -42,347 +40,400 @@ export const CircuitConfig = {
 }
 
 /**
- * Circuit breaker implementation for error boundary protection
+ * Create circuit breaker state object
  */
-class CircuitBreaker {
-  constructor(name, config = CircuitConfig.DEFAULT) {
-    this.name = name
-    this.config = config
-    this.state = CircuitState.CLOSED
-    this.failureCount = 0
-    this.successCount = 0
-    this.lastFailureTime = null
-    this.nextAttemptTime = null
-    this.requestCount = 0
-    this.errorHistory = []
-  }
+const createCircuitBreakerState = (name, config = CircuitConfig.DEFAULT) => ({
+  name,
+  config,
+  state: CircuitState.CLOSED,
+  failureCount: 0,
+  successCount: 0,
+  lastFailureTime: null,
+  nextAttemptTime: null,
+  requestCount: 0,
+  errorHistory: []
+})
 
-  /**
-   * Execute operation with circuit breaker protection
-   */
-  async execute(operation, context = {}) {
-    // Check if circuit is open
-    if (this.state === CircuitState.OPEN) {
-      if (!this.shouldAttemptReset()) {
-        throw new BaseError(`Circuit breaker '${this.name}' is open. Service unavailable.`, true, 503)
-      }
-      
-      // Move to half-open for testing
-      this.state = CircuitState.HALF_OPEN
-      this.successCount = 0
-      logger.info(`Circuit breaker '${this.name}' moved to HALF_OPEN for testing`)
+/**
+ * Check if circuit should attempt reset
+ */
+const shouldAttemptReset = (circuitState) => {
+  return circuitState.nextAttemptTime && Date.now() >= circuitState.nextAttemptTime
+}
+
+/**
+ * Handle successful operation
+ */
+const onSuccess = (circuitState, startTime) => {
+  const duration = Date.now() - startTime
+  
+  if (circuitState.state === CircuitState.HALF_OPEN) {
+    circuitState.successCount++
+    
+    if (circuitState.successCount >= circuitState.config.successThreshold) {
+      // Close circuit - service has recovered
+      reset(circuitState)
+      logger.info(`Circuit breaker '${circuitState.name}' closed - service recovered`)
     }
-
-    const startTime = Date.now()
-    
-    try {
-      const result = await operation()
-      
-      // Record success
-      this.onSuccess(startTime)
-      return result
-      
-    } catch (error) {
-      // Record failure
-      this.onFailure(error, startTime)
-      throw error
-    }
+  } else if (circuitState.state === CircuitState.CLOSED) {
+    // Reset failure count on success
+    circuitState.failureCount = Math.max(0, circuitState.failureCount - 1)
   }
+  
+  circuitState.requestCount++
+  logger.debug(`Circuit breaker '${circuitState.name}' - Operation succeeded in ${duration}ms`)
+}
 
-  /**
-   * Handle successful operation
-   */
-  onSuccess(startTime) {
-    const duration = Date.now() - startTime
-    
-    if (this.state === CircuitState.HALF_OPEN) {
-      this.successCount++
-      
-      if (this.successCount >= this.config.successThreshold) {
-        // Close circuit - service has recovered
-        this.reset()
-        logger.info(`Circuit breaker '${this.name}' closed - service recovered`)
-      }
-    } else if (this.state === CircuitState.CLOSED) {
-      // Reset failure count on success
-      this.failureCount = Math.max(0, this.failureCount - 1)
-    }
-    
-    this.requestCount++
-    logger.debug(`Circuit breaker '${this.name}' - Operation succeeded in ${duration}ms`)
+/**
+ * Handle failed operation
+ */
+const onFailure = (circuitState, error, startTime) => {
+  const duration = Date.now() - startTime
+  
+  circuitState.failureCount++
+  circuitState.lastFailureTime = Date.now()
+  circuitState.requestCount++
+  
+  // Add to error history
+  circuitState.errorHistory.push({
+    error: error.message,
+    timestamp: new Date(),
+    duration
+  })
+  
+  // Keep only recent errors
+  if (circuitState.errorHistory.length > 20) {
+    circuitState.errorHistory = circuitState.errorHistory.slice(-10)
   }
-
-  /**
-   * Handle failed operation
-   */
-  onFailure(error, startTime) {
-    const duration = Date.now() - startTime
-    
-    this.failureCount++
-    this.lastFailureTime = Date.now()
-    this.requestCount++
-    
-    // Add to error history
-    this.errorHistory.push({
-      error: error.message,
-      timestamp: new Date(),
-      duration
-    })
-    
-    // Keep only recent errors
-    if (this.errorHistory.length > 20) {
-      this.errorHistory = this.errorHistory.slice(-10)
-    }
-    
-    // Check if we should open the circuit
-    if (this.state === CircuitState.CLOSED && this.failureCount >= this.config.failureThreshold) {
-      this.open()
-    } else if (this.state === CircuitState.HALF_OPEN) {
-      // Failed during testing - open circuit again
-      this.open()
-    }
-    
-    logger.debug(`Circuit breaker '${this.name}' - Operation failed in ${duration}ms (failures: ${this.failureCount})`)
+  
+  // Check if we should open the circuit
+  if (circuitState.state === CircuitState.CLOSED && circuitState.failureCount >= circuitState.config.failureThreshold) {
+    open(circuitState)
+  } else if (circuitState.state === CircuitState.HALF_OPEN) {
+    // Failed during testing - open circuit again
+    open(circuitState)
   }
+  
+  logger.debug(`Circuit breaker '${circuitState.name}' - Operation failed in ${duration}ms (failures: ${circuitState.failureCount})`)
+}
 
-  /**
-   * Open the circuit
-   */
-  open() {
-    this.state = CircuitState.OPEN
-    this.nextAttemptTime = Date.now() + this.config.recoveryTimeout
-    
-    logger.warn(`Circuit breaker '${this.name}' opened after ${this.failureCount} failures. Next attempt in ${this.config.recoveryTimeout}ms`)
-  }
+/**
+ * Open the circuit
+ */
+const open = (circuitState) => {
+  circuitState.state = CircuitState.OPEN
+  circuitState.nextAttemptTime = Date.now() + circuitState.config.recoveryTimeout
+  
+  logger.warn(`Circuit breaker '${circuitState.name}' opened after ${circuitState.failureCount} failures. Next attempt in ${circuitState.config.recoveryTimeout}ms`)
+}
 
-  /**
-   * Reset circuit to closed state
-   */
-  reset() {
-    this.state = CircuitState.CLOSED
-    this.failureCount = 0
-    this.successCount = 0
-    this.lastFailureTime = null
-    this.nextAttemptTime = null
-  }
+/**
+ * Reset circuit to closed state
+ */
+const reset = (circuitState) => {
+  circuitState.state = CircuitState.CLOSED
+  circuitState.failureCount = 0
+  circuitState.successCount = 0
+  circuitState.lastFailureTime = null
+  circuitState.nextAttemptTime = null
+}
 
-  /**
-   * Check if we should attempt to reset the circuit
-   */
-  shouldAttemptReset() {
-    return this.nextAttemptTime && Date.now() >= this.nextAttemptTime
-  }
-
-  /**
-   * Get circuit breaker status
-   */
-  getStatus() {
-    return {
-      name: this.name,
-      state: this.state,
-      failureCount: this.failureCount,
-      successCount: this.successCount,
-      requestCount: this.requestCount,
-      lastFailureTime: this.lastFailureTime,
-      nextAttemptTime: this.nextAttemptTime,
-      recentErrors: this.errorHistory.slice(-5),
-      config: this.config
-    }
+/**
+ * Get circuit breaker status
+ */
+const getStatus = (circuitState) => {
+  return {
+    name: circuitState.name,
+    state: circuitState.state,
+    failureCount: circuitState.failureCount,
+    successCount: circuitState.successCount,
+    requestCount: circuitState.requestCount,
+    lastFailureTime: circuitState.lastFailureTime,
+    nextAttemptTime: circuitState.nextAttemptTime,
+    recentErrors: circuitState.errorHistory.slice(-5),
+    config: circuitState.config
   }
 }
 
 /**
- * Error boundary with circuit breaker protection and recovery strategies
+ * Execute operation with circuit breaker protection
  */
-export class ErrorBoundary {
-  constructor() {
-    this.circuits = new Map()
-    this.globalConfig = CircuitConfig.DEFAULT
-  }
-
-  /**
-   * Execute operation with error boundary protection
-   */
-  async execute(operation, context = {}, strategy = RecoveryStrategy.RETRY) {
-    const circuitName = this.generateCircuitName(context)
-    const circuit = this.getOrCreateCircuit(circuitName, context)
-    
-    try {
-      // Execute with circuit breaker protection
-      return await circuit.execute(async () => {
-        // Use error recovery for the actual operation
-        return await errorRecovery.executeWithRecovery(operation, context, strategy)
-      }, context)
-      
-    } catch (error) {
-      // Circuit breaker failed or recovery failed
-      logger.error(`Error boundary failed for ${circuitName}`, {
-        error: error.message,
-        context,
-        circuitState: circuit.state
-      })
-      
-      // Try last resort recovery
-      if (strategy !== RecoveryStrategy.FAIL_GRACEFUL) {
-        return await errorRecovery.executeWithRecovery(
-          operation, 
-          context, 
-          RecoveryStrategy.FAIL_GRACEFUL
-        )
-      }
-      
-      throw error
-    }
-  }
-
-  /**
-   * Execute multiple operations with coordinated error handling
-   */
-  async executeBatch(operations, context = {}, strategy = RecoveryStrategy.RETRY) {
-    const results = []
-    const errors = []
-    
-    for (const [index, operation] of operations.entries()) {
-      const operationContext = {
-        ...context,
-        operation: `${context.operation || 'batch'}_${index}`,
-        batchIndex: index
-      }
-      
-      try {
-        const result = await this.execute(operation, operationContext, strategy)
-        results.push(result)
-      } catch (error) {
-        errors.push({ index, error, context: operationContext })
-        
-        // Decide whether to continue with batch
-        if (this.shouldStopBatch(error, errors, operations.length)) {
-          break
-        }
-      }
+const executeWithCircuit = async (operation, context, circuitState) => {
+  // Check if circuit is open
+  if (circuitState.state === CircuitState.OPEN) {
+    if (!shouldAttemptReset(circuitState)) {
+      throw createBaseError(`Circuit breaker '${circuitState.name}' is open. Service unavailable.`, true, 503)
     }
     
-    return { results, errors }
+    // Move to half-open for testing
+    circuitState.state = CircuitState.HALF_OPEN
+    circuitState.successCount = 0
+    logger.info(`Circuit breaker '${circuitState.name}' moved to HALF_OPEN for testing`)
   }
 
-  /**
-   * Get or create circuit breaker for context
-   */
-  getOrCreateCircuit(name, context) {
-    if (!this.circuits.has(name)) {
-      const config = this.getCircuitConfig(context)
-      this.circuits.set(name, new CircuitBreaker(name, config))
-    }
+  const startTime = Date.now()
+  
+  try {
+    const result = await operation()
     
-    return this.circuits.get(name)
-  }
-
-  /**
-   * Get circuit configuration based on context
-   */
-  getCircuitConfig(context) {
-    const operation = context.operation || ''
+    // Record success
+    onSuccess(circuitState, startTime)
+    return result
     
-    if (operation.includes('critical') || context.critical) {
-      return CircuitConfig.CRITICAL
-    }
-    
-    if (operation.includes('network') || operation.includes('api') || operation.includes('provider')) {
-      return CircuitConfig.NETWORK
-    }
-    
-    return CircuitConfig.DEFAULT
-  }
-
-  /**
-   * Generate circuit name from context
-   */
-  generateCircuitName(context) {
-    const operation = context.operation || 'unknown'
-    const component = context.component || 'unknown'
-    return `${component}:${operation}`
-  }
-
-  /**
-   * Check if batch execution should stop
-   */
-  shouldStopBatch(error, errors, totalOperations) {
-    // Stop if more than 50% of operations have failed
-    const failureRate = errors.length / totalOperations
-    
-    // Stop if we have critical errors
-    if (error instanceof BaseError && !error.isOperational) {
-      return true
-    }
-    
-    // Stop if failure rate is too high
-    return failureRate > 0.5
-  }
-
-  /**
-   * Reset specific circuit
-   */
-  resetCircuit(name) {
-    const circuit = this.circuits.get(name)
-    if (circuit) {
-      circuit.reset()
-      logger.info(`Circuit breaker '${name}' manually reset`)
-    }
-  }
-
-  /**
-   * Reset all circuits
-   */
-  resetAllCircuits() {
-    for (const circuit of this.circuits.values()) {
-      circuit.reset()
-    }
-    logger.info('All circuit breakers reset')
-  }
-
-  /**
-   * Get status of all circuits
-   */
-  getCircuitStatus() {
-    const status = {}
-    for (const [name, circuit] of this.circuits) {
-      status[name] = circuit.getStatus()
-    }
-    return status
-  }
-
-  /**
-   * Get circuits by state
-   */
-  getCircuitsByState(state) {
-    const circuits = {}
-    for (const [name, circuit] of this.circuits) {
-      if (circuit.state === state) {
-        circuits[name] = circuit.getStatus()
-      }
-    }
-    return circuits
-  }
-
-  /**
-   * Health check for error boundary system
-   */
-  getHealthCheck() {
-    const circuits = this.getCircuitStatus()
-    const openCircuits = Object.values(circuits).filter(c => c.state === CircuitState.OPEN)
-    const halfOpenCircuits = Object.values(circuits).filter(c => c.state === CircuitState.HALF_OPEN)
-    
-    return {
-      healthy: openCircuits.length === 0,
-      totalCircuits: Object.keys(circuits).length,
-      openCircuits: openCircuits.length,
-      halfOpenCircuits: halfOpenCircuits.length,
-      circuits: circuits,
-      timestamp: new Date().toISOString()
-    }
+  } catch (error) {
+    // Record failure
+    onFailure(circuitState, error, startTime)
+    throw error
   }
 }
 
-// Global instance
-export const errorBoundary = new ErrorBoundary()
+/**
+ * Generate circuit name from context
+ */
+const generateCircuitName = (context) => {
+  const operation = context.operation || 'unknown'
+  const component = context.component || 'unknown'
+  return `${component}:${operation}`
+}
 
+/**
+ * Get circuit configuration based on context
+ */
+const getCircuitConfig = (context) => {
+  const operation = context.operation || ''
+  
+  if (operation.includes('critical') || context.critical) {
+    return CircuitConfig.CRITICAL
+  }
+  
+  if (operation.includes('network') || operation.includes('api') || operation.includes('provider')) {
+    return CircuitConfig.NETWORK
+  }
+  
+  return CircuitConfig.DEFAULT
+}
+
+/**
+ * Get or create circuit breaker for context
+ */
+const getOrCreateCircuit = (name, context, circuits) => {
+  if (!circuits.has(name)) {
+    const config = getCircuitConfig(context)
+    circuits.set(name, createCircuitBreakerState(name, config))
+  }
+  
+  return circuits.get(name)
+}
+
+/**
+ * Check if batch execution should stop
+ */
+const shouldStopBatch = (error, errors, totalOperations) => {
+  // Stop if more than 50% of operations have failed
+  const failureRate = errors.length / totalOperations
+  
+  // Stop if we have critical errors
+  if (isBaseError(error) && !error.isOperational) {
+    return true
+  }
+  
+  // Stop if failure rate is too high
+  return failureRate > 0.5
+}
+
+/**
+ * Execute operation with error boundary protection
+ */
+const execute = async (operation, context = {}, strategy = RecoveryStrategy.RETRY, state) => {
+  const circuitName = generateCircuitName(context)
+  const circuit = getOrCreateCircuit(circuitName, context, state.circuits)
+  
+  try {
+    // Execute with circuit breaker protection
+    return await executeWithCircuit(async () => {
+      // Use error recovery for the actual operation
+      return await errorRecovery.executeWithRecovery(operation, context, strategy)
+    }, context, circuit)
+    
+  } catch (error) {
+    // Circuit breaker failed or recovery failed
+    logger.error(`Error boundary failed for ${circuitName}`, {
+      error: error.message,
+      context,
+      circuitState: circuit.state
+    })
+    
+    // Try last resort recovery
+    if (strategy !== RecoveryStrategy.FAIL_GRACEFUL) {
+      return await errorRecovery.executeWithRecovery(
+        operation, 
+        context, 
+        RecoveryStrategy.FAIL_GRACEFUL
+      )
+    }
+    
+    throw error
+  }
+}
+
+/**
+ * Execute multiple operations with coordinated error handling
+ */
+const executeBatch = async (operations, context = {}, strategy = RecoveryStrategy.RETRY, state) => {
+  const results = []
+  const errors = []
+  
+  for (const [index, operation] of operations.entries()) {
+    const operationContext = {
+      ...context,
+      operation: `${context.operation || 'batch'}_${index}`,
+      batchIndex: index
+    }
+    
+    try {
+      const result = await execute(operation, operationContext, strategy, state)
+      results.push(result)
+    } catch (error) {
+      errors.push({ index, error, context: operationContext })
+      
+      // Decide whether to continue with batch
+      if (shouldStopBatch(error, errors, operations.length)) {
+        break
+      }
+    }
+  }
+  
+  return { results, errors }
+}
+
+/**
+ * Reset specific circuit
+ */
+const resetCircuit = (name, circuits) => {
+  const circuit = circuits.get(name)
+  if (circuit) {
+    reset(circuit)
+    logger.info(`Circuit breaker '${name}' manually reset`)
+  }
+}
+
+/**
+ * Reset all circuits
+ */
+const resetAllCircuits = (circuits) => {
+  for (const circuit of circuits.values()) {
+    reset(circuit)
+  }
+  logger.info('All circuit breakers reset')
+}
+
+/**
+ * Get status of all circuits
+ */
+const getCircuitStatus = (circuits) => {
+  const status = {}
+  for (const [name, circuit] of circuits) {
+    status[name] = getStatus(circuit)
+  }
+  return status
+}
+
+/**
+ * Get circuits by state
+ */
+const getCircuitsByState = (state, circuits) => {
+  const circuitsByState = {}
+  for (const [name, circuit] of circuits) {
+    if (circuit.state === state) {
+      circuitsByState[name] = getStatus(circuit)
+    }
+  }
+  return circuitsByState
+}
+
+/**
+ * Health check for error boundary system
+ */
+const getHealthCheck = (circuits) => {
+  const circuitStatuses = getCircuitStatus(circuits)
+  const openCircuits = Object.values(circuitStatuses).filter(c => c.state === CircuitState.OPEN)
+  const halfOpenCircuits = Object.values(circuitStatuses).filter(c => c.state === CircuitState.HALF_OPEN)
+  
+  return {
+    healthy: openCircuits.length === 0,
+    totalCircuits: Object.keys(circuitStatuses).length,
+    openCircuits: openCircuits.length,
+    halfOpenCircuits: halfOpenCircuits.length,
+    circuits: circuitStatuses,
+    timestamp: new Date().toISOString()
+  }
+}
+
+/**
+ * Create error boundary factory function
+ */
+export const createErrorBoundary = () => {
+  const state = {
+    circuits: new Map()
+  }
+  
+  return {
+    execute: (operation, context, strategy) => execute(operation, context, strategy, state),
+    executeBatch: (operations, context, strategy) => executeBatch(operations, context, strategy, state),
+    resetCircuit: (name) => resetCircuit(name, state.circuits),
+    resetAllCircuits: () => resetAllCircuits(state.circuits),
+    getCircuitStatus: () => getCircuitStatus(state.circuits),
+    getCircuitsByState: (circuitState) => getCircuitsByState(circuitState, state.circuits),
+    getHealthCheck: () => getHealthCheck(state.circuits),
+    
+    // Utility functions
+    generateCircuitName,
+    getCircuitConfig,
+    shouldStopBatch
+  }
+}
+
+/**
+ * Create circuit breaker factory function
+ */
+export const createCircuitBreaker = (name, config = CircuitConfig.DEFAULT) => {
+  const circuitState = createCircuitBreakerState(name, config)
+  
+  return {
+    execute: (operation, context) => executeWithCircuit(operation, context, circuitState),
+    getStatus: () => getStatus(circuitState),
+    reset: () => reset(circuitState),
+    
+    // Circuit state accessors
+    getName: () => circuitState.name,
+    getState: () => circuitState.state,
+    getFailureCount: () => circuitState.failureCount,
+    getSuccessCount: () => circuitState.successCount
+  }
+}
+
+// Global instance for backward compatibility
+export const errorBoundary = createErrorBoundary()
+
+// Export individual functions for functional usage
+export {
+  execute,
+  executeBatch,
+  executeWithCircuit,
+  createCircuitBreakerState,
+  generateCircuitName,
+  getCircuitConfig,
+  getOrCreateCircuit,
+  shouldStopBatch,
+  resetCircuit,
+  resetAllCircuits,
+  getCircuitStatus,
+  getCircuitsByState,
+  getHealthCheck,
+  onSuccess,
+  onFailure,
+  open,
+  reset,
+  getStatus,
+  shouldAttemptReset
+}

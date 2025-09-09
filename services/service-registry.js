@@ -1,6 +1,6 @@
 import { createContainer, ServiceLifetime } from '../utils/di-container.js'
 import { createEventBus } from '../utils/event-bus.js'
-import { errorBoundary, BaseError } from '../core/error-system/index.js'
+import { errorBoundary, createBaseError } from '../core/error-system/index.js'
 
 // Import all service classes
 import { BaseService } from './base-service.js'
@@ -70,7 +70,7 @@ export class ServiceRegistry {
       
     } catch (error) {
       console.error('✗ ServiceRegistry initialization failed:', error.message)
-      throw new BaseError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
+      throw createBaseError(`ServiceRegistry initialization failed: ${error.message}`, true, 500)
     }
   }
 
@@ -80,7 +80,7 @@ export class ServiceRegistry {
    */
   async start() {
     if (!this.isInitialized) {
-      throw new BaseError('ServiceRegistry must be initialized before starting', true, 500)
+      throw createBaseError('ServiceRegistry must be initialized before starting', true, 500)
     }
 
     if (this.isStarted) {
@@ -118,7 +118,7 @@ export class ServiceRegistry {
     } catch (error) {
       console.error('✗ Service startup failed:', error.message)
       await this.shutdown() // Cleanup on failure
-      throw new BaseError(`Service startup failed: ${error.message}`, true, 500)
+      throw createBaseError(`Service startup failed: ${error.message}`, true, 500)
     }
   }
 
@@ -388,7 +388,7 @@ export class ServiceRegistry {
     const visit = (serviceName) => {
       if (visited.has(serviceName)) return
       if (visiting.has(serviceName)) {
-        throw new BaseError(`Circular dependency detected involving ${serviceName}`, true, 500)
+        throw createBaseError(`Circular dependency detected involving ${serviceName}`, true, 500)
       }
       
       visiting.add(serviceName)
@@ -431,7 +431,7 @@ export class ServiceRegistry {
    */
   addService(serviceName, config) {
     if (this.isStarted) {
-      throw new BaseError('Cannot add services after registry has started', true, 400)
+      throw createBaseError('Cannot add services after registry has started', true, 400)
     }
     
     this.serviceConfigs.set(serviceName, config)
@@ -445,7 +445,7 @@ export class ServiceRegistry {
    */
   removeService(serviceName) {
     if (this.isStarted) {
-      throw new BaseError('Cannot remove services after registry has started', true, 400)
+      throw createBaseError('Cannot remove services after registry has started', true, 400)
     }
     
     return this.serviceConfigs.delete(serviceName)
