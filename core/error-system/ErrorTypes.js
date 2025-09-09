@@ -1,222 +1,283 @@
 /**
- * Specialized Error Classes - Type-safe error hierarchy
+ * Specialized Error Factory Functions - Functional error type system
  * Single Source of Truth for all application error types
  */
 
 /**
- * Base application error with operational flag and status code
+ * Base error factory function - creates functional error objects
  */
-export class BaseError extends Error {
-  constructor(message, isOperational = true, statusCode = 500) {
-    super(message)
-    
-    Object.setPrototypeOf(this, new.target.prototype)
-    
-    this.name = this.constructor.name
-    this.isOperational = isOperational
-    this.statusCode = statusCode
-    this.timestamp = new Date().toISOString()
-    
-    Error.captureStackTrace(this, this.constructor)
+export const createBaseError = (message, isUserInputError = false, statusCode = 500) => {
+  const error = new Error(message)
+  
+  return {
+    ...error,
+    name: 'BaseError',
+    message,
+    isUserInputError,
+    isOperational: true,
+    statusCode,
+    timestamp: new Date().toISOString(),
+    type: 'BASE',
+    stack: error.stack
   }
 }
 
 /**
- * Network-related errors (connection, timeout, DNS)
+ * Network-related error factory (connection, timeout, DNS)
  */
-export class NetworkError extends BaseError {
-  constructor(message, details = {}) {
-    super(message, true, 503)
-    this.type = 'NETWORK'
-    this.details = details
+export const createNetworkError = (message, details = {}) => {
+  const baseError = createBaseError(message, true, 503)
+  
+  return {
+    ...baseError,
+    name: 'NetworkError',
+    type: 'NETWORK',
+    details
   }
 }
 
 /**
- * API-related errors (authentication, rate limits, API responses)
+ * API-related error factory (authentication, rate limits, API responses)
  */
-export class APIError extends BaseError {
-  constructor(message, statusCode = 400, details = {}) {
-    super(message, true, statusCode)
-    this.type = 'API'
-    this.details = details
+export const createAPIError = (message, statusCode = 400, details = {}) => {
+  const baseError = createBaseError(message, true, statusCode)
+  
+  return {
+    ...baseError,
+    name: 'APIError',
+    type: 'API',
+    statusCode,
+    details
   }
 }
 
 /**
- * User input validation errors
+ * User input validation error factory
  */
-export class ValidationError extends BaseError {
-  constructor(message, field = null) {
-    super(message, true, 400)
-    this.type = 'VALIDATION'
-    this.field = field
+export const createValidationError = (message, field = null) => {
+  const baseError = createBaseError(message, true, 400)
+  
+  return {
+    ...baseError,
+    name: 'ValidationError',
+    type: 'VALIDATION',
+    field
   }
 }
 
 /**
- * Command execution errors
+ * Command execution error factory
  */
-export class CommandError extends BaseError {
-  constructor(message, command = null) {
-    super(message, true, 400)
-    this.type = 'COMMAND'
-    this.command = command
+export const createCommandError = (message, command = null) => {
+  const baseError = createBaseError(message, true, 400)
+  
+  return {
+    ...baseError,
+    name: 'CommandError',
+    type: 'COMMAND',
+    command
   }
 }
 
 /**
- * System-level errors (permissions, file system)
+ * System-level error factory (permissions, file system)
  */
-export class SystemError extends BaseError {
-  constructor(message, code = null) {
-    super(message, false, 500)
-    this.type = 'SYSTEM'
-    this.code = code
+export const createSystemError = (message, code = null) => {
+  const baseError = createBaseError(message, false, 500)
+  
+  return {
+    ...baseError,
+    name: 'SystemError',
+    type: 'SYSTEM',
+    code
   }
 }
 
 /**
- * User cancellation (ESC key, Ctrl+C)
+ * User cancellation error factory (ESC key, Ctrl+C)
  */
-export class CancellationError extends BaseError {
-  constructor(message = 'Operation cancelled') {
-    super(message, true, 499)
-    this.type = 'CANCELLATION'
-    this.shouldDisplay = false // Silent cancellation
+export const createCancellationError = (message = 'Operation cancelled') => {
+  const baseError = createBaseError(message, true, 499)
+  
+  return {
+    ...baseError,
+    name: 'CancellationError',
+    type: 'CANCELLATION',
+    shouldDisplay: false // Silent cancellation
   }
 }
 
 /**
- * Configuration errors
+ * Configuration error factory
  */
-export class ConfigurationError extends BaseError {
-  constructor(message, configKey = null) {
-    super(message, true, 500)
-    this.type = 'CONFIGURATION'
-    this.configKey = configKey
+export const createConfigurationError = (message, configKey = null) => {
+  const baseError = createBaseError(message, true, 500)
+  
+  return {
+    ...baseError,
+    name: 'ConfigurationError',
+    type: 'CONFIGURATION',
+    configKey
   }
 }
 
 /**
- * Provider-specific errors (OpenAI, Anthropic, etc.)
+ * Provider-specific error factory (OpenAI, Anthropic, etc.)
  */
-export class ProviderError extends BaseError {
-  constructor(message, provider = null, statusCode = 500) {
-    super(message, true, statusCode)
-    this.type = 'PROVIDER'
-    this.provider = provider
+export const createProviderError = (message, provider = null, statusCode = 500) => {
+  const baseError = createBaseError(message, true, statusCode)
+  
+  return {
+    ...baseError,
+    name: 'ProviderError',
+    type: 'PROVIDER',
+    provider
   }
 }
 
 /**
- * Cache operation errors
+ * Cache operation error factory
  */
-export class CacheError extends BaseError {
-  constructor(message, operation = null) {
-    super(message, true, 500)
-    this.type = 'CACHE'
-    this.operation = operation
+export const createCacheError = (message, operation = null) => {
+  const baseError = createBaseError(message, true, 500)
+  
+  return {
+    ...baseError,
+    name: 'CacheError',
+    type: 'CACHE',
+    operation
   }
 }
 
 /**
- * Security-related errors
+ * Security-related error factory
  */
-export class SecurityError extends BaseError {
-  constructor(message, securityType = null) {
-    super(message, false, 403)
-    this.type = 'SECURITY'
-    this.securityType = securityType
+export const createSecurityError = (message, securityType = null) => {
+  const baseError = createBaseError(message, false, 403)
+  
+  return {
+    ...baseError,
+    name: 'SecurityError',
+    type: 'SECURITY',
+    securityType
   }
 }
 
 /**
- * Error type detection utilities
+ * Error type detection utilities - pure functions
  */
-export const ErrorClassifier = {
-  isNetworkError(error) {
-    return error instanceof NetworkError ||
-           error.code === 'ENOTFOUND' ||
-           error.code === 'ECONNREFUSED' ||
-           error.code === 'ETIMEDOUT' ||
-           error.code === 'ECONNRESET' ||
-           (error.message && (
-             error.message.includes('network') ||
-             error.message.includes('fetch failed') ||
-             error.message.includes('timeout')
-           ))
-  },
+export const isNetworkError = (error) => {
+  return error.type === 'NETWORK' ||
+         error.name === 'NetworkError' ||
+         error.code === 'ENOTFOUND' ||
+         error.code === 'ECONNREFUSED' ||
+         error.code === 'ETIMEDOUT' ||
+         error.code === 'ECONNRESET' ||
+         (error.message && (
+           error.message.includes('network') ||
+           error.message.includes('fetch failed') ||
+           error.message.includes('timeout')
+         ))
+}
 
-  isAPIError(error) {
-    return error instanceof APIError ||
-           (error.status && error.status >= 400) ||
-           error.response ||
-           (error.message && (
-             error.message.includes('API') ||
-             error.message.includes('authentication') ||
-             error.message.includes('rate limit')
-           ))
-  },
+export const isAPIError = (error) => {
+  return error.type === 'API' ||
+         error.name === 'APIError' ||
+         (error.status && error.status >= 400) ||
+         error.response ||
+         (error.message && (
+           error.message.includes('API') ||
+           error.message.includes('authentication') ||
+           error.message.includes('rate limit')
+         ))
+}
 
-  isCancellationError(error) {
-    return error instanceof CancellationError ||
-           error.name === 'AbortError' ||
-           (error.message && (
-             error.message.toLowerCase().includes('abort') ||
-             error.message.toLowerCase().includes('cancel')
-           ))
-  },
+export const isCancellationError = (error) => {
+  return error.type === 'CANCELLATION' ||
+         error.name === 'CancellationError' ||
+         error.name === 'AbortError' ||
+         (error.message && (
+           error.message.toLowerCase().includes('abort') ||
+           error.message.toLowerCase().includes('cancel')
+         ))
+}
 
-  isValidationError(error) {
-    return error instanceof ValidationError ||
-           error.name === 'ValidationError' ||
-           (error.message && error.message.includes('validation'))
-  },
+export const isValidationError = (error) => {
+  return error.type === 'VALIDATION' ||
+         error.name === 'ValidationError' ||
+         (error.message && error.message.includes('validation'))
+}
 
-  isSystemError(error) {
-    return error instanceof SystemError ||
-           error.code === 'EACCES' ||
-           error.code === 'EPERM' ||
-           (error.message && (
-             error.message.includes('permission') ||
-             error.message.includes('EACCES') ||
-             error.message.includes('EPERM')
-           ))
-  }
+export const isSystemError = (error) => {
+  return error.type === 'SYSTEM' ||
+         error.name === 'SystemError' ||
+         error.code === 'EACCES' ||
+         error.code === 'EPERM' ||
+         (error.message && (
+           error.message.includes('permission') ||
+           error.message.includes('EACCES') ||
+           error.message.includes('EPERM')
+         ))
+}
+
+export const isBaseError = (error) => {
+  return error.type && ['BASE', 'NETWORK', 'API', 'VALIDATION', 'COMMAND', 'SYSTEM', 'CANCELLATION', 'CONFIGURATION', 'PROVIDER', 'CACHE', 'SECURITY'].includes(error.type)
 }
 
 /**
  * Error factory for creating typed errors from generic errors
  */
-export const ErrorFactory = {
-  createFromGeneric(error, defaultType = 'BaseError') {
-    if (error instanceof BaseError) {
-      return error // Already typed
-    }
-
-    // Classify and convert to appropriate type
-    if (ErrorClassifier.isCancellationError(error)) {
-      return new CancellationError(error.message)
-    }
-    
-    if (ErrorClassifier.isNetworkError(error)) {
-      return new NetworkError(error.message, { originalError: error })
-    }
-    
-    if (ErrorClassifier.isAPIError(error)) {
-      return new APIError(error.message, error.status || 500, { originalError: error })
-    }
-    
-    if (ErrorClassifier.isValidationError(error)) {
-      return new ValidationError(error.message)
-    }
-    
-    if (ErrorClassifier.isSystemError(error)) {
-      return new SystemError(error.message, error.code)
-    }
-
-    // Default fallback
-    return new BaseError(error.message || String(error), true, 500)
+export const createFromGeneric = (error, defaultType = 'BASE') => {
+  if (isBaseError(error)) {
+    return error // Already typed
   }
+
+  // Classify and convert to appropriate type
+  if (isCancellationError(error)) {
+    return createCancellationError(error.message)
+  }
+  
+  if (isNetworkError(error)) {
+    return createNetworkError(error.message, { originalError: error })
+  }
+  
+  if (isAPIError(error)) {
+    return createAPIError(error.message, error.status || 500, { originalError: error })
+  }
+  
+  if (isValidationError(error)) {
+    return createValidationError(error.message)
+  }
+  
+  if (isSystemError(error)) {
+    return createSystemError(error.message, error.code)
+  }
+
+  // Default fallback
+  return createBaseError(error.message || String(error), true, 500)
+}
+
+// Legacy compatibility exports - maintain backward compatibility
+export const BaseError = createBaseError
+export const NetworkError = createNetworkError
+export const APIError = createAPIError
+export const ValidationError = createValidationError
+export const CommandError = createCommandError
+export const SystemError = createSystemError
+export const CancellationError = createCancellationError
+export const ConfigurationError = createConfigurationError
+export const ProviderError = createProviderError
+export const CacheError = createCacheError
+export const SecurityError = createSecurityError
+
+export const ErrorClassifier = {
+  isNetworkError,
+  isAPIError,
+  isCancellationError,
+  isValidationError,
+  isSystemError
+}
+
+export const ErrorFactory = {
+  createFromGeneric
 }

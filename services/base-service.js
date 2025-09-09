@@ -1,4 +1,4 @@
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 
 /**
  * Base service interface with common functionality
@@ -47,7 +47,7 @@ export class BaseService {
       this.logger?.info(`Service ${this.serviceName} initialized successfully`)
     } catch (error) {
       this.logger?.error(`Failed to initialize service ${this.serviceName}:`, error.message)
-      throw new BaseError(`Service initialization failed: ${this.serviceName}`, true, 500)
+      throw createBaseError(`Service initialization failed: ${this.serviceName}`, true, 500)
     }
   }
 
@@ -103,7 +103,7 @@ export class BaseService {
    */
   ensureReady() {
     if (!this.isReady()) {
-      throw new BaseError(
+      throw createBaseError(
         `Service ${this.serviceName} is not ready. Initialized: ${this.isInitialized}, Disposed: ${this.isDisposed}`,
         true,
         503
@@ -136,7 +136,7 @@ export class BaseService {
     const missing = required.filter(dep => !dependencies[dep])
     
     if (missing.length > 0) {
-      throw new BaseError(
+      throw createBaseError(
         `Service ${this.serviceName} missing required dependencies: ${missing.join(', ')}`,
         true,
         400
@@ -238,11 +238,11 @@ export class BaseService {
  */
 export function createService(ServiceClass, dependencies) {
   if (!ServiceClass || typeof ServiceClass !== 'function') {
-    throw new BaseError('ServiceClass must be a constructor function', true, 400)
+    throw createBaseError('ServiceClass must be a constructor function', true, 400)
   }
 
   if (!ServiceClass.prototype instanceof BaseService) {
-    throw new BaseError('ServiceClass must extend BaseService', true, 400)
+    throw createBaseError('ServiceClass must extend BaseService', true, 400)
   }
 
   return new ServiceClass(dependencies)

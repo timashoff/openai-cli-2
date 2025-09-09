@@ -1,5 +1,5 @@
 import { BaseRequestHandler } from './base-handler.js'
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 import { getClipboardContent } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { color } from '../config/color.js'
@@ -97,7 +97,7 @@ export class ClipboardHandler extends BaseRequestHandler {
       getClipboardContent(),
       new Promise((_, reject) => {
         setTimeout(() => {
-          reject(new BaseError('Clipboard access timeout', true, 408))
+          reject(createBaseError('Clipboard access timeout', true, 408))
         }, this.clipboardTimeout)
       })
     ])
@@ -121,7 +121,7 @@ export class ClipboardHandler extends BaseRequestHandler {
    */
   sanitizeClipboardContent(content) {
     if (typeof content !== 'string') {
-      throw new BaseError('Clipboard content must be text', true, 400)
+      throw createBaseError('Clipboard content must be text', true, 400)
     }
     
     return sanitizeString(content)
@@ -137,7 +137,7 @@ export class ClipboardHandler extends BaseRequestHandler {
     
     // Check length limits
     if (content.length > this.maxClipboardLength) {
-      throw new BaseError(
+      throw createBaseError(
         `Clipboard content too large (${content.length} chars, max ${this.maxClipboardLength})`,
         true,
         413
@@ -146,7 +146,7 @@ export class ClipboardHandler extends BaseRequestHandler {
     
     // Check for suspicious content patterns
     if (this.hasSuspiciousContent(content)) {
-      throw new BaseError('Clipboard content contains potentially unsafe data', true, 400)
+      throw createBaseError('Clipboard content contains potentially unsafe data', true, 400)
     }
   }
 

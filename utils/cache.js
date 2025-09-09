@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 
 const CACHE_DIR = path.join(os.homedir(), 'AI_responses')
 const CACHE_FILE_PATH = path.join(CACHE_DIR, 'cache.json')
@@ -108,17 +108,17 @@ const enforceCacheLimit = async () => {
 // Input data validation
 const validateCacheInput = (key, value) => {
   if (typeof key !== 'string' || key.trim() === '') {
-    throw new BaseError('Cache key must be a non-empty string', true, 400)
+    throw createBaseError('Cache key must be a non-empty string', true, 400)
   }
   
   if (value === undefined || value === null) {
-    throw new BaseError('Cache value cannot be null or undefined', true, 400)
+    throw createBaseError('Cache value cannot be null or undefined', true, 400)
   }
   
   // Check value size (e.g., no more than 1MB)
   const valueSize = JSON.stringify(value).length
   if (valueSize > 1024 * 1024) {
-    throw new BaseError('Cache value is too large (max 1MB)', true, 400)
+    throw createBaseError('Cache value is too large (max 1MB)', true, 400)
   }
 }
 

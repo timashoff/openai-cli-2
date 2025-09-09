@@ -1,4 +1,4 @@
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 
 /**
  * Validates string for emptiness and type
@@ -10,18 +10,18 @@ import { BaseError } from '../core/error-system/index.js'
 export function validateString(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
     if (required) {
-      throw new BaseError(`${fieldName} is required`, true, 400)
+      throw createBaseError(`${fieldName} is required`, true, 400)
     }
     return null
   }
 
   if (typeof value !== 'string') {
-    throw new BaseError(`${fieldName} must be a string`, true, 400)
+    throw createBaseError(`${fieldName} must be a string`, true, 400)
   }
 
   const trimmed = value.trim()
   if (required && trimmed === '') {
-    throw new BaseError(`${fieldName} cannot be empty`, true, 400)
+    throw createBaseError(`${fieldName} cannot be empty`, true, 400)
   }
 
   return trimmed || null
@@ -39,7 +39,7 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
 
   if (value === null || value === undefined) {
     if (required) {
-      throw new BaseError(`${fieldName} is required`, true, 400)
+      throw createBaseError(`${fieldName} is required`, true, 400)
     }
     return null
   }
@@ -47,15 +47,15 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
   const num = typeof value === 'string' ? parseFloat(value) : value
 
   if (typeof num !== 'number' || isNaN(num)) {
-    throw new BaseError(`${fieldName} must be a valid number`, true, 400)
+    throw createBaseError(`${fieldName} must be a valid number`, true, 400)
   }
 
   if (num < min) {
-    throw new BaseError(`${fieldName} must be at least ${min}`, true, 400)
+    throw createBaseError(`${fieldName} must be at least ${min}`, true, 400)
   }
 
   if (num > max) {
-    throw new BaseError(`${fieldName} must be at most ${max}`, true, 400)
+    throw createBaseError(`${fieldName} must be at most ${max}`, true, 400)
   }
 
   return num
@@ -72,13 +72,13 @@ export function validateNumber(value, fieldName = 'field', options = {}) {
 export function validateObject(value, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
     if (required) {
-      throw new BaseError(`${fieldName} is required`, true, 400)
+      throw createBaseError(`${fieldName} is required`, true, 400)
     }
     return null
   }
 
   if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new BaseError(`${fieldName} must be an object`, true, 400)
+    throw createBaseError(`${fieldName} must be an object`, true, 400)
   }
 
   return value
@@ -95,13 +95,13 @@ export function validateObject(value, fieldName = 'field', required = true) {
 export function validateChoice(value, allowedValues, fieldName = 'field', required = true) {
   if (value === null || value === undefined) {
     if (required) {
-      throw new BaseError(`${fieldName} is required`, true, 400)
+      throw createBaseError(`${fieldName} is required`, true, 400)
     }
     return null
   }
 
   if (!allowedValues.includes(value)) {
-    throw new BaseError(
+    throw createBaseError(
       `${fieldName} must be one of: ${allowedValues.join(', ')}`,
       true,
       400

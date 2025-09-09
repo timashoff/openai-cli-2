@@ -1,7 +1,7 @@
 import { configManager } from '../config/config-manager.js'
 import { logger } from './logger.js'
 import { commandManager, BaseCommand } from './command-manager.js'
-import { BaseError, errorHandler } from '../core/error-system/index.js'
+import { createBaseError, errorHandler } from '../core/error-system/index.js'
 import { validateString, sanitizeString } from './validation.js'
 import { color } from '../config/color.js'
 import { execHelp } from './help/execHelp.js'
@@ -56,7 +56,7 @@ export class Application {
             if (command) {
               return command.getHelp()
             } else {
-              throw new BaseError(`Command not found: ${args[0]}`, true, 404)
+              throw createBaseError(`Command not found: ${args[0]}`, true, 404)
             }
           }
         }
@@ -126,18 +126,18 @@ export class Application {
               return JSON.stringify(configManager.getAll(), null, 2)
             
             case 'get':
-              if (!key) throw new BaseError('Key required for get action', true, 400)
+              if (!key) throw createBaseError('Key required for get action', true, 400)
               return `${key}: ${configManager.get(key)}`
             
             case 'set':
               if (!key || value === undefined) {
-                throw new BaseError('Key and value required for set action', true, 400)
+                throw createBaseError('Key and value required for set action', true, 400)
               }
               configManager.set(key, parseInt(value) || value)
               return `${key} set to: ${configManager.get(key)}`
             
             default:
-              throw new BaseError('Invalid action. Use: get, set, or list', true, 400)
+              throw createBaseError('Invalid action. Use: get, set, or list', true, 400)
           }
         }
       })

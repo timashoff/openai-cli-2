@@ -1,4 +1,4 @@
-import { BaseError } from '../core/error-system/index.js'
+import { createBaseError } from '../core/error-system/index.js'
 import { logger } from './logger.js'
 import { validateString, validateObject } from './validation.js'
 import { RateLimiter, CSPChecker } from './security.js'
@@ -29,7 +29,7 @@ export class BaseProvider {
     const required = ['name', 'baseURL', 'apiKeyEnv']
     for (const field of required) {
       if (!this.config[field]) {
-        throw new BaseError(`Provider config missing required field: ${field}`, true, 400)
+        throw createBaseError(`Provider config missing required field: ${field}`, true, 400)
       }
     }
   }
@@ -40,7 +40,7 @@ export class BaseProvider {
   getApiKey() {
     const apiKey = process.env[this.config.apiKeyEnv]
     if (!apiKey) {
-      throw new BaseError(`API key not found in environment variable: ${this.config.apiKeyEnv}`, true, 401)
+      throw createBaseError(`API key not found in environment variable: ${this.config.apiKeyEnv}`, true, 401)
     }
     return apiKey
   }
@@ -107,7 +107,7 @@ export class OpenAIProvider extends BaseProvider {
         timeout: this.config.timeout || 180000
       })
     } catch (error) {
-      throw new BaseError(`Failed to initialize OpenAI client: ${error.message}`, true, 500)
+      throw createBaseError(`Failed to initialize OpenAI client: ${error.message}`, true, 500)
     }
   }
 
@@ -124,7 +124,7 @@ export class OpenAIProvider extends BaseProvider {
     } catch (error) {
       const responseTime = Date.now() - startTime
       this.recordRequest(responseTime, error)
-      throw new BaseError(`Failed to list models: ${error.message}`, true, 500)
+      throw createBaseError(`Failed to list models: ${error.message}`, true, 500)
     }
   }
 
@@ -157,7 +157,7 @@ export class OpenAIProvider extends BaseProvider {
         throw new Error('AbortError') // Special error type for silent handling
       }
 
-      throw new BaseError(`Failed to create chat completion: ${error.message}`, true, 500)
+      throw createBaseError(`Failed to create chat completion: ${error.message}`, true, 500)
     }
   }
 
@@ -186,7 +186,7 @@ export class AnthropicProvider extends BaseProvider {
     // For Anthropic, we don't need to initialize a client library
     // We'll use fetch directly, but we validate the API key here
     if (!this.apiKey) {
-      throw new BaseError('Anthropic API key is required', true, 401)
+      throw createBaseError('Anthropic API key is required', true, 401)
     }
   }
 
@@ -261,7 +261,7 @@ export class AnthropicProvider extends BaseProvider {
         throw new Error('AbortError') // Special error type for silent handling
       }
 
-      throw new BaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
+      throw createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
     }
   }
 
@@ -300,7 +300,7 @@ export class ProviderFactory {
    */
   registerProvider(type, ProviderClass) {
     if (typeof ProviderClass !== 'function') {
-      throw new BaseError('Provider must be a constructor function', true, 400)
+      throw createBaseError('Provider must be a constructor function', true, 400)
     }
 
     this.providers.set(type, ProviderClass)
@@ -313,7 +313,7 @@ export class ProviderFactory {
   createProvider(type, config) {
     const ProviderClass = this.providers.get(type)
     if (!ProviderClass) {
-      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
+      throw createBaseError(`Unknown provider type: ${type}`, true, 404)
     }
 
     validateObject(config, 'provider config')
@@ -326,7 +326,7 @@ export class ProviderFactory {
       logger.debug(`Provider instance created: ${instanceId}`)
       return instance
     } catch (error) {
-      throw new BaseError(`Failed to create provider ${type}: ${error.message}`, true, 500)
+      throw createBaseError(`Failed to create provider ${type}: ${error.message}`, true, 500)
     }
   }
 
@@ -381,7 +381,7 @@ export class ProviderFactory {
   validateProviderConfig(type, config) {
     const ProviderClass = this.providers.get(type)
     if (!ProviderClass) {
-      throw new BaseError(`Unknown provider type: ${type}`, true, 404)
+      throw createBaseError(`Unknown provider type: ${type}`, true, 404)
     }
 
     // Create temporary instance for validation
@@ -390,7 +390,7 @@ export class ProviderFactory {
       tempInstance.validateConfig()
       return true
     } catch (error) {
-      throw new BaseError(`Provider config validation failed: ${error.message}`, true, 400)
+      throw createBaseError(`Provider config validation failed: ${error.message}`, true, 400)
     }
   }
 }
