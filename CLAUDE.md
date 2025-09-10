@@ -158,6 +158,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Edge case scenarios
    ```
 
+### Refactoring Analysis Methodology:
+**ALWAYS enable ultrathink mode when analyzing!**
+
+Before starting any code refactoring, ALWAYS ask yourself these questions:
+
+1. **What is this file and what is it used for?**
+   - Understanding the purpose and role in the system
+   - Analysis of core functionality
+
+2. **Which parts of code does it interact with?**
+   - Mapping dependencies and connections
+   - Analysis of imports/exports
+   - Finding usage of this code in other files
+
+3. **Is there legacy code in it?**
+   - Looking for outdated patterns
+   - Identifying code that can be modernized
+
+4. **Is there dead code?**
+   - Unused functions, variables, imports
+   - Code that never executes
+
+5. **Does it violate architectural principles from CLAUDE.md?**
+   - Checking compliance with project rules
+   - Identifying violations of functional paradigm
+   - Looking for hardcode, class usage, switch/case and other forbidden patterns
+
 ### Checkpoints:
 - Ensure program starts, then contact user for full testing
 - Performance must not degrade
