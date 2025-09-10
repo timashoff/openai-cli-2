@@ -185,6 +185,12 @@ Before starting any code refactoring, ALWAYS ask yourself these questions:
    - Identifying violations of functional paradigm
    - Looking for hardcode, class usage, switch/case and other forbidden patterns
 
+6. **Check for code THEATRICALITY?**
+   - Code that looks functional but is 100% dead!
+   - Functions that are never called but create an illusion of usefulness
+   - Variables and constants that are defined but never used
+   - Entire modules or classes that are imported but their methods never execute
+
 ### Checkpoints:
 - Ensure program starts, then contact user for full testing
 - Performance must not degrade
