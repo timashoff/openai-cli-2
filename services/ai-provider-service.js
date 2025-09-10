@@ -4,7 +4,7 @@ import { DEFAULT_MODELS } from '../config/default_models.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { logger } from '../utils/logger.js'
 import { color } from '../config/color.js'
-import { RetryPlugin } from '../plugins/retry-plugin.js'
+// RetryPlugin removed - was theatrical code that never worked in practice
 import { createSpinner } from '../utils/spinner.js'
 import { outputHandler } from '../core/output-handler.js'
 import { getStateManager } from '../core/StateManager.js'
@@ -16,7 +16,7 @@ import { getStateManager } from '../core/StateManager.js'
 
 // Dependencies
 let stateManager = null
-let retryPlugin = null
+// retryPlugin removed - theatrical code
 let stats = {
   providerSwitches: 0,
   modelSwitches: 0
@@ -29,17 +29,7 @@ export function createAIProviderService(dependencies = {}) {
   // Get StateManager instance (Single Source of Truth)
   stateManager = dependencies.stateManager || getStateManager()
   
-  // Initialize retry plugin
-  retryPlugin = new RetryPlugin({
-    maxRetries: 3,
-    initialDelay: 1000,
-    anthropicRetries: {
-      maxRetries: 5,
-      initialDelay: 2000,
-      maxDelay: 60000,
-      backoffMultiplier: 1.5
-    }
-  })
+  // RetryPlugin initialization removed - was theatrical code
   
   // Return service object with methods
   return {
@@ -102,8 +92,7 @@ async function initializeAvailableProviders() {
     const provider = createProvider(defaultProviderKey, config)
     await provider.initializeClient()
     
-    // Enhance provider with retry logic
-    retryPlugin.enhanceInstanceWithRetry(provider)
+    // Retry logic removed - was theatrical code
     
     // Load models with shorter timeout for startup
     const models = await Promise.race([
@@ -157,7 +146,7 @@ async function initializeAvailableProviders() {
         const provider = createProvider(fallbackProviderKey, config)
         await provider.initializeClient()
         
-        retryPlugin.enhanceInstanceWithRetry(provider)
+        // Retry enhancement removed - theatrical code
         
         const models = await Promise.race([
           loadModelsForProvider(provider, fallbackProviderKey),
@@ -259,8 +248,7 @@ async function lazyLoadProvider(providerKey) {
     const provider = createProvider(providerKey, providerInfo.config)
     await provider.initializeClient()
     
-    // Enhance provider with retry logic
-    retryPlugin.enhanceInstanceWithRetry(provider)
+    // Retry logic removed - was theatrical code
     
     // Load models with timeout
     const models = await Promise.race([
@@ -517,8 +505,7 @@ async function createChatCompletion(messages, options = {}) {
       logger.debug(`Initializing client for ${currentProviderKey}...`)
       await provider.initializeClient()
       
-      // Enhance with retry logic
-      retryPlugin.enhanceInstanceWithRetry(provider)
+      // Retry logic removed - theatrical code
       
       // Update provider data in StateManager
       providerData = {
