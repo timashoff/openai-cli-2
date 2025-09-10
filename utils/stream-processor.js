@@ -1,4 +1,4 @@
-import { streamingObserver, STREAMING_EVENTS } from '../patterns/StreamingObserver.js'
+// StreamingObserver removed - events were theatrical (no listeners)
 
 /**
  * Processes streaming responses from different AI providers
@@ -55,11 +55,7 @@ export class StreamProcessor {
     const response = []
     const startTime = Date.now()
 
-    // Emit stream started event
-    streamingObserver.emit(STREAMING_EVENTS.STREAM_STARTED, {
-      provider: this.providerKey,
-      startTime: startTime
-    })
+    // Stream started - no event emission needed (no listeners)
 
     try {
       if (this.isClaudeProvider) {
@@ -68,21 +64,10 @@ export class StreamProcessor {
         await this.processOpenAIStream(stream, response, signal, onChunk)
       }
 
-      // Emit stream finished event
-      streamingObserver.emit(STREAMING_EVENTS.STREAM_FINISHED, {
-        provider: this.providerKey,
-        duration: Date.now() - startTime,
-        totalTokens: response.length
-      })
+      // Stream finished successfully
 
     } catch (error) {
-      // Emit stream cancelled/error event
-      if (error.message === 'AbortError') {
-        streamingObserver.emit(STREAMING_EVENTS.STREAM_CANCELLED, {
-          provider: this.providerKey,
-          duration: Date.now() - startTime
-        })
-      }
+      // Stream cancelled or error occurred
       throw error
     } finally {
       this.currentStream = null
