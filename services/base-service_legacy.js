@@ -18,10 +18,10 @@ export class BaseService {
     this.isInitialized = false
     this.isDisposed = false
     this.serviceName = this.constructor.name
-    
+
     // Validate required dependencies
     this.validateDependencies(dependencies)
-    
+
     // Register error handlers
     this.setupErrorHandling()
   }
@@ -39,15 +39,25 @@ export class BaseService {
     try {
       await this.onInitialize()
       this.isInitialized = true
-      this.eventBus?.emitSync(`service:${this.serviceName.toLowerCase()}:initialized`, {
-        serviceName: this.serviceName,
-        timestamp: new Date()
-      })
-      
+      this.eventBus?.emitSync(
+        `service:${this.serviceName.toLowerCase()}:initialized`,
+        {
+          serviceName: this.serviceName,
+          timestamp: new Date(),
+        },
+      )
+
       this.logger?.info(`Service ${this.serviceName} initialized successfully`)
     } catch (error) {
-      this.logger?.error(`Failed to initialize service ${this.serviceName}:`, error.message)
-      throw createBaseError(`Service initialization failed: ${this.serviceName}`, true, 500)
+      this.logger?.error(
+        `Failed to initialize service ${this.serviceName}:`,
+        error.message,
+      )
+      throw createBaseError(
+        `Service initialization failed: ${this.serviceName}`,
+        true,
+        500,
+      )
     }
   }
 
@@ -70,20 +80,26 @@ export class BaseService {
       await this.onDispose()
       this.isDisposed = true
       this.isInitialized = false
-      
-      this.eventBus?.emitSync(`service:${this.serviceName.toLowerCase()}:disposed`, {
-        serviceName: this.serviceName,
-        timestamp: new Date()
-      })
-      
+
+      this.eventBus?.emitSync(
+        `service:${this.serviceName.toLowerCase()}:disposed`,
+        {
+          serviceName: this.serviceName,
+          timestamp: new Date(),
+        },
+      )
+
       this.logger?.info(`Service ${this.serviceName} disposed successfully`)
     } catch (error) {
-      this.logger?.error(`Error disposing service ${this.serviceName}:`, error.message)
+      this.logger?.error(
+        `Error disposing service ${this.serviceName}:`,
+        error.message,
+      )
     }
   }
 
   /**
-   * Service-specific cleanup logic - override in subclasses  
+   * Service-specific cleanup logic - override in subclasses
 
    */
   async onDispose() {
@@ -106,7 +122,7 @@ export class BaseService {
       throw createBaseError(
         `Service ${this.serviceName} is not ready. Initialized: ${this.isInitialized}, Disposed: ${this.isDisposed}`,
         true,
-        503
+        503,
       )
     }
   }
@@ -123,7 +139,7 @@ export class BaseService {
       isDisposed: this.isDisposed,
       uptime: this.isInitialized ? Date.now() - this.initTimestamp : 0,
       lastHealthCheck: new Date(),
-      status: this.isReady() ? 'healthy' : 'unhealthy'
+      status: this.isReady() ? 'healthy' : 'unhealthy',
     }
   }
 
@@ -133,13 +149,13 @@ export class BaseService {
    */
   validateDependencies(dependencies) {
     const required = this.getRequiredDependencies()
-    const missing = required.filter(dep => !dependencies[dep])
-    
+    const missing = required.filter((dep) => !dependencies[dep])
+
     if (missing.length > 0) {
       throw createBaseError(
         `Service ${this.serviceName} missing required dependencies: ${missing.join(', ')}`,
         true,
-        400
+        400,
       )
     }
   }
@@ -158,11 +174,14 @@ export class BaseService {
   setupErrorHandling() {
     // Catch unhandled promise rejections in service methods
     process.on('unhandledRejection', (error, promise) => {
-      this.logger?.error(`Unhandled rejection in service ${this.serviceName}:`, error.message)
+      this.logger?.error(
+        `Unhandled rejection in service ${this.serviceName}:`,
+        error.message,
+      )
       this.eventBus?.emitSync('service:error', {
         serviceName: this.serviceName,
         error: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       })
     })
   }
@@ -180,12 +199,12 @@ export class BaseService {
     const eventData = {
       serviceName: this.serviceName,
       data,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
 
     this.eventBus.emitSync(fullEventName, eventData, {
       source: this.serviceName,
-      ...options
+      ...options,
     })
   }
 
@@ -201,7 +220,7 @@ export class BaseService {
     const logContext = {
       service: this.serviceName,
       timestamp: new Date(),
-      ...context
+      ...context,
     }
 
     this.logger[level](message, logContext)
@@ -217,7 +236,7 @@ export class BaseService {
       isReady: this.isReady(),
       uptime: this.isInitialized ? Date.now() - this.initTimestamp : 0,
       memoryUsage: process.memoryUsage(),
-      ...this.getCustomMetrics()
+      ...this.getCustomMetrics(),
     }
   }
 
@@ -238,10 +257,14 @@ export class BaseService {
  */
 export function createService(ServiceClass, dependencies) {
   if (!ServiceClass || typeof ServiceClass !== 'function') {
-    throw createBaseError('ServiceClass must be a constructor function', true, 400)
+    throw createBaseError(
+      'ServiceClass must be a constructor function',
+      true,
+      400,
+    )
   }
 
-  if (!ServiceClass.prototype instanceof BaseService) {
+  if ((!ServiceClass.prototype) instanceof BaseService) {
     throw createBaseError('ServiceClass must extend BaseService', true, 400)
   }
 
