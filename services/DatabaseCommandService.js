@@ -10,7 +10,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
 import { logger } from '../utils/logger.js'
-import { emitStateEvent, STATE_EVENTS, stateObserver } from '../patterns/StateObserver.js'
 
 const dbPath = path.join(import.meta.dirname, '../db/commands.db')
 
@@ -20,21 +19,18 @@ export class DatabaseCommandService {
     this.db = null
     this.initDatabase()
     
-    // Cache management (event-based, no timeouts needed)
+    // Cache management
     this.commandsCache = null
     
     this.stats = {
       cacheHits: 0,
       cacheMisses: 0,
-      eventInvalidations: 0,
       totalQueries: 0,
       lastRefresh: null
     }
     
-    // Subscribe to database change events for automatic cache invalidation
-    this.setupEventListeners()
     
-    logger.debug('DatabaseCommandService: Initialized with SQLite database and event-based hot-reload')
+    logger.debug('DatabaseCommandService: Initialized with SQLite database')
   }
 
   /**
@@ -148,46 +144,15 @@ export class DatabaseCommandService {
     }
   }
 
-  /**
-   * Setup event listeners for automatic cache invalidation
-   */
-  setupEventListeners() {
-    // Listen to all database command events using stateObserver directly
-    stateObserver.eventBus.on(STATE_EVENTS.DATABASE_COMMAND_ADDED, () => {
-      this.handleDatabaseEvent('command_added')
-    })
-    
-    stateObserver.eventBus.on(STATE_EVENTS.DATABASE_COMMAND_UPDATED, () => {
-      this.handleDatabaseEvent('command_updated') 
-    })
-    
-    stateObserver.eventBus.on(STATE_EVENTS.DATABASE_COMMAND_DELETED, () => {
-      this.handleDatabaseEvent('command_deleted')
-    })
-    
-    stateObserver.eventBus.on(STATE_EVENTS.DATABASE_COMMANDS_CHANGED, () => {
-      this.handleDatabaseEvent('commands_changed')
-    })
-    
-    logger.debug('DatabaseCommandService: Event listeners registered')
-  }
+
 
   /**
-   * Handle database change events
-   */
-  handleDatabaseEvent(eventType) {
-    logger.debug(`DatabaseCommandService: Database event received: ${eventType}`)
-    this.invalidateCache()
-    this.stats.eventInvalidations++
-  }
-
-  /**
-   * Get all commands from database with event-based caching
+   * Get all commands from database with caching
    */
   getCommands() {
     this.stats.totalQueries++
     
-    // Event-based cache: only refresh when null (invalidated by events)
+    // Cache: only refresh when null (invalidated manually)
     if (this.commandsCache) {
       this.stats.cacheHits++
       logger.debug('DatabaseCommandService: Cache hit')
@@ -350,25 +315,6 @@ export class DatabaseCommandService {
     this.commandsCache = null
   }
 
-  /**
-   * Emit database change event (used by database-manager)
-   */
-  static emitDatabaseEvent(eventType, metadata = {}) {
-    const eventMap = {
-      'added': STATE_EVENTS.DATABASE_COMMAND_ADDED,
-      'updated': STATE_EVENTS.DATABASE_COMMAND_UPDATED,
-      'deleted': STATE_EVENTS.DATABASE_COMMAND_DELETED,
-      'changed': STATE_EVENTS.DATABASE_COMMANDS_CHANGED
-    }
-    
-    const stateEvent = eventMap[eventType]
-    if (stateEvent) {
-      logger.debug(`DatabaseCommandService: Emitting database event: ${eventType}`, metadata)
-      emitStateEvent(stateEvent, metadata)
-    } else {
-      logger.warn(`DatabaseCommandService: Unknown event type: ${eventType}`)
-    }
-  }
 
   /**
    * Get service statistics
@@ -408,7 +354,6 @@ export class DatabaseCommandService {
     // Invalidate cache after save
     this.commandsCache = null
     
-    DatabaseCommandService.emitDatabaseEvent('changed', { commandId: id })
     logger.debug(`DatabaseCommandService: Saved command ${id}`)
   }
 
@@ -420,8 +365,6 @@ export class DatabaseCommandService {
     const changes = stmt.run(id)
     
     if (changes.changes > 0) {
-      // Emit database change event
-      DatabaseCommandService.emitDatabaseEvent('deleted', { commandId: id })
       logger.debug(`DatabaseCommandService: Deleted command ${id}`)
     } else {
       logger.warn(`DatabaseCommandService: Command ${id} not found for deletion`)
@@ -450,11 +393,9 @@ export class DatabaseCommandService {
       cacheSize: stats.cacheSize,
       cacheValid: stats.cacheValid,
       totalQueries: stats.totalQueries,
-      eventInvalidations: stats.eventInvalidations,
       cacheHitRate: stats.totalQueries > 0 ? 
         (stats.cacheHits / stats.totalQueries * 100).toFixed(2) + '%' : '0%',
-      lastRefresh: stats.lastRefresh,
-      eventsActive: true
+      lastRefresh: stats.lastRefresh
     }
   }
 }
@@ -471,10 +412,3 @@ export function createDatabaseCommandService() {
   return new DatabaseCommandService()
 }
 
-/**
- * Convenience function to emit database events
- * Used by database-manager and CommandEditor
- */
-export function emitDatabaseCommandEvent(eventType, metadata = {}) {
-  DatabaseCommandService.emitDatabaseEvent(eventType, metadata)
-}
