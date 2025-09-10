@@ -12,7 +12,6 @@ import { sanitizeString, validateString } from '../utils/validation.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from './error-system/index.js'
 import { getAllSystemCommands } from '../utils/autocomplete.js'
-import { stateObserver, STATE_EVENTS, emitStateEvent } from '../patterns/StateObserver.js'
 import { getStateManager } from './StateManager.js'
 import { outputHandler } from './output-handler.js'
 
@@ -350,10 +349,6 @@ ${colorInput}> `
       
       const prompt = this.getUserPrompt()
       
-      // Emit input waiting event
-      emitStateEvent(STATE_EVENTS.INPUT_WAITING, {
-        prompt: prompt
-      })
       
       // Get user input using standard readline
       let userInput = await this.rl.question(prompt)
@@ -361,11 +356,6 @@ ${colorInput}> `
       process.stdout.write(color.reset)
       userInput = (userInput || '').trim()
       
-      // Emit input received event
-      emitStateEvent(STATE_EVENTS.INPUT_RECEIVED, {
-        input: userInput,
-        length: userInput.length
-      })
       
       // Reset screen cleared flag after prompt is shown
       this.screenWasCleared = false
@@ -460,17 +450,6 @@ ${colorInput}> `
       this.stateManager.setStreamProcessor(streamProcessor)
     }
     
-    // Emit state event
-    if (value) {
-      emitStateEvent(STATE_EVENTS.REQUEST_PROCESSING_STARTED, {
-        hasController: !!controller,
-        hasStreamProcessor: !!streamProcessor
-      })
-    } else {
-      emitStateEvent(STATE_EVENTS.REQUEST_PROCESSING_STOPPED, {
-        reason: 'processing_completed'
-      })
-    }
     
     // Enable/disable keypress events for escape handling
     if (value) {
@@ -588,16 +567,6 @@ ${colorInput}> `
     // Use StateManager for state management
     this.stateManager.setTypingResponse(value)
     
-    // Emit state event
-    if (value) {
-      emitStateEvent(STATE_EVENTS.RESPONSE_TYPING_STARTED, {
-        timestamp: Date.now()
-      })
-    } else {
-      emitStateEvent(STATE_EVENTS.RESPONSE_TYPING_STOPPED, {
-        timestamp: Date.now()
-      })
-    }
   }
 
   /**
@@ -607,16 +576,6 @@ ${colorInput}> `
     // Use StateManager for state management
     this.stateManager.setSpinnerInterval(interval)
     
-    // Emit state event
-    if (interval) {
-      emitStateEvent(STATE_EVENTS.SPINNER_STARTED, {
-        spinnerType: 'default'
-      })
-    } else {
-      emitStateEvent(STATE_EVENTS.SPINNER_STOPPED, {
-        reason: 'interval_cleared'
-      })
-    }
   }
 
   /**
