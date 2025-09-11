@@ -3,14 +3,14 @@
  * Determines request type and creates commandData - NO business logic execution
  */
 import { logger } from '../utils/logger.js'
-import { InputProcessingService } from '../services/input-processing-service.js'
+import { inputProcessingService } from '../services/input-processing-service.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
 
 export class Router {
   constructor(dependencies = {}) {
-    // Initialize CommandProcessingService (Single Source of Truth for commands)
-    this.commandProcessingService = dependencies.commandProcessingService || new InputProcessingService()
+    // Use singleton InputProcessingService (Single Source of Truth for commands)
+    this.commandProcessingService = dependencies.commandProcessingService || inputProcessingService
 
     // Handler dependencies (injected from app)
     this.systemCommandHandler = dependencies.systemCommandHandler || systemCommandHandler
@@ -21,6 +21,7 @@ export class Router {
     this.REQUEST_TYPES = {
       SYSTEM: 'system',
       INSTRUCTION: 'instruction',
+      INVALID: 'invalid',
       MCP_ENHANCED: 'mcp_enhanced',
       CHAT: 'chat'
     }
@@ -79,6 +80,10 @@ export class Router {
         // Fallback to direct ChatRequest
         return await this.chatRequest.processChatRequest(instructionData)
 
+      case this.REQUEST_TYPES.INVALID:
+        applicationLoop.writeError(analysis.error)
+        return null
+
       case this.REQUEST_TYPES.CHAT:
       default:
         // Create data object - Single Source of Truth
@@ -126,7 +131,17 @@ export class Router {
 
     // 2. Instruction commands - ONE database search!
     const instructionCommand = await this.commandProcessingService.findInstructionCommand(cleanInput)
-    if (instructionCommand && !instructionCommand.isInvalid) {
+    
+    if (instructionCommand) {
+      // Check for invalid commands first
+      if (instructionCommand.isInvalid) {
+        return {
+          type: this.REQUEST_TYPES.INVALID,
+          rawInput: cleanInput,
+          error: instructionCommand.error
+        }
+      }
+      
       return {
         type: this.REQUEST_TYPES.INSTRUCTION,
         rawInput: cleanInput,
@@ -135,7 +150,7 @@ export class Router {
     }
 
     // 3. MCP enhanced (URL detection)
-    if (this.hasUrl(cleanInput)) {
+    if (this.commandProcessingService.hasUrl(cleanInput)) {
       return {
         type: this.REQUEST_TYPES.MCP_ENHANCED,
         rawInput: cleanInput
@@ -169,22 +184,6 @@ export class Router {
     }
   }
 
-  /**
-   * Simple URL detection
-   */
-  hasUrl(str) {
-    return str
-      .split(' ')
-      .filter(Boolean)
-      .some(word => {
-        try {
-          new URL(word)
-          return true
-        } catch {
-          return false
-        }
-      })
-  }
 
   /**
    * Get routing statistics
