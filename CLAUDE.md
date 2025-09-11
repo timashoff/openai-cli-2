@@ -163,6 +163,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Edge case scenarios
    ```
 
+### Service Analysis Methodology (before refactoring):
+
+Critical analysis requires deep investigation of dependencies and service usage. Must perform thorough method inventory, verify relevance and actual application in project.
+
+**Analysis Stages:**
+1. **Purpose Investigation**: understand WHY the service exists in architecture
+2. **Dependency Analysis**: who uses the service (grep imports and calls)
+3. **Method Inventory**: which methods are actually called in code
+4. **Dead Code Detection**: unused methods, properties, logic
+5. **Architectural Role Check**: follows Single Responsibility Principle?
+
+**Analysis Questions:**
+- What role does service play in overall data flow?
+- Are all methods actually used?
+- Is there functionality duplication?
+- Does service comply with CLAUDE.md principles?
+
 ### Refactoring Analysis Methodology:
 **ALWAYS enable ultrathink mode when analyzing!**
 
