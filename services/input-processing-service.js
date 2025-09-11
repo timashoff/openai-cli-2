@@ -113,8 +113,7 @@ export class InputProcessingService {
               userInput,
               models: command.models,
               hasUrl: this.hasUrl(userInput),
-              description: command.description,
-              isCached: command.isCached // CRITICAL FIX - was missing!
+              description: command.description
             }
           }
         }

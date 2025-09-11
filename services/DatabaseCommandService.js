@@ -14,7 +14,6 @@ const COMMANDS_SCHEMA = {
     description: 'TEXT NOT NULL',
     instruction: 'TEXT NOT NULL',
     models: "TEXT DEFAULT '[]'",
-    is_cached: 'BOOLEAN DEFAULT false',
     created_at: "INTEGER DEFAULT (strftime('%s', 'now'))",
     updated_at: "INTEGER DEFAULT NULL",
   },
@@ -124,10 +123,6 @@ function createDatabaseCommandService() {
     return findByKey(key) !== null
   }
 
-  function isCacheEnabled(key) {
-    const command = findByKey(key)
-    return command.isCached
-  }
 
   function getCommandsFromDB() {
     const selectQuery = db.prepare(
@@ -144,7 +139,6 @@ function createDatabaseCommandService() {
         description: row.description,
         instruction: row.instruction,
         models: JSON.parse(row.models),
-        isCached: Boolean(row.is_cached),
         created_at: row.created_at,
         updated_at: row.updated_at,
       }
@@ -180,13 +174,11 @@ function createDatabaseCommandService() {
   }
 
   function saveCommand(id, commandData) {
-    const { name, key, description, instruction, models, isCached } =
-      commandData
+    const { name, key, description, instruction, models } = commandData
 
     const keyJson = JSON.stringify(key)
     const modelsJson = JSON.stringify(models)
     const currentTimestamp = Math.floor(Date.now() / 1000)
-    const isCachedInt = isCached ? 1 : 0
 
     // Generate ALL fields from schema - ZERO hardcode!
     const allFields = Object.keys(COMMANDS_SCHEMA.fields)
@@ -213,7 +205,6 @@ function createDatabaseCommandService() {
       description,
       instruction,
       models: modelsJson,
-      is_cached: isCachedInt,
       created_at: currentTimestamp,
       updated_at: null
     }
@@ -262,7 +253,6 @@ function createDatabaseCommandService() {
     findById,
     getAllKeys,
     hasCommand,
-    isCacheEnabled,
     getCommandsFromDB,
     refreshCache,
     getStats,

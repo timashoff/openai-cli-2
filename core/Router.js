@@ -70,9 +70,7 @@ export class Router {
           userInput: analysis.instructionCommand.userInput,
           instruction: analysis.instructionCommand.instruction,
           commandId: analysis.instructionCommand.id,
-          models: analysis.instructionCommand.models || [],
-          isCached: analysis.instructionCommand.isCached,
-          isForced: analysis.flags.isForced
+          models: analysis.instructionCommand.models || []
         })
 
         if (this.commandHandler) {
@@ -87,9 +85,7 @@ export class Router {
         const chatData = this.createData({
           content: analysis.rawInput,
           userInput: analysis.rawInput,
-          models: [],
-          isCached: false,
-          isForced: analysis.flags.isForced
+          models: []
         })
         return await this.chatRequest.processChatRequest(chatData)
     }
@@ -104,33 +100,10 @@ export class Router {
       userInput: options.userInput || options.content || '',
       instruction: options.instruction || null,
       commandId: options.commandId || null,
-      models: options.models || [],
-      isCached: options.isCached || false,
-      isForced: options.isForced || false
+      models: options.models || []
     }
   }
 
-  /**
-   * Parse flags from input and return clean input + flags
-   */
-  parseFlags(input) {
-    const words = input.split(/\s+/)
-    const flags = { isForced: false }
-    const cleanWords = []
-
-    for (const word of words) {
-      if (word === '--force' || word === '-f') {
-        flags.isForced = true
-      } else {
-        cleanWords.push(word)
-      }
-    }
-
-    return {
-      cleanInput: cleanWords.join(' '),
-      flags
-    }
-  }
 
   /**
    * Analyze input in ONE PASS - get type + all command data (NO DUPLICATION!)
@@ -139,10 +112,7 @@ export class Router {
     const trimmedInput = input.trim()
 
     // Process clipboard markers FIRST (before any analysis)
-    const processedInput = await this.commandProcessingService.processInput(trimmedInput)
-
-    // Parse flags and get clean input (NOTE: --force flags are disabled with cache)
-    const { cleanInput, flags } = this.parseFlags(processedInput)
+    const cleanInput = await this.commandProcessingService.processInput(trimmedInput)
 
     // 1. System commands first (PRIORITY)
     const commandName = cleanInput.split(' ')[0].toLowerCase()
@@ -150,8 +120,7 @@ export class Router {
       return {
         type: this.REQUEST_TYPES.SYSTEM,
         rawInput: cleanInput,
-        commandName,
-        flags: flags
+        commandName
       }
     }
 
@@ -161,8 +130,7 @@ export class Router {
       return {
         type: this.REQUEST_TYPES.INSTRUCTION,
         rawInput: cleanInput,
-        instructionCommand: instructionCommand,
-        flags: flags
+        instructionCommand: instructionCommand
       }
     }
 
@@ -170,16 +138,14 @@ export class Router {
     if (this.hasUrl(cleanInput)) {
       return {
         type: this.REQUEST_TYPES.MCP_ENHANCED,
-        rawInput: cleanInput,
-        flags: flags
+        rawInput: cleanInput
       }
     }
 
     // 4. Default to chat
     return {
       type: this.REQUEST_TYPES.CHAT,
-      rawInput: cleanInput,
-      flags: flags
+      rawInput: cleanInput
     }
   }
 
