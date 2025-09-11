@@ -8,7 +8,7 @@ import { createToggleMenu } from '../../utils/toggle-menu.js'
 import { createSelectionTitle } from '../../utils/menu-helpers.js'
 import { outputHandler } from '../../core/output-handler.js'
 import { color } from '../../config/color.js'
-import { databaseCommandService } from '../../services/DatabaseCommandService.js'
+import { databaseCommandService } from '../../services/database-command-service.js'
 import { createSpinner } from '../../utils/spinner.js'
 import { APP_CONSTANTS } from '../../config/constants.js'
 import { getAllSystemCommandNames } from '../../utils/system-commands.js'
@@ -153,8 +153,7 @@ async function handleAddCommand(context) {
       key: [],
       description: '',
       instruction: '',
-      models: [],
-      isCached: false
+      models: []
     }
 
     const success = await editCommandFields(commandData, context, 'create')
@@ -218,8 +217,7 @@ async function handleEditCommand(context) {
       key: [...existingCommand.key],
       description: existingCommand.description,
       instruction: existingCommand.instruction,
-      models: [...(existingCommand.models || [])],
-      isCached: existingCommand.isCached
+      models: existingCommand.models
     }
 
     const success = await editCommandFields(commandData, context, 'edit')
@@ -252,8 +250,7 @@ async function editCommandFields(commandData, context, mode) {
     { name: 'Keys', action: () => editKeys(commandData, context) },
     { name: 'Description', action: () => editDescription(commandData, context) },
     { name: 'Instruction', action: () => editInstruction(commandData, context) },
-    { name: 'Models', action: () => editModels(commandData, context) },
-    { name: 'Caching', action: () => editCaching(commandData, context) }
+    { name: 'Models', action: () => editModels(commandData, context) }
   ]
 
   while (true) {
@@ -311,8 +308,7 @@ const fieldFormatters = {
     if (data.models.length === 0) return 'system (default)'
     if (data.models.length === 1) return data.models[0].model
     return data.models.length.toString()
-  },
-  'Caching': (data) => data.isCached ? 'yes' : 'no'
+  }
 }
 
 /**
@@ -339,8 +335,7 @@ function getChangedFields(originalData, currentData) {
     'Keys': (orig, curr) => JSON.stringify(orig.key) !== JSON.stringify(curr.key),
     'Description': (orig, curr) => orig.description !== curr.description,
     'Instruction': (orig, curr) => orig.instruction !== curr.instruction,
-    'Models': (orig, curr) => JSON.stringify(orig.models) !== JSON.stringify(curr.models),
-    'Caching': (orig, curr) => orig.isCached !== curr.isCached
+    'Models': (orig, curr) => JSON.stringify(orig.models) !== JSON.stringify(curr.models)
   }
 
   return Object.entries(fieldCheckers)
@@ -745,25 +740,6 @@ async function editModels(commandData, context) {
   await editCollection(commandData, context, 'models')
 }
 
-async function editCaching(commandData, context) {
-  console.log(color.cyan + '\n=== Edit Caching ===' + color.reset)
-
-  const cacheOptions = [
-    `[${commandData.isCached ? '✓' : ' '}] Cached`,
-    `[${!commandData.isCached ? '✓' : ' '}] No cached`
-  ]
-
-  const selectedIndex = await createNavigationMenu(
-    'Select caching:',
-    cacheOptions,
-    commandData.isCached ? 0 : 1,
-    context
-  )
-
-  if (selectedIndex !== -1) {
-    commandData.isCached = selectedIndex === 0
-  }
-}
 
 async function handleListCommands(context) {
   try {
@@ -779,11 +755,31 @@ async function handleListCommands(context) {
 
     for (const [id, cmd] of commandEntries) {
       const keyText = Array.isArray(cmd.key) ? cmd.key.join(', ') : cmd.key
-      const cacheStatus = cmd.isCached ? color.green + ' (cached)' + color.reset : ''
       const commandName = cmd.name || 'Unnamed Command'
+      
+      // Format created date
+      const createdDate = new Date(cmd.created_at * 1000).toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short', 
+        year: 'numeric'
+      })
 
-      console.log(`${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]${cacheStatus}`)
+      console.log(`${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]`)
       console.log(`  ${cmd.description}`)
+      console.log(`  ${color.grey}Created: ${createdDate}${color.reset}`)
+
+      // Show Updated only if command was actually updated AND date is different
+      if (cmd.updated_at) {
+        const updatedDate = new Date(cmd.updated_at * 1000).toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        })
+        
+        if (updatedDate !== createdDate) {
+          console.log(`  ${color.grey}Updated: ${updatedDate}${color.reset}`)
+        }
+      }
       console.log('')
     }
 

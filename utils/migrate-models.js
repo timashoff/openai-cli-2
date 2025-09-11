@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { databaseCommandService } from '../services/DatabaseCommandService.js'
+import { databaseCommandService } from '../services/database-command-service.js'
 
 /**
  * Migration script to add default models to existing commands

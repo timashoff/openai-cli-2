@@ -43,6 +43,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Arrays with find/filter methods
   - Example: instead of `switch(type) { case 'a': return handleA() }` use `const handlers = { a: handleA }; return handlers[type]()`
 
+## SQL/SQLite Working Rules
+- When working with SQL, use UPSERT methodology for conflict resolution! Use `INSERT OR REPLACE` or `INSERT OR IGNORE` instead of separate INSERT/UPDATE operations
+- Always use prepared statements to prevent SQL injection
+- Create indexes for frequently searched fields
+
 ## Git Commit Rules
 - DON'T add AI-generated lines like "🤖 Generated with [Claude Code](https://claude.ai/code)" to commit messages
 
@@ -184,6 +189,12 @@ Before starting any code refactoring, ALWAYS ask yourself these questions:
    - Checking compliance with project rules
    - Identifying violations of functional paradigm
    - Looking for hardcode, class usage, switch/case and other forbidden patterns
+
+6. **Check for code THEATRICALITY?**
+   - Code that looks functional but is 100% dead!
+   - Functions that are never called but create an illusion of usefulness
+   - Variables and constants that are defined but never used
+   - Entire modules or classes that are imported but their methods never execute
 
 ### Checkpoints:
 - Ensure program starts, then contact user for full testing
