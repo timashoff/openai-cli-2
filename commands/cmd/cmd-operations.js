@@ -779,11 +779,31 @@ async function handleListCommands(context) {
 
     for (const [id, cmd] of commandEntries) {
       const keyText = Array.isArray(cmd.key) ? cmd.key.join(', ') : cmd.key
-      const cacheStatus = cmd.isCached ? color.green + ' (cached)' + color.reset : ''
       const commandName = cmd.name || 'Unnamed Command'
+      
+      // Format created date
+      const createdDate = new Date(cmd.created_at * 1000).toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short', 
+        year: 'numeric'
+      })
 
-      console.log(`${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]${cacheStatus}`)
+      console.log(`${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]`)
       console.log(`  ${cmd.description}`)
+      console.log(`  ${color.grey}Created: ${createdDate}${color.reset}`)
+
+      // Show Updated only if command was actually updated AND date is different
+      if (cmd.updated_at) {
+        const updatedDate = new Date(cmd.updated_at * 1000).toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        })
+        
+        if (updatedDate !== createdDate) {
+          console.log(`  ${color.grey}Updated: ${updatedDate}${color.reset}`)
+        }
+      }
       console.log('')
     }
 
