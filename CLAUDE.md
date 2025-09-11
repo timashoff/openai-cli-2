@@ -43,6 +43,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Arrays with find/filter methods
   - Example: instead of `switch(type) { case 'a': return handleA() }` use `const handlers = { a: handleA }; return handlers[type]()`
 
+## SQL/SQLite Working Rules
+- When working with SQL, use UPSERT methodology for conflict resolution! Use `INSERT OR REPLACE` or `INSERT OR IGNORE` instead of separate INSERT/UPDATE operations
+- Always use prepared statements to prevent SQL injection
+- Create indexes for frequently searched fields
+
 ## Git Commit Rules
 - DON'T add AI-generated lines like "🤖 Generated with [Claude Code](https://claude.ai/code)" to commit messages
 
