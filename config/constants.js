@@ -68,7 +68,6 @@ export const UI_CONFIG = {
     COLUMN_WIDTHS: {
       KEYS: 14,
       DESCRIPTION: 36,
-      CACHE: 5,
       MODELS: 6,
     },
     SEPARATORS: {

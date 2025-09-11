@@ -1,6 +1,6 @@
 import { color } from '../config/color.js'
 import { SYSTEM_COMMANDS } from '../config/system-commands.js'
-import { databaseCommandService } from '../services/DatabaseCommandService.js'
+import { databaseCommandService } from '../services/database-command-service.js'
 import { UI_CONFIG } from '../config/constants.js'
 
 export const HelpCommand = {
@@ -56,14 +56,13 @@ export const HelpCommand = {
 
           const keysHeader = 'Keys'.padEnd(tableConfig.KEYS)
           const descHeader = 'Description'.padEnd(tableConfig.DESCRIPTION)
-          const cacheHeader = 'Cache'.padEnd(tableConfig.CACHE)
           const modelsHeader = 'Models'.padEnd(tableConfig.MODELS)
 
           const indent = ' '.repeat(formatting.ROW_INDENT)
-          output += `${indent}${color.white}${keysHeader}${separator} ${descHeader}${separator} ${cacheHeader}${separator} ${modelsHeader}${color.reset}\n`
+          output += `${indent}${color.white}${keysHeader}${separator} ${descHeader}${separator} ${modelsHeader}${color.reset}\n`
 
           const separatorWidth = formatting.SEPARATOR_COUNT + (formatting.SEPARATOR_COUNT + 1) * formatting.SEPARATOR_SPACES
-          const totalWidth = tableConfig.KEYS + tableConfig.DESCRIPTION + tableConfig.CACHE + tableConfig.MODELS + separatorWidth
+          const totalWidth = tableConfig.KEYS + tableConfig.DESCRIPTION + tableConfig.MODELS + separatorWidth
           output += `${indent}${color.grey}${rowSep.repeat(totalWidth)}${color.reset}\n`
 
           Object.entries(userCommands).forEach(([commandId, command]) => {
@@ -71,8 +70,6 @@ export const HelpCommand = {
             const paddedKeys = this.padToVisualWidth(keys, tableConfig.KEYS)
             const models = this.formatModels(command.models)
             const paddedModels = this.padToVisualWidth(models, tableConfig.MODELS)
-            const cacheIcon = command.isCached ? `${color.green}✓${color.reset}` : ' '
-            const paddedCache = this.padToVisualWidth(cacheIcon, tableConfig.CACHE)
 
             // Handle long descriptions (> 26 chars)
             const description = command.description
@@ -95,20 +92,19 @@ export const HelpCommand = {
               const paddedFirstLine = this.padToVisualWidth(firstLine, tableConfig.DESCRIPTION)
 
               // First line with all columns
-              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedFirstLine}${separator} ${paddedCache}${separator} ${paddedModels}\n`
+              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedFirstLine}${separator} ${paddedModels}\n`
 
               // Second line with description continuation (only if needed)
               if (secondLine) {
                 const paddedSecondLine = this.padToVisualWidth(secondLine, tableConfig.DESCRIPTION)
                 const emptyKeys = this.padToVisualWidth('', tableConfig.KEYS)
-                const emptyCache = this.padToVisualWidth('', tableConfig.CACHE)
                 const emptyModels = this.padToVisualWidth('', tableConfig.MODELS)
-                output += `${indent}${emptyKeys}${separator} ${paddedSecondLine}${separator} ${emptyCache}${separator} ${emptyModels}\n`
+                output += `${indent}${emptyKeys}${separator} ${paddedSecondLine}${separator} ${emptyModels}\n`
               }
             } else {
               // Short description - single line
               const paddedDescription = this.padToVisualWidth(description, tableConfig.DESCRIPTION)
-              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedDescription}${separator} ${paddedCache}${separator} ${paddedModels}\n`
+              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedDescription}${separator} ${paddedModels}\n`
             }
           })
           output += '\n'
@@ -122,8 +118,6 @@ export const HelpCommand = {
       output += `${color.white}Clipboard:${color.reset} Add '${color.yellow}$${color.reset}' to include clipboard content\n`
       output += `  ${color.grey}Example: code $${color.reset}\n\n`
 
-      output += `${color.white}Force Request:${color.reset} Add '${color.yellow}--force${color.reset}' or '${color.yellow}-f${color.reset}' to bypass cache\n`
-      output += `  ${color.grey}Example: gg how are you? --force${color.reset}\n`
 
       process.stdout.write(output + '\n')
       return null
