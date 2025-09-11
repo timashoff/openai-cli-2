@@ -1,4 +1,4 @@
-import { databaseCommandService } from '../services/DatabaseCommandService.js'
+import { databaseCommandService } from '../services/database-command-service.js'
 import { getAllSystemCommandNames } from './system-commands.js'
 
 /**

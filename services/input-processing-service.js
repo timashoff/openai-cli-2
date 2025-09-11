@@ -1,4 +1,4 @@
-import { databaseCommandService } from './DatabaseCommandService.js'
+import { databaseCommandService } from './database-command-service.js'
 import { logger } from '../utils/logger.js'
 import { getClipboardContent } from '../utils/index.js'
 import { sanitizeString } from '../utils/validation.js'

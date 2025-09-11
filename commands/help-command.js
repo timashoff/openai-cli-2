@@ -1,6 +1,6 @@
 import { color } from '../config/color.js'
 import { SYSTEM_COMMANDS } from '../config/system-commands.js'
-import { databaseCommandService } from '../services/DatabaseCommandService.js'
+import { databaseCommandService } from '../services/database-command-service.js'
 import { UI_CONFIG } from '../config/constants.js'
 
 export const HelpCommand = {
