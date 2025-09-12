@@ -1,6 +1,6 @@
 import { databaseCommandService } from './database-command-service.js'
 import { logger } from '../utils/logger.js'
-import { getClipboardContent } from '../utils/index.js'
+import { getClipboardContent } from '../utils/clipboard-content.js'
 import { sanitizeString } from '../utils/validation.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { color } from '../config/color.js'
