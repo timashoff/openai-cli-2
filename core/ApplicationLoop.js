@@ -11,13 +11,13 @@ import { getElapsedTime, clearTerminalLine } from '../utils/index.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from './error-system/index.js'
-import { getAllSystemCommands } from '../utils/autocomplete.js'
+import { getAllAvailableCommands } from '../utils/autocomplete.js'
 import { getStateManager } from './StateManager.js'
 import { outputHandler } from './output-handler.js'
 
 // Create completer function for system commands autocomplete
 function completer(line) {
-  const commands = getAllSystemCommands()
+  const commands = getAllAvailableCommands()
   const hits = commands.filter((cmd) => cmd.startsWith(line))
   // Show matches or all commands if no matches
   return [hits.length ? hits : [], line]

@@ -7,7 +7,7 @@ import { platform } from 'node:os'
 import cache from './cache.js'
 // import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
-import { getAllSystemCommands } from './autocomplete.js'
+import { getAllAvailableCommands } from './autocomplete.js'
 import { createBaseError } from '../core/error-system/index.js'
 import { sanitizeString } from './validation.js'
 import { APP_CONSTANTS, CLIPBOARD_COMMANDS, BROWSER_COMMANDS } from '../config/constants.js'
@@ -90,7 +90,7 @@ const openInBrowser = async (url) => {
 
 // Create completer function for system commands autocomplete
 function completer(line) {
-  const commands = getAllSystemCommands()
+  const commands = getAllAvailableCommands()
   const hits = commands.filter((cmd) => cmd.startsWith(line))
   // Show matches or all commands if no matches
   return [hits.length ? hits : [], line]
