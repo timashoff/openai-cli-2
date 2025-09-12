@@ -1,4 +1,4 @@
-import { createNavigationMenu } from '../utils/interactive_menu_new.js'
+import { createNavigationMenu } from '../utils/interactive_menu.js'
 import { createSpinner } from '../utils/spinner.js'
 import { outputHandler } from '../core/output-handler.js'
 
