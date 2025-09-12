@@ -7,7 +7,6 @@ import { ApplicationLoop } from '../core/ApplicationLoop.js'
 import { createChatRequest } from '../core/ChatRequest.js'
 import { createCommandHandler } from '../core/CommandHandler.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
-import { CacheManager } from '../core/CacheManager.js'
 import { getStateManager } from '../core/StateManager.js'
 import { PROVIDERS } from '../config/providers.js'
 
@@ -33,7 +32,6 @@ async function start() {
 
     // Initialize core components through composition
     const stateManager = getStateManager()
-    const cacheManager = new CacheManager()
     const systemCommandHandler_instance = systemCommandHandler
 
     // Create application context for components that need it
@@ -41,7 +39,7 @@ async function start() {
 
     // Create dependent components through functional composition
     const chatRequest = createChatRequest(appContext)
-    const commandHandler = createCommandHandler(chatRequest, cacheManager)
+    const commandHandler = createCommandHandler(chatRequest)
     const applicationLoop = new ApplicationLoop(appContext)
 
     // Create router with all handler dependencies

@@ -4,7 +4,6 @@ import { exec } from 'node:child_process'
 import util from 'node:util'
 import { platform } from 'node:os'
 
-import cache from './cache.js'
 // import { API_PROVIDERS } from '../config/providers.js'
 import { color } from '../config/color.js'
 import { getAllAvailableCommands } from './autocomplete.js'
@@ -136,4 +135,4 @@ const showStatus = (type, time, message = '') => {
 // Removed global readline interface - conflicts with CLIManager.rl
 // Use CLIManager.rl as the single readline interface in the application
 
-export { getClipboardContent, cache, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }
+export { getClipboardContent, openInBrowser, getElapsedTime, clearTerminalLine, showStatus }

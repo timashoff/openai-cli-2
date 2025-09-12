@@ -15,29 +15,14 @@ export const multiModelCommand = {
   /**
    * Execute multiple models with REACTIVE algorithm
    */
-  async execute(commandData, app, cacheManager) {
+  async execute(commandData, app) {
     try {
       logger.debug(
         `MultiModelCommand: Executing ${commandData.models.length} models`,
       )
 
-      // Check cache for each model
-      const cacheResults = await this.checkCacheForAllModels(
-        commandData,
-        commandData.userInput,
-        cacheManager,
-      )
-
-      // Separate cached and live models
-      const { cachedModels, liveModels } = this.separateCachedAndLive(
-        commandData.models,
-        cacheResults,
-      )
-
-      // Display cached results immediately
-      if (cachedModels.length > 0) {
-        this.displayCachedResults(cachedModels)
-      }
+      // Cache is disabled - all models are live
+      const liveModels = commandData.models
 
       // Execute live models with reactive algorithm
       let successfulLiveModels = 0
@@ -46,13 +31,12 @@ export const multiModelCommand = {
           liveModels,
           commandData,
           app,
-          cacheManager,
         )
       }
 
       // Display final summary
       this.displaySummary(
-        cachedModels.length,
+        0, // cachedCount always 0 (cache disabled)
         successfulLiveModels,
         commandData.models.length,
         app.stateManager,
@@ -64,85 +48,13 @@ export const multiModelCommand = {
     }
   },
 
-  /**
-   * Check cache for all models
-   */
-  async checkCacheForAllModels(commandData, input, cacheManager) {
-    const results = []
 
-    for (const model of commandData.models) {
-      try {
-        const hasCache = await cacheManager.hasCacheByModel(
-          input,
-          commandData.commandId,
-          `${model.provider}:${model.model}`,
-        )
 
-        if (hasCache) {
-          const cachedResponse = await cacheManager.getCacheByModel(
-            input,
-            commandData.commandId,
-            `${model.provider}:${model.model}`,
-          )
-          results.push({ model, cached: cachedResponse, error: null })
-        } else {
-          results.push({ model, cached: null, error: null })
-        }
-      } catch (error) {
-        logger.error(
-          `MultiModelCommand: Cache check failed for ${model.provider}:${model.model}: ${error.message}`,
-        )
-        results.push({ model, cached: null, error })
-      }
-    }
-
-    return results
-  },
-
-  /**
-   * Separate models into cached and live groups
-   */
-  separateCachedAndLive(models, cacheResults) {
-    const cachedModels = []
-    const liveModels = []
-
-    cacheResults.forEach((result, index) => {
-      const model = models[index]
-
-      if (result.cached) {
-        cachedModels.push({
-          model,
-          response: result.cached,
-          source: 'cache',
-        })
-      } else {
-        liveModels.push(model)
-      }
-    })
-
-    logger.debug(
-      `MultiModelCommand: ${cachedModels.length} cached, ${liveModels.length} live models`,
-    )
-    return { cachedModels, liveModels }
-  },
-
-  /**
-   * Display cached results
-   */
-  displayCachedResults(cachedModels) {
-    cachedModels.forEach(({ model, response }) => {
-      outputHandler.writeNewline()
-      outputHandler.write(this.formatModelName(model))
-      outputHandler.write(response)
-      outputHandler.write(`[CACHED] 0.1s`)
-      outputHandler.writeNewline()
-    })
-  },
 
   /**
    * Execute models with REACTIVE algorithm - the correct way
    */
-  async executeReactiveModels(liveModels, commandData, app, cacheManager) {
+  async executeReactiveModels(liveModels, commandData, app) {
     const stateManager = app.stateManager
     const controller = stateManager.getCurrentRequestController()
 
@@ -180,7 +92,6 @@ export const multiModelCommand = {
           model,
           messages,
           stateManager,
-          cacheManager,
           commandData,
           () => globalWinnerFound,
           (winModel) => {
@@ -351,7 +262,6 @@ export const multiModelCommand = {
     model,
     messages,
     stateManager,
-    cacheManager,
     commandData,
     isWinnerFound,
     onWinner,
@@ -408,15 +318,7 @@ export const multiModelCommand = {
         outputHandler.writeNewline()
       }
 
-      // Cache response
-      if (commandData.isCached && fullResponse) {
-        await cacheManager.setCacheByModel(
-          commandData.userInput,
-          commandData.commandId,
-          this.getModelKey(model),
-          fullResponse,
-        )
-      }
+      // Cache is globally disabled - no caching
 
       return {
         model,

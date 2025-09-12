@@ -5,7 +5,6 @@
  */
 import { logger } from '../utils/logger.js'
 import { StreamProcessor } from '../utils/stream-processor.js'
-import cache from '../utils/cache.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from './error-system/index.js'
 import { outputHandler } from './output-handler.js'
