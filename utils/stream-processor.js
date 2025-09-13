@@ -1,38 +1,25 @@
-// StreamingObserver removed - events were theatrical (no listeners)
-
-/**
- * Processes streaming responses from different AI providers
- */
-export class StreamProcessor {
-  constructor(providerKey) {
-    this.providerKey = providerKey
-    // Check if provider is Claude-based (Anthropic)
-    this.isClaudeProvider = providerKey === 'anthropic'
-    this.isTerminated = false
-    this.currentReader = null
-    this.currentStream = null
+export const createStreamProcessor = () => {
+  const state = {
+    isTerminated: false,
+    currentReader: null,
+    currentStream: null
   }
 
-  /**
-   * Force terminate any ongoing stream processing
-   */
-  forceTerminate() {
-    this.isTerminated = true
+  const forceTerminate = () => {
+    state.isTerminated = true
 
-    // Cancel reader if active
-    if (this.currentReader) {
+    if (state.currentReader) {
       try {
-        this.currentReader.cancel()
+        state.currentReader.cancel()
       } catch (e) {
         // Ignore cancellation errors
       }
     }
 
-    // Close stream if active
-    if (this.currentStream) {
+    if (state.currentStream) {
       try {
-        if (this.currentStream.destroy) {
-          this.currentStream.destroy()
+        if (state.currentStream.destroy) {
+          state.currentStream.destroy()
         }
       } catch (e) {
         // Ignore destruction errors
@@ -40,62 +27,61 @@ export class StreamProcessor {
     }
   }
 
-  /**
-   * Processes stream and returns response chunks
-   */
-  async processStream(stream, signal = null, onChunk = null) {
-    this.isTerminated = false
-    this.currentStream = stream
+  const processStream = async (stream, signal = null, onChunk = null) => {
+    state.isTerminated = false
+    state.currentStream = stream
 
-    // Check for immediate termination
-    if (this.isTerminated) {
+    if (state.isTerminated) {
       throw new Error('AbortError')
     }
 
     const response = []
-    const startTime = Date.now()
-
-    // Stream started - no event emission needed (no listeners)
 
     try {
-      if (this.isClaudeProvider) {
-        await this.processClaudeStream(stream, response, signal, onChunk)
+      // CRITICAL: Stream type detection order is EXTREMELY important!
+      //
+      // Web ReadableStream (Anthropic) has BOTH methods:
+      // - stream.getReader() ✓ (native Web ReadableStream API)
+      // - stream[Symbol.asyncIterator] ✓ (added in newer Node.js versions)
+      //
+      // MUST check getReader() FIRST!
+      // If order is reversed, Anthropic streams will be incorrectly
+      // processed as OpenAI streams and text output will fail.
+      //
+      // OpenAI streams only have Symbol.asyncIterator
+      if (stream.getReader) {
+        // Web ReadableStream (Anthropic)
+        await processClaudeStream(stream, response, signal, onChunk)
+      } else if (stream[Symbol.asyncIterator]) {
+        // OpenAI-compatible stream (async iterable)
+        await processOpenAIStream(stream, response, signal, onChunk)
       } else {
-        await this.processOpenAIStream(stream, response, signal, onChunk)
+        throw new Error('Unknown stream type - neither async iterable nor ReadableStream')
       }
-
-      // Stream finished successfully
-
     } catch (error) {
-      // Stream cancelled or error occurred
       throw error
     } finally {
-      this.currentStream = null
-      this.currentReader = null
+      state.currentStream = null
+      state.currentReader = null
     }
 
     return response
   }
 
-  /**
-   * Processes Claude streaming response
-   */
-  async processClaudeStream(stream, response, signal = null, onChunk = null) {
+  const processClaudeStream = async (stream, response, signal = null, onChunk = null) => {
     const reader = stream.getReader()
-    this.currentReader = reader
+    state.currentReader = reader
     const decoder = new TextDecoder()
     let done = false
     let buffer = ''
     let currentEvent = null
 
     while (!done) {
-      // Check for termination first
-      if (this.isTerminated) {
+      if (state.isTerminated) {
         reader.cancel()
         throw new Error('AbortError')
       }
 
-      // Check for abort signal
       if (signal && signal.aborted) {
         reader.cancel()
         throw new Error('AbortError')
@@ -108,33 +94,28 @@ export class StreamProcessor {
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
 
-        // Keep the last incomplete line in buffer
         buffer = lines.pop() || ''
 
         for (const line of lines) {
           const trimmedLine = line.trim()
 
-          // Skip empty lines and comments
           if (!trimmedLine || trimmedLine.startsWith(':')) {
             continue
           }
 
-          // Handle event lines - КРИТИЧЕСКИ ВАЖНО!
           if (trimmedLine.startsWith('event: ')) {
-            currentEvent = trimmedLine.substring(7).trim()
+            currentEvent = trimmedLine.replace('event: ', '').trim()
             continue
           }
 
           if (trimmedLine.startsWith('data: ')) {
-            const data = trimmedLine.substring(6).trim()
+            const data = trimmedLine.replace('data: ', '').trim()
 
-            // Check for end of stream
             if (data === '[DONE]') {
               done = true
               break
             }
 
-            // Skip empty data
             if (!data) {
               continue
             }
@@ -142,7 +123,6 @@ export class StreamProcessor {
             try {
               const json = JSON.parse(data)
 
-              // HANDLE ERROR EVENTS - БЛЯДЬ НАКОНЕЦ-ТО!
               if (currentEvent === 'error' || json.type === 'error') {
                 const errorMessage = (json.error && json.error.message) || json.message || 'Unknown Anthropic API error'
                 const errorType = (json.error && json.error.type) || json.type || 'unknown_error'
@@ -150,29 +130,22 @@ export class StreamProcessor {
                 throw new Error(`Anthropic API Error (${errorType}): ${errorMessage}`)
               }
 
-              // Handle content events
               if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
                 response.push(json.delta.text)
                 if (onChunk) onChunk(json.delta.text)
               } else if (json.delta && json.delta.text) {
-                // Fallback for older format
                 response.push(json.delta.text)
                 if (onChunk) onChunk(json.delta.text)
               }
 
-              // Reset event after processing data
               currentEvent = null
 
             } catch (e) {
-              // If it's our intentional error throw, re-throw it
               if (e.message.includes('Anthropic API Error')) {
                 throw e
               }
 
-              // Only log parsing errors for unexpected data
-              if (data !== '[DONE]') {
-                console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
-              }
+              // Skip debug output for security - parsing errors are not critical
             }
           }
         }
@@ -180,18 +153,13 @@ export class StreamProcessor {
     }
   }
 
-  /**
-   * Processes OpenAI-compatible streaming response
-   */
-  async processOpenAIStream(stream, response, signal = null, onChunk = null) {
+  const processOpenAIStream = async (stream, response, signal = null, onChunk = null) => {
     try {
       for await (const chunk of stream) {
-        // Check for termination first
-        if (this.isTerminated) {
+        if (state.isTerminated) {
           throw new Error('Stream processing aborted')
         }
 
-        // Check for abort signal
         if (signal && signal.aborted) {
           throw new Error('Stream processing aborted')
         }
@@ -199,19 +167,21 @@ export class StreamProcessor {
         const content = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) ? chunk.choices[0].delta.content : null
         if (content) {
           response.push(content)
-          // Only call onChunk if request is not aborted
-          // if (onChunk && (!signal || !signal.aborted)) {
           if (onChunk && !signal.aborted) {
             onChunk(content)
           }
         }
       }
     } catch (error) {
-      // if (this.isTerminated || (signal && signal.aborted)) {
-      if (this.isTerminated ||  signal.aborted) {
+      if (state.isTerminated || signal.aborted) {
         throw new Error('AbortError')
       }
       throw error
     }
+  }
+
+  return {
+    processStream,
+    forceTerminate
   }
 }

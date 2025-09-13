@@ -1,16 +1,8 @@
-/**
- * CommandHandler - Handles database instruction commands with multi-model support
- * Functional object (NO CLASSES per CLAUDE.md!)
- * Routes between single-model ChatRequest and multi-model MultiModelCommand
- */
 import { logger } from '../utils/logger.js'
 import { multiModelCommand } from '../commands/multi-model-command.js'
 
-export function createCommandHandler(chatRequest, cacheManager) {
+export function createCommandHandler(chatRequest) {
   
-  /**
-   * Handle instruction command from database with multi-model and cache support
-   */
   async function handle(data, app) {
     const { content, userInput, models } = data
     
@@ -19,17 +11,13 @@ export function createCommandHandler(chatRequest, cacheManager) {
     // Route to appropriate handler based on model count
     if (models.length > 1) {
       logger.debug('CommandHandler: Routing to MultiModelCommand')
-      return await multiModelCommand.execute(data, app, cacheManager)
+      return await multiModelCommand.execute(data, app)
     } else {
       logger.debug('CommandHandler: Routing to single ChatRequest')
       return await handleSingleModel(data, app)
     }
   }
   
-  /**
-   * Handle single model command with cache support
-   * Uses unified cache API like MultiModelCommand
-   */
   async function handleSingleModel(data, app) {
     const { content, userInput, commandId, models } = data
     

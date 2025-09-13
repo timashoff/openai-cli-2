@@ -16,7 +16,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ALL logs and technical messages EXCLUSIVELY in English
 - ALL user messages EXCLUSIVELY in English
 - Design for i18n from the start, prepare architecture for multilingual support
-- NEVER LOG sensitive information (passwords, API keys, secrets)
+
+## Security Principles (Zero Trust)
+- **User = potential attacker**: never show raw error.message to users
+- **Three-level error handling system**:
+  - **PUBLIC** (to user): only predefined safe messages
+  - **DEV** (to developer): details only in development environment
+  - **INTERNAL** (to system): structured logs without sensitive data
+- **NEVER LOG or SHOW sensitive information**: passwords, API keys, tokens, secrets
+- **Sanitize all outputs**: consider ALL error.message potentially dangerous
+- **Predefined error messages**: use constants instead of dynamic texts
 
 ## JavaScript Project Rules
 - Always check for dead code before preparing commit messages
@@ -32,7 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always write async code for I/O operations, HTTP requests etc. No event loop blocking! Use async/await instead of .then()
 - Minimal external dependencies! Use built-in Node.js capabilities when available
 - Never use express.js framework! Only fastify!
-- Don't replace original error messages with generic ones. Always show error.message for real error reasons. EXCEPTION: sanitize if error.message contains sensitive info
+- **Secure error handling**: apply Zero Trust principles - show users only predefined safe messages from constants, raw error.message only to developer in dev mode
 - SQLite support is built into Node.js! Use node:sqlite instead of external dependencies
 - NEVER use optional chaining operator "?."
 - No legacy approaches like `const __dirname = path.dirname(fileURLToPath(import.meta.url))` - use modern `import.meta.dirname`
@@ -316,7 +325,11 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - Input validation and sanitization (`utils/validation.js`)
 - Rate limiting per provider
 - CSP checking for security
-- Error message sanitization
+- **Zero Trust error handling system**:
+  - PUBLIC level: predefined safe messages for users
+  - DEV level: detailed errors only in development mode
+  - INTERNAL level: structured logs without sensitive data
+  - Complete sanitization of all error outputs
 
 ### Configuration System
 
@@ -346,33 +359,10 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 
 **Clipboard Integration:** `$$` token in input gets replaced with clipboard content, with length validation and sanitization.
 
-**MCP (Model Context Protocol) Integration:** Automatic intent detection for web content extraction:
-- URL detection for webpage content extraction
-- Web search capabilities for general queries
-- Built-in MCP servers for fetch and search operations
-- Language detection for consistent response formatting
-
-### MCP System Architecture
-
-**Intent Detection:** `utils/intent-detector.js` analyzes input to determine if MCP processing is needed:
-- URL pattern matching for webpage extraction
-- Search keyword detection for web search
-- Confidence scoring for routing decisions
-
-**MCP Manager:** `utils/mcp-manager.js` handles MCP server lifecycle:
-- Built-in server initialization and management
-- Tool calling interface for MCP operations
-
-**Built-in MCP Servers:**
-- `utils/fetch-mcp-server.js` - Advanced webpage content extraction with article detection
-- `utils/search-mcp-server.js` - Web search using DuckDuckGo API
-- Custom HTML parsing with multiple content selectors and cleanup
-
-**MCP Processing Flow:**
-1. Input analyzed by intent detector
-2. Appropriate MCP server called with routing parameters
-3. Response formatted and enhanced with language detection
-4. Content passed to AI model with additional context
+**Streaming Architecture:** Real-time response streaming with escape key cancellation:
+- `StreamProcessor` handles different provider response formats
+- Global keypress handler for immediate escape response
+- State management for request vs response processing
 
 ## Key Files to Understand
 
@@ -382,7 +372,3 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - `utils/stream-processor.js` - Response streaming with provider-specific parsing
 - `config/instructions.js` - Translation and task command definitions
 - `utils/command-manager.js` - Command registration and execution system
-- `utils/mcp-manager.js` - MCP server lifecycle management
-- `utils/intent-detector.js` - Automatic intent detection for MCP routing
-- `utils/fetch-mcp-server.js` - Built-in webpage content extraction server
-- `utils/search-mcp-server.js` - Built-in web search server
