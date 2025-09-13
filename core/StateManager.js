@@ -1,9 +1,12 @@
 import { logger } from '../utils/logger.js'
-import { createProvider } from '../utils/provider-factory.js'
+import { createProviderFactory } from '../utils/providers/factory.js'
 import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 
 function createStateManager() {
+  // Initialize provider factory
+  const providerFactory = createProviderFactory()
+
   // Private state with closures
   const aiState = {
     currentProvider: null, // Current provider instance
@@ -62,7 +65,7 @@ function createStateManager() {
       // Lazy-loading: create new provider
       logger.debug(`StateManager: Lazy-loading provider ${providerId}`)
 
-      const providerInstance = createProvider(providerId, providerConfig)
+      const providerInstance = providerFactory.createProvider(providerId, providerConfig)
       await providerInstance.initializeClient()
       const models = await providerInstance.listModels()
 

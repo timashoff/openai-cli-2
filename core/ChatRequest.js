@@ -4,7 +4,7 @@
  * Final step in Router → CommandHandler → ChatRequest architecture
  */
 import { logger } from '../utils/logger.js'
-import { StreamProcessor } from '../utils/stream-processor.js'
+import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from './error-system/index.js'
 import { outputHandler } from './output-handler.js'
@@ -74,7 +74,7 @@ export function createChatRequest(app) {
       }, providerModel)
 
       // Simple streaming response processing
-      const streamProcessor = new StreamProcessor(stateManager.getCurrentProviderKey())
+      const streamProcessor = createStreamProcessor()
       const response = []
       let firstChunk = true
 

@@ -253,8 +253,8 @@ export class ServicesAdapter {
         
         // Use existing StreamProcessor logic - import dynamically to avoid circular deps
         try {
-          const { StreamProcessor } = await import('../utils/stream-processor.js')
-          const processor = new StreamProcessor(options.providerKey)
+          const { createStreamProcessor } = await import('../utils/stream-processor.js')
+          const processor = createStreamProcessor()
           
           // Process the stream with chunk callback
           return await processor.processStream(stream, signal, onChunk)

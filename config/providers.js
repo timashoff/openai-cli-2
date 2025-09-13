@@ -1,3 +1,9 @@
+export const PROVIDER_DEFAULTS = {
+  RATE_LIMIT_REQUESTS: 10,
+  RATE_LIMIT_WINDOW: 60000,
+  REQUIRED_FIELDS: ['name', 'baseURL', 'apiKeyEnv']
+}
+
 export const PROVIDERS = {
   deepseek: {
     name: 'DeepSeek',

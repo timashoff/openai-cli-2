@@ -1,5 +1,5 @@
 import { outputHandler } from '../core/output-handler.js'
-import { StreamProcessor } from '../utils/stream-processor.js'
+import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
 import { color } from '../config/color.js'
@@ -280,7 +280,7 @@ export const multiModelCommand = {
         model,
       )
 
-      const streamProcessor = new StreamProcessor(model.provider)
+      const streamProcessor = createStreamProcessor()
       const responseBuffer = []
       let isThisModelWinner = false
 
