@@ -346,33 +346,10 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 
 **Clipboard Integration:** `$$` token in input gets replaced with clipboard content, with length validation and sanitization.
 
-**MCP (Model Context Protocol) Integration:** Automatic intent detection for web content extraction:
-- URL detection for webpage content extraction
-- Web search capabilities for general queries
-- Built-in MCP servers for fetch and search operations
-- Language detection for consistent response formatting
-
-### MCP System Architecture
-
-**Intent Detection:** `utils/intent-detector.js` analyzes input to determine if MCP processing is needed:
-- URL pattern matching for webpage extraction
-- Search keyword detection for web search
-- Confidence scoring for routing decisions
-
-**MCP Manager:** `utils/mcp-manager.js` handles MCP server lifecycle:
-- Built-in server initialization and management
-- Tool calling interface for MCP operations
-
-**Built-in MCP Servers:**
-- `utils/fetch-mcp-server.js` - Advanced webpage content extraction with article detection
-- `utils/search-mcp-server.js` - Web search using DuckDuckGo API
-- Custom HTML parsing with multiple content selectors and cleanup
-
-**MCP Processing Flow:**
-1. Input analyzed by intent detector
-2. Appropriate MCP server called with routing parameters
-3. Response formatted and enhanced with language detection
-4. Content passed to AI model with additional context
+**Streaming Architecture:** Real-time response streaming with escape key cancellation:
+- `StreamProcessor` handles different provider response formats
+- Global keypress handler for immediate escape response
+- State management for request vs response processing
 
 ## Key Files to Understand
 
@@ -382,7 +359,3 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - `utils/stream-processor.js` - Response streaming with provider-specific parsing
 - `config/instructions.js` - Translation and task command definitions
 - `utils/command-manager.js` - Command registration and execution system
-- `utils/mcp-manager.js` - MCP server lifecycle management
-- `utils/intent-detector.js` - Automatic intent detection for MCP routing
-- `utils/fetch-mcp-server.js` - Built-in webpage content extraction server
-- `utils/search-mcp-server.js` - Built-in web search server

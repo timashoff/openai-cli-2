@@ -104,12 +104,12 @@ export const createStreamProcessor = () => {
           }
 
           if (trimmedLine.startsWith('event: ')) {
-            currentEvent = trimmedLine.substring(7).trim()
+            currentEvent = trimmedLine.replace('event: ', '').trim()
             continue
           }
 
           if (trimmedLine.startsWith('data: ')) {
-            const data = trimmedLine.substring(6).trim()
+            const data = trimmedLine.replace('data: ', '').trim()
 
             if (data === '[DONE]') {
               done = true

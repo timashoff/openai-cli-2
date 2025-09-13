@@ -22,7 +22,6 @@ export class Router {
       SYSTEM: 'system',
       INSTRUCTION: 'instruction',
       INVALID: 'invalid',
-      MCP_ENHANCED: 'mcp_enhanced',
       CHAT: 'chat'
     }
   }
@@ -149,15 +148,7 @@ export class Router {
       }
     }
 
-    // 3. MCP enhanced (URL detection)
-    if (this.commandProcessingService.hasUrl(cleanInput)) {
-      return {
-        type: this.REQUEST_TYPES.MCP_ENHANCED,
-        rawInput: cleanInput
-      }
-    }
-
-    // 4. Default to chat
+    // 3. Default to chat
     return {
       type: this.REQUEST_TYPES.CHAT,
       rawInput: cleanInput
@@ -174,9 +165,6 @@ export class Router {
 
       case this.REQUEST_TYPES.INSTRUCTION:
         return 'instruction_processor'
-
-      case this.REQUEST_TYPES.MCP_ENHANCED:
-        return 'mcp_processor'
 
       case this.REQUEST_TYPES.CHAT:
       default:
