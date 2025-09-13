@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js'
 import { inputProcessingService } from '../services/input-processing-service.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
+import { logError, processError } from './error-system/index.js'
 
 export class Router {
   constructor(dependencies = {}) {
@@ -22,7 +23,6 @@ export class Router {
       SYSTEM: 'system',
       INSTRUCTION: 'instruction',
       INVALID: 'invalid',
-      MCP_ENHANCED: 'mcp_enhanced',
       CHAT: 'chat'
     }
   }
@@ -49,9 +49,10 @@ export class Router {
       return await this.executeFromAnalysis(analysis, applicationLoop)
 
     } catch (error) {
-      logger.error('Route and process failed:', error)
-
-      applicationLoop.writeError(`Error: ${error.message}`)
+      const processedError = await processError(error, { context: 'Router:routeAndProcess' })
+      await logError(processedError)
+      
+      applicationLoop.writeError(`Error: ${processedError.userMessage}`)
       return null
     }
   }
@@ -149,15 +150,7 @@ export class Router {
       }
     }
 
-    // 3. MCP enhanced (URL detection)
-    if (this.commandProcessingService.hasUrl(cleanInput)) {
-      return {
-        type: this.REQUEST_TYPES.MCP_ENHANCED,
-        rawInput: cleanInput
-      }
-    }
-
-    // 4. Default to chat
+    // 3. Default to chat
     return {
       type: this.REQUEST_TYPES.CHAT,
       rawInput: cleanInput
@@ -174,9 +167,6 @@ export class Router {
 
       case this.REQUEST_TYPES.INSTRUCTION:
         return 'instruction_processor'
-
-      case this.REQUEST_TYPES.MCP_ENHANCED:
-        return 'mcp_processor'
 
       case this.REQUEST_TYPES.CHAT:
       default:

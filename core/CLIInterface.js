@@ -5,6 +5,8 @@
 import readline from 'node:readline'
 import { color } from '../config/color.js'
 import { APP_CONSTANTS } from '../config/constants.js'
+import { outputHandler } from './output-handler.js'
+import { logError, processError } from './error-system/index.js'
 
 export class CLIInterface {
   constructor(stateManager) {
@@ -106,13 +108,13 @@ export class CLIInterface {
         controller.abort()
       }
       this.showCursor()
-      this.clearLine()
+      outputHandler.clearLine()
       this.writeOutput('\n[Request cancelled by user]', 'yellow')
       this.stateManager.clearRequestState()
     } else if (operationState.isTypingResponse) {
       // Stop response streaming
       this.showCursor()
-      this.clearLine()
+      outputHandler.clearLine()
       this.writeOutput('\n[Response streaming stopped]', 'yellow')
       this.stateManager.setTypingResponse(false)
     }
@@ -247,14 +249,6 @@ export class CLIInterface {
     this.writeOutput(message, 'cyan')
   }
   
-  /**
-   * Clear current line
-   */
-  clearLine() {
-    if (process.stdout.isTTY) {
-      process.stdout.write('\\r\\x1b[K')
-    }
-  }
   
   /**
    * Show cursor
@@ -300,7 +294,7 @@ export class CLIInterface {
     let index = 0
     
     const interval = setInterval(() => {
-      this.clearLine()
+      outputHandler.clearLine()
       this.writeOutput(`${spinnerChars[index]} ${message}`, 'cyan', false)
       index = (index + 1) % spinnerChars.length
     }, 100)
@@ -321,7 +315,7 @@ export class CLIInterface {
       this.stateManager.setSpinnerInterval(null)
     }
     
-    this.clearLine()
+    outputHandler.clearLine()
   }
   
   /**
@@ -360,7 +354,7 @@ export class CLIInterface {
         if (firstChunk) {
           // Clear spinner and show success
           const finalTime = (Date.now() - startTime) / 1000
-          this.clearLine()
+          outputHandler.clearLine()
           this.writeOutput(`✓ ${finalTime.toFixed(1)}s`, 'green', false)
           this.writeOutput('') // newline
           
@@ -428,7 +422,7 @@ export class CLIInterface {
     const statusColor = status === 'success' ? 'green' : 'red'
     const timeStr = `${elapsed.toFixed(1)}s`
     
-    this.clearLine()
+    outputHandler.clearLine()
     
     if (message) {
       this.writeOutput(`${statusSymbol} ${timeStr} - ${message}`, statusColor)
@@ -530,12 +524,17 @@ export class CLIInterface {
         
         // Handle critical initialization errors
         if (error.message && error.message.includes('trim')) {
-          this.writeError(`Critical input error: ${error.message}`)
+          const processedError = await processError(error, { context: 'CLIInterface:criticalInputError' })
+          await logError(processedError)
+          
+          this.writeError(`Critical input error: ${processedError.userMessage}`)
           this.writeError('CLI interface may not be properly initialized')
           break // Выйти из цикла при критических ошибках
         }
         
-        this.writeError(`Interaction error: ${error.message}`)
+        const processedError = await processError(error, { context: 'CLIInterface:interactionError' })
+        await logError(processedError)
+        this.writeError(`Interaction error: ${processedError.userMessage}`)
         
         // For critical errors, break the loop
         if (error.fatal) {

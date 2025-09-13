@@ -2,7 +2,7 @@
  * model-command.js - Model switching command
  * Functional approach with clean interfaces (NO CLASSES per CLAUDE.md!)
  */
-import { createNavigationMenu } from '../utils/interactive_menu_new.js'
+import { createNavigationMenu } from '../utils/interactive_menu.js'
 import { outputHandler } from '../core/output-handler.js'
 
 export const ModelCommand = {

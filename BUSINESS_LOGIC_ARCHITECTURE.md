@@ -152,7 +152,7 @@ OpenAI (gpt-5-mini):               ← вторая модель
   - Использует InputProcessingService для обработки ввода
   - analyzeInput() - определяет тип команды в один проход
   - executeFromAnalysis() - прямое исполнение через handlers
-  - Поддерживает system, instruction, MCP и chat команды
+  - Поддерживает system, instruction и chat команды
   - Single pass архитектура без дублирования логики
 
 - **`CommandHandler`** - Routing между single/multi command обработкой:
@@ -222,7 +222,7 @@ Router.routeAndProcess(input, applicationLoop)
   │       ├─ LEADERBOARD system (first response leads)
   │       └─ Mixed mode (cached + live models)
   │
-  └─ Chat/MCP (direct or URL detected)
+  └─ Chat (direct input)
       ↓ ChatRequest.processChatRequest()
       ├─ StateManager.createChatCompletion()
       ├─ Unified spinner + ESC via AbortController
@@ -274,7 +274,7 @@ Result → outputHandler (centralized output system)
 - Single-pass input analysis + direct execution
 - Uses InputProcessingService for input preprocessing
 - executeFromAnalysis() pattern - no intermediate layers
-- Supports system, instruction, MCP, and chat routing
+- Supports system, instruction, and chat routing
 
 **SystemCommandHandler** (core/system-command-handler.js):
 - Functional object for system command handling
@@ -635,17 +635,13 @@ User Input → ApplicationLoop (UI + ESC + main loop)
 2. **Автоматическое** при ошибках (403, region block)
 3. **Fallback цепочка**: openai → anthropic → deepseek
 
-## 🌐 MCP (Model Context Protocol) интеграция
+## 🌐 Потоковая архитектура
 
-### Автоматическое определение:
-Система анализирует пользовательский ввод для определения необходимости MCP обработки:
-- **URL detection**: автоматическое распознавание веб-ссылок
-- **Search intent**: определение поисковых запросов
-- **Routing**: маршрутизация к соответствующему MCP серверу (fetch/web-search)
-
-### Встроенные MCP серверы:
-- **fetchMCPServer**: извлечение контента с веб-страниц
-- **searchMCPServer**: поиск через DuckDuckGo API
+### Stream Processing:
+Система обрабатывает потоковые ответы от различных AI провайдеров:
+- **Anthropic**: Server-Sent Events (SSE) протокол
+- **OpenAI/DeepSeek**: Async Iterator протокол
+- **Auto-detection**: автоматическое определение типа потока
 
 ## 🎯 Центральная система вывода (output-handler.js)
 
@@ -834,7 +830,7 @@ Clear separation of command types and routing:
 - **System Commands**: help, exit, provider, model, cmd (via SystemCommandHandler)
 - **Instruction Commands**: database commands (via CommandHandler)  
 - **Chat Commands**: direct AI requests (via ChatRequest)
-- **MCP Commands**: URL detection and web content (via Router)
+- **Chat Commands**: Direct AI interaction (via Router)
 
 ### 3. Single Source of Truth Pattern:
 **Centralized access control:**
@@ -900,7 +896,7 @@ StateObserver pattern for reactive updates:
 1. **SQLite Command System**: Fully functional database-driven commands (aa, cc, rr, hsk, etc.)
 2. **Multi-Provider Support**: OpenAI, DeepSeek, Anthropic with lazy loading
 3. **LEADERBOARD Multi-Model**: Parallel execution with intelligent streaming
-4. **MCP Integration**: Automatic URL detection and web content extraction
+4. **Chat Integration**: Direct AI model communication
 5. **❌ Cache System DISABLED**: CACHE_ENABLED: false - все команды работают live
 6. **Interactive Command Editor**: Full CRUD operations for database commands
 7. **Graceful Error Handling**: User-friendly provider error recovery

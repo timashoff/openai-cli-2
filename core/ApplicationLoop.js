@@ -7,17 +7,17 @@ import * as readlineSync from 'node:readline'
 import { stdin as input, stdout as output } from 'node:process'
 import { color } from '../config/color.js'
 import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
-import { getElapsedTime, clearTerminalLine } from '../utils/index.js'
+import { getElapsedTime } from '../utils/elapsed-time.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
 import { logger } from '../utils/logger.js'
 import { errorHandler } from './error-system/index.js'
-import { getAllSystemCommands } from '../utils/autocomplete.js'
+import { getAllAvailableCommands } from '../utils/autocomplete.js'
 import { getStateManager } from './StateManager.js'
 import { outputHandler } from './output-handler.js'
 
 // Create completer function for system commands autocomplete
 function completer(line) {
-  const commands = getAllSystemCommands()
+  const commands = getAllAvailableCommands()
   const hits = commands.filter((cmd) => cmd.startsWith(line))
   // Show matches or all commands if no matches
   return [hits.length ? hits : [], line]
@@ -177,7 +177,7 @@ export class ApplicationLoop {
       // Show loading spinner
       process.stdout.write('\x1B[?25l') // Hide cursor
       spinnerInterval = setInterval(() => {
-        clearTerminalLine()
+        outputHandler.clearLine()
         const elapsedTime = getElapsedTime(initStartTime)
         process.stdout.write(
           `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s Loading AI providers...${color.reset}`
@@ -192,7 +192,7 @@ export class ApplicationLoop {
         clearInterval(spinnerInterval)
         spinnerInterval = null
       }
-      clearTerminalLine()
+      outputHandler.clearLine()
       const finalTime = getElapsedTime(initStartTime)
       process.stdout.write(`✓ ${finalTime}s\n`)
       process.stdout.write('\x1B[?25h') // Show cursor
@@ -205,7 +205,7 @@ export class ApplicationLoop {
         clearInterval(spinnerInterval)
         spinnerInterval = null
       }
-      clearTerminalLine()
+      outputHandler.clearLine()
       process.stdout.write('\x1B[?25h') // Show cursor
       throw error
     }
@@ -232,7 +232,7 @@ export class ApplicationLoop {
         // Show loading spinner
         process.stdout.write('\x1B[?25l') // Hide cursor
         spinnerInterval = setInterval(() => {
-          clearTerminalLine()
+          outputHandler.clearLine()
           const elapsedTime = this.elapsedTime
           process.stdout.write(
             `${color.reset}${UI_SYMBOLS.SPINNER[spinnerIndex++ % UI_SYMBOLS.SPINNER.length]} ${elapsedTime}s ${message}${color.reset}`
@@ -248,7 +248,7 @@ export class ApplicationLoop {
           clearInterval(spinnerInterval)
           spinnerInterval = null
         }
-        clearTerminalLine()
+        outputHandler.clearLine()
         process.stdout.write('\x1B[?25h') // Show cursor
       },
       
@@ -599,12 +599,6 @@ ${colorInput}> `
     }
   }
 
-  /**
-   * Clear current line (compatibility with CLIInterface API)
-   */
-  clearLine() {
-    clearTerminalLine()
-  }
 
   /**
    * Write output to console (compatibility with CLIInterface API)
@@ -768,7 +762,7 @@ ${colorInput}> `
           }
           
           const finalTime = (Date.now() - startTime) / 1000
-          this.clearLine()
+          outputHandler.clearLine()
           console.log(`✓ ${finalTime.toFixed(1)}s`)
           console.log() // newline
           

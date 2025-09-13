@@ -3,7 +3,7 @@
  * Functional object (NO CLASSES per CLAUDE.md!)
  * New modular implementation based on cmd-command_legacy.js
  */
-import { createNavigationMenu, createTextInput } from '../../utils/interactive_menu_new.js'
+import { createNavigationMenu, createTextInput } from '../../utils/interactive_menu.js'
 import { createToggleMenu } from '../../utils/toggle-menu.js'
 import { createSelectionTitle } from '../../utils/menu-helpers.js'
 import { outputHandler } from '../../core/output-handler.js'

@@ -12,8 +12,7 @@
     "dev": "node --watch bin/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "echo \"Add ESLint configuration for linting\"",
-    "format": "echo \"Add Prettier configuration for formatting\"",
-    "clean-cache": "node -e \"import('./utils/cache.js').then(cache => cache.default.clear())\""
+    "format": "echo \"Add Prettier configuration for formatting\""
   },
   "keywords": [
     "ai",
@@ -37,7 +36,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.1",
-    "openai": "^5.8.2"
+    "openai": "^5.20.1"
   },
   "files": [
     "bin/",

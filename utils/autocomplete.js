@@ -1,27 +1,11 @@
 import { databaseCommandService } from '../services/database-command-service.js'
 import { getAllSystemCommandNames } from './system-commands.js'
 
-/**
- * Get all commands: system commands + user commands from database
- * Follows Single Source of Truth principle
- */
-function getAllSystemCommands() {
-  // 1. System commands from config (help, model, provider, exit, cmd + aliases)
+export function getAllAvailableCommands() {
   const systemCommands = getAllSystemCommandNames()
-  
-  // 2. User commands from database (aa, rr, gg, etc.)
   const userCommands = databaseCommandService.getCommands()
-  const userCommandKeys = []
-  
-  for (const command of Object.values(userCommands)) {
-    if (command.key && Array.isArray(command.key)) {
-      userCommandKeys.push(...command.key)
-    }
-  }
-  
-  // 3. Combine both (no duplicates because system commands removed from DB)
+  const userCommandKeys = Object.values(userCommands)
+    .filter((command) => command.key && Array.isArray(command.key))
+    .flatMap((command) => command.key)
   return [...systemCommands, ...userCommandKeys].sort()
 }
-
-
-export { getAllSystemCommands }
