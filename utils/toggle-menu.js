@@ -1,9 +1,6 @@
-/**
- * Toggle menu utility for checkbox-style selection
- * Allows users to toggle multiple items on/off with visual indicators
- */
 import { createNavigationMenu } from './interactive_menu.js'
 import { color } from '../config/color.js'
+import { UI_SYMBOLS } from '../config/constants.js'
 
 export async function createToggleMenu(title, items, initialSelection = null, actionButtons = ['Confirm', 'Back']) {
   // Initialize selection state - default to all selected if not specified
@@ -14,9 +11,9 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
     const menuOptions = [
       ...items.map(item => {
         const isSelected = selection.has(item)
-        const indicator = isSelected 
-          ? color.green + '[✓]' + color.reset 
-          : color.red + '[☓]' + color.reset
+        const indicator = isSelected
+          ? color.green + `[${UI_SYMBOLS.CHECK}]` + color.reset
+          : color.red + `[${UI_SYMBOLS.CROSS}]` + color.reset
         return `${indicator} ${item}`
       }),
       '', // Visual separator
