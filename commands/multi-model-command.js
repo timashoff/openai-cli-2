@@ -3,6 +3,7 @@ import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
 import { color } from '../config/color.js'
+import { logError, processError, createBaseError } from '../core/error-system/index.js'
 
 export const multiModelCommand = {
   /**
@@ -42,9 +43,10 @@ export const multiModelCommand = {
         app.stateManager,
       )
     } catch (error) {
-      logger.error(`MultiModelCommand: Execution failed: ${error.message}`)
-      outputHandler.writeError(`Multi-model execution failed: ${error.message}`)
-      throw error
+      const processedError = await processError(error, { context: 'MultiModelCommand' })
+      await logError(processedError)
+      outputHandler.writeError(`Multi-model execution failed: ${processedError.userMessage}`)
+      throw processedError.originalError
     }
   },
 

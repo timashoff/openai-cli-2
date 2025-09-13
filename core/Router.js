@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js'
 import { inputProcessingService } from '../services/input-processing-service.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
+import { logError, processError } from './error-system/index.js'
 
 export class Router {
   constructor(dependencies = {}) {
@@ -48,9 +49,10 @@ export class Router {
       return await this.executeFromAnalysis(analysis, applicationLoop)
 
     } catch (error) {
-      logger.error('Route and process failed:', error)
-
-      applicationLoop.writeError(`Error: ${error.message}`)
+      const processedError = await processError(error, { context: 'Router:routeAndProcess' })
+      await logError(processedError)
+      
+      applicationLoop.writeError(`Error: ${processedError.userMessage}`)
       return null
     }
   }

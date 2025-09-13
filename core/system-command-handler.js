@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './output-handler.js'
 import { PROVIDERS } from '../config/providers.js'
+import { logError, processError } from './error-system/index.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -122,9 +123,10 @@ export const systemCommandHandler = {
       logger.warn(errorMsg)
       return null
     } catch (error) {
-      const errorMsg = `System command execution failed: ${error.message}`
-      applicationLoop.writeError(errorMsg)
-      logger.error('System command handler error:', error)
+      const processedError = await processError(error, { context: 'SystemCommandHandler:execute' })
+      await logError(processedError)
+      
+      applicationLoop.writeError(`System command execution failed: ${processedError.userMessage}`)
       return null
     }
   },
@@ -164,7 +166,9 @@ export const systemCommandHandler = {
               aliases: systemCommand.aliases,
             }
       } catch (error) {
-        logger.error(`Error loading command ${commandName}:`, error)
+        const processedError = await processError(error, { context: 'SystemCommandHandler:getCommandHelp', component: commandName })
+        await logError(processedError)
+        
         return {
           description: systemCommand.description,
           usage: systemCommand.usage,

@@ -74,7 +74,6 @@ async function start() {
     await applicationLoop.startMainLoop()
 
   } catch (error) {
-    console.error(`${color.red}Error: Application startup failed: ${error.message}${color.reset}`)
     errorHandler.handleError(error, { context: 'application_start', fatal: true })
     process.exit(1)
   }

@@ -6,6 +6,7 @@ import readline from 'node:readline'
 import { color } from '../config/color.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { outputHandler } from './output-handler.js'
+import { logError, processError } from './error-system/index.js'
 
 export class CLIInterface {
   constructor(stateManager) {
@@ -523,12 +524,17 @@ export class CLIInterface {
         
         // Handle critical initialization errors
         if (error.message && error.message.includes('trim')) {
-          this.writeError(`Critical input error: ${error.message}`)
+          const processedError = await processError(error, { context: 'CLIInterface:criticalInputError' })
+          await logError(processedError)
+          
+          this.writeError(`Critical input error: ${processedError.userMessage}`)
           this.writeError('CLI interface may not be properly initialized')
           break // Выйти из цикла при критических ошибках
         }
         
-        this.writeError(`Interaction error: ${error.message}`)
+        const processedError = await processError(error, { context: 'CLIInterface:interactionError' })
+        await logError(processedError)
+        this.writeError(`Interaction error: ${processedError.userMessage}`)
         
         // For critical errors, break the loop
         if (error.fatal) {

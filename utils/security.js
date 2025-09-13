@@ -41,27 +41,6 @@ export function validateApiKey(apiKey, provider) {
 
   return true
 }
-export function sanitizeErrorMessage(errorMessage) {
-  if (!errorMessage || typeof errorMessage !== 'string') {
-    return 'Unknown error occurred'
-  }
-
-  // Remove potential API keys from error messages
-  let sanitized = errorMessage
-    .replace(/sk-[a-zA-Z0-9]{20,}/g, '[API_KEY_MASKED]')
-    .replace(/sk-ant-api03-[a-zA-Z0-9\-_]{95}/g, '[API_KEY_MASKED]')
-    .replace(/Bearer\s+[a-zA-Z0-9\-_]{20,}/gi, 'Bearer [MASKED]')
-
-  // Remove file paths that might contain sensitive info
-  sanitized = sanitized.replace(/\/[^\s]+/g, '[PATH_MASKED]')
-
-  // Remove IP addresses
-  sanitized = sanitized.replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[IP_MASKED]')
-
-  return sanitized
-}
-
-
 
 export function createRateLimiter(maxRequests = 10, timeWindow = 60000, backoffMultiplier = 2) {
   const state = {

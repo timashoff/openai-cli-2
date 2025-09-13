@@ -16,7 +16,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ALL logs and technical messages EXCLUSIVELY in English
 - ALL user messages EXCLUSIVELY in English
 - Design for i18n from the start, prepare architecture for multilingual support
-- NEVER LOG sensitive information (passwords, API keys, secrets)
+
+## Security Principles (Zero Trust)
+- **User = potential attacker**: never show raw error.message to users
+- **Three-level error handling system**:
+  - **PUBLIC** (to user): only predefined safe messages
+  - **DEV** (to developer): details only in development environment
+  - **INTERNAL** (to system): structured logs without sensitive data
+- **NEVER LOG or SHOW sensitive information**: passwords, API keys, tokens, secrets
+- **Sanitize all outputs**: consider ALL error.message potentially dangerous
+- **Predefined error messages**: use constants instead of dynamic texts
 
 ## JavaScript Project Rules
 - Always check for dead code before preparing commit messages
@@ -32,7 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always write async code for I/O operations, HTTP requests etc. No event loop blocking! Use async/await instead of .then()
 - Minimal external dependencies! Use built-in Node.js capabilities when available
 - Never use express.js framework! Only fastify!
-- Don't replace original error messages with generic ones. Always show error.message for real error reasons. EXCEPTION: sanitize if error.message contains sensitive info
+- **Secure error handling**: apply Zero Trust principles - show users only predefined safe messages from constants, raw error.message only to developer in dev mode
 - SQLite support is built into Node.js! Use node:sqlite instead of external dependencies
 - NEVER use optional chaining operator "?."
 - No legacy approaches like `const __dirname = path.dirname(fileURLToPath(import.meta.url))` - use modern `import.meta.dirname`
@@ -316,7 +325,11 @@ This is a multi-provider AI CLI tool with a modern OOP architecture designed for
 - Input validation and sanitization (`utils/validation.js`)
 - Rate limiting per provider
 - CSP checking for security
-- Error message sanitization
+- **Zero Trust error handling system**:
+  - PUBLIC level: predefined safe messages for users
+  - DEV level: detailed errors only in development mode
+  - INTERNAL level: structured logs without sensitive data
+  - Complete sanitization of all error outputs
 
 ### Configuration System
 

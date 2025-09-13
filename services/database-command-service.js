@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import path from 'node:path'
 import { logger } from '../utils/logger.js'
+import { logError, processError, createBaseError } from '../core/error-system/index.js'
 
 const dbPath = path.join(import.meta.dirname, '../db/commands.db')
 
@@ -36,7 +37,7 @@ function createDatabaseCommandService() {
       createTables()
       logger.debug('DatabaseCommandService: SQLite database initialized')
     } catch (error) {
-      throw new Error(`Failed to initialize database: ${error.message}`)
+      throw createBaseError(`Failed to initialize database`, true, 500, error)
     }
   }
 
@@ -157,7 +158,11 @@ function createDatabaseCommandService() {
         `DatabaseCommandService: Cache refreshed with ${commandCount} commands`,
       )
     } catch (error) {
-      logger.error('DatabaseCommandService: Failed to refresh cache:', error)
+      // Use async IIFE for processError in cache refresh
+      ;(async () => {
+        const processedError = await processError(error, { context: 'DatabaseCommandService:refreshCache' })
+        await logError(processedError)
+      })()
 
       if (!commandsCache) {
         commandsCache = {}

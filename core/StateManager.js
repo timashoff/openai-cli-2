@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
+import { logError, processError } from './error-system/index.js'
 
 function createStateManager() {
   // Initialize provider factory
@@ -559,10 +560,11 @@ function createStateManager() {
         try {
           callback(data)
         } catch (error) {
-          console.error(
-            `StateManager listener error for event ${event}:`,
-            error,
-          )
+          // Use async IIFE for processError in event listener
+          ;(async () => {
+            const processedError = await processError(error, { context: 'StateManager:eventListener', component: event })
+            await logError(processedError)
+          })()
         }
       })
     }

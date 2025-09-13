@@ -145,9 +145,7 @@ export const createStreamProcessor = () => {
                 throw e
               }
 
-              if (data !== '[DONE]') {
-                console.error('JSON parsing error in Claude stream:', e.message, 'Data:', data.substring(0, 100))
-              }
+              // Skip debug output for security - parsing errors are not critical
             }
           }
         }
