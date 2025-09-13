@@ -14,8 +14,6 @@ export const createAnthropicProvider = (config) => {
   }
 
   const makeRequest = async (url, options = {}) => {
-    base.cspChecker.validateUrl(url)
-
     const response = await fetch(url, {
       ...options,
       headers: {

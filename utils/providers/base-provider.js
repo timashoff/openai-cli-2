@@ -1,15 +1,14 @@
 import { createBaseError } from '../../core/error-system/index.js'
-import { RateLimiter, CSPChecker } from '../security.js'
+import { createRateLimiter } from '../security.js'
 import { PROVIDER_DEFAULTS } from '../../config/providers.js'
 
 export const createBaseProvider = (config) => {
   const state = {
     config,
-    rateLimiter: new RateLimiter(
+    rateLimiter: createRateLimiter(
       config.rateLimitRequests || PROVIDER_DEFAULTS.RATE_LIMIT_REQUESTS,
       config.rateLimitWindow || PROVIDER_DEFAULTS.RATE_LIMIT_WINDOW
     ),
-    cspChecker: new CSPChecker(),
     stats: {
       requests: 0,
       errors: 0,
@@ -71,7 +70,6 @@ export const createBaseProvider = (config) => {
   return {
     config: state.config,
     rateLimiter: state.rateLimiter,
-    cspChecker: state.cspChecker,
     stats: state.stats,
     validateConfig,
     getApiKey,
