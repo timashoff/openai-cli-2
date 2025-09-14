@@ -1,17 +1,15 @@
-/**
- * cmd-operations.js - Command management system with modern menu-based UX
- * Functional object (NO CLASSES per CLAUDE.md!)
- * New modular implementation based on cmd-command_legacy.js
- */
-import { createNavigationMenu, createTextInput } from '../../utils/interactive_menu.js'
-import { createToggleMenu } from '../../utils/toggle-menu.js'
-import { createSelectionTitle } from '../../utils/menu-helpers.js'
-import { outputHandler } from '../../core/print/output.js'
-import { color } from '../../config/color.js'
-import { databaseCommandService } from '../../services/database-command-service.js'
-import { createSpinner } from '../../utils/spinner.js'
-import { APP_CONSTANTS } from '../../config/constants.js'
-import { getAllSystemCommandNames } from '../../utils/system-commands.js'
+import {
+  createNavigationMenu,
+  createTextInput,
+} from '../../../utils/interactive_menu.js'
+import { createToggleMenu } from '../../../utils/toggle-menu.js'
+import { createSelectionTitle } from '../../../utils/menu-helpers.js'
+import { outputHandler } from '../../../core/print/output.js'
+import { color } from '../../../config/color.js'
+import { databaseCommandService } from '../../../services/database-command-service.js'
+import { createSpinner } from '../../../utils/spinner.js'
+import { APP_CONSTANTS } from '../../../config/constants.js'
+import { getAllSystemCommandNames } from '../../../utils/system-commands.js'
 
 /**
  * Collection editing actions
@@ -20,7 +18,7 @@ const COLLECTION_ACTIONS = {
   ADD: 'Add',
   REMOVE: 'Remove',
   REMOVE_ALL: 'Remove all',
-  BACK: 'Back'
+  BACK: 'Back',
 }
 
 /**
@@ -40,7 +38,7 @@ const COLLECTION_CONFIGS = {
     addFlow: addKeyWithValidation,
     removeFlow: removeKeysInteractive,
     displayItems: (items) => items.join(', ') || 'no keys',
-    validateItem: validateKey
+    validateItem: validateKey,
   },
 
   models: {
@@ -53,8 +51,8 @@ const COLLECTION_CONFIGS = {
       if (items.length === 1) return items[0].model || String(items[0])
       return items.length.toString()
     },
-    validateItem: null
-  }
+    validateItem: null,
+  },
 }
 
 /**
@@ -65,7 +63,7 @@ const mainMenuActions = [
   { name: 'Edit command', action: handleEditCommand },
   { name: 'List commands', action: handleListCommands },
   { name: 'Delete command', action: handleDeleteCommand },
-  { name: 'Exit', action: null }
+  { name: 'Exit', action: null },
 ]
 
 /**
@@ -90,10 +88,10 @@ export const BaseCmdCommand = {
         }, 'CMD command menu navigation')
       }
 
-      const menuOptions = mainMenuActions.map(item => item.name)
+      const menuOptions = mainMenuActions.map((item) => item.name)
 
       while (true && !isCancelled) {
-        const escapePromise = new Promise(resolve => {
+        const escapePromise = new Promise((resolve) => {
           escapeResolve = resolve
         })
 
@@ -102,9 +100,9 @@ export const BaseCmdCommand = {
             createSelectionTitle('action', mainMenuActions.length - 1),
             menuOptions,
             0,
-            context
+            context,
           ),
-          escapePromise
+          escapePromise,
         ])
 
         escapeResolve = null
@@ -125,20 +123,23 @@ export const BaseCmdCommand = {
             await selectedAction.action(context)
           }
         } catch (error) {
-          console.log(outputHandler.formatError(`Operation failed: ${error.message}`))
+          console.log(
+            outputHandler.formatError(`Operation failed: ${error.message}`),
+          )
         }
       }
 
       return null
-
     } catch (error) {
-      return outputHandler.formatError(`Command management failed: ${error.message}`)
+      return outputHandler.formatError(
+        `Command management failed: ${error.message}`,
+      )
     } finally {
       if (escHandlerId && context.esc && context.esc.unregister) {
         context.esc.unregister(escHandlerId)
       }
     }
-  }
+  },
 }
 
 /**
@@ -153,7 +154,7 @@ async function handleAddCommand(context) {
       key: [],
       description: '',
       instruction: '',
-      models: []
+      models: [],
     }
 
     const success = await editCommandFields(commandData, context, 'create')
@@ -166,11 +167,19 @@ async function handleAddCommand(context) {
       databaseCommandService.saveCommand(commandId, commandData)
 
       spinner.stop('success')
-      console.log(outputHandler.formatSuccess(`✓ Command "${commandData.name}" created successfully!`))
+      console.log(
+        outputHandler.formatSuccess(
+          `✓ Command "${commandData.name}" created successfully!`,
+        ),
+      )
     } else {
-      console.log(color.yellow + 'Command creation cancelled - no changes made' + color.reset + '\n')
+      console.log(
+        color.yellow +
+          'Command creation cancelled - no changes made' +
+          color.reset +
+          '\n',
+      )
     }
-
   } catch (error) {
     throw error
   }
@@ -185,7 +194,9 @@ async function handleEditCommand(context) {
     const commandEntries = Object.entries(commands)
 
     if (commandEntries.length === 0) {
-      console.log(color.yellow + 'No commands available to edit.' + color.reset + '\n')
+      console.log(
+        color.yellow + 'No commands available to edit.' + color.reset + '\n',
+      )
       return
     }
 
@@ -200,7 +211,7 @@ async function handleEditCommand(context) {
       'Select command to edit:',
       commandOptions,
       0,
-      context
+      context,
     )
 
     if (selectedIndex === -1) {
@@ -210,14 +221,18 @@ async function handleEditCommand(context) {
 
     const [commandId, existingCommand] = commandEntries[selectedIndex]
 
-    console.log(color.cyan + `\n=== Edit Command: ${existingCommand.name} ===` + color.reset)
+    console.log(
+      color.cyan +
+        `\n=== Edit Command: ${existingCommand.name} ===` +
+        color.reset,
+    )
 
     const commandData = {
       name: existingCommand.name,
       key: [...existingCommand.key],
       description: existingCommand.description,
       instruction: existingCommand.instruction,
-      models: existingCommand.models
+      models: existingCommand.models,
     }
 
     const success = await editCommandFields(commandData, context, 'edit')
@@ -229,11 +244,19 @@ async function handleEditCommand(context) {
       databaseCommandService.saveCommand(commandId, commandData)
 
       spinner.stop('success')
-      console.log(outputHandler.formatSuccess(`✓ Command "${commandData.name}" updated successfully!`))
+      console.log(
+        outputHandler.formatSuccess(
+          `✓ Command "${commandData.name}" updated successfully!`,
+        ),
+      )
     } else {
-      console.log(color.yellow + `Edit cancelled - command "${existingCommand.name}" unchanged` + color.reset + '\n')
+      console.log(
+        color.yellow +
+          `Edit cancelled - command "${existingCommand.name}" unchanged` +
+          color.reset +
+          '\n',
+      )
     }
-
   } catch (error) {
     throw error
   }
@@ -248,18 +271,28 @@ async function editCommandFields(commandData, context, mode) {
   const fieldOptions = [
     { name: 'Name', action: () => editName(commandData, context) },
     { name: 'Keys', action: () => editKeys(commandData, context) },
-    { name: 'Description', action: () => editDescription(commandData, context) },
-    { name: 'Instruction', action: () => editInstruction(commandData, context) },
-    { name: 'Models', action: () => editModels(commandData, context) }
+    {
+      name: 'Description',
+      action: () => editDescription(commandData, context),
+    },
+    {
+      name: 'Instruction',
+      action: () => editInstruction(commandData, context),
+    },
+    { name: 'Models', action: () => editModels(commandData, context) },
   ]
 
   while (true) {
-    const menuOptions = generateMenuWithValues(commandData, fieldOptions, originalData)
+    const menuOptions = generateMenuWithValues(
+      commandData,
+      fieldOptions,
+      originalData,
+    )
     const selectedIndex = await createNavigationMenu(
       mode === 'create' ? 'CREATING' : 'EDITING',
       menuOptions,
       0,
-      context
+      context,
     )
 
     if (selectedIndex === -1 || selectedIndex === menuOptions.length - 1) {
@@ -274,7 +307,12 @@ async function editCommandFields(commandData, context, mode) {
       if (isCommandValid(commandData)) {
         return true
       } else {
-        console.log(color.red + 'Please fill all required fields (Name, Keys, Description, Instruction)' + color.reset + '\n')
+        console.log(
+          color.red +
+            'Please fill all required fields (Name, Keys, Description, Instruction)' +
+            color.reset +
+            '\n',
+        )
         continue
       }
     }
@@ -292,23 +330,34 @@ async function editCommandFields(commandData, context, mode) {
  * Truncate text to maximum length with ellipsis
  */
 function truncateText(text) {
-  return text.length > APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH ?
-    text.substring(0, APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH) + '...' : text
+  return text.length > APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH
+    ? text.substring(0, APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH) + '...'
+    : text
 }
 
 /**
  * Field formatters object - functional approach instead of switch case
  */
 const fieldFormatters = {
-  'Name': (data) => data.name ? truncateText(data.name) : color.red + 'null' + color.reset,
-  'Keys': (data) => data.key.length > 0 ? data.key.join(', ') : color.red + 'null' + color.reset,
-  'Description': (data) => data.description ? truncateText(data.description) : color.red + 'null' + color.reset,
-  'Instruction': (data) => data.instruction ? truncateText(data.instruction) : color.red + 'null' + color.reset,
-  'Models': (data) => {
+  Name: (data) =>
+    data.name ? truncateText(data.name) : color.red + 'null' + color.reset,
+  Keys: (data) =>
+    data.key.length > 0
+      ? data.key.join(', ')
+      : color.red + 'null' + color.reset,
+  Description: (data) =>
+    data.description
+      ? truncateText(data.description)
+      : color.red + 'null' + color.reset,
+  Instruction: (data) =>
+    data.instruction
+      ? truncateText(data.instruction)
+      : color.red + 'null' + color.reset,
+  Models: (data) => {
     if (data.models.length === 0) return 'system (default)'
     if (data.models.length === 1) return data.models[0].model
     return data.models.length.toString()
-  }
+  },
 }
 
 /**
@@ -331,11 +380,12 @@ function hasChanges(originalData, currentData) {
  */
 function getChangedFields(originalData, currentData) {
   const fieldCheckers = {
-    'Name': (orig, curr) => orig.name !== curr.name,
-    'Keys': (orig, curr) => JSON.stringify(orig.key) !== JSON.stringify(curr.key),
-    'Description': (orig, curr) => orig.description !== curr.description,
-    'Instruction': (orig, curr) => orig.instruction !== curr.instruction,
-    'Models': (orig, curr) => JSON.stringify(orig.models) !== JSON.stringify(curr.models)
+    Name: (orig, curr) => orig.name !== curr.name,
+    Keys: (orig, curr) => JSON.stringify(orig.key) !== JSON.stringify(curr.key),
+    Description: (orig, curr) => orig.description !== curr.description,
+    Instruction: (orig, curr) => orig.instruction !== curr.instruction,
+    Models: (orig, curr) =>
+      JSON.stringify(orig.models) !== JSON.stringify(curr.models),
   }
 
   return Object.entries(fieldCheckers)
@@ -374,7 +424,12 @@ async function editCollection(commandData, context, configKey) {
     const actions = generateCollectionActions(items)
     const displayTitle = `EDITING ${config.displayName} → ${commandData.name || 'Unnamed'} [${config.displayItems(items)}]`
 
-    const selectedIndex = await createNavigationMenu(displayTitle, actions, 0, context)
+    const selectedIndex = await createNavigationMenu(
+      displayTitle,
+      actions,
+      0,
+      context,
+    )
 
     if (selectedIndex === -1 || selectedIndex === actions.length - 1) {
       break
@@ -402,23 +457,33 @@ async function handleCollectionAction(action, commandData, context, config) {
     await config.removeFlow(commandData, context)
   } else if (action === COLLECTION_ACTIONS.REMOVE_ALL) {
     commandData[config.fieldName] = []
-    console.log(color.green + `All ${config.displayName.toLowerCase()} removed` + color.reset)
+    console.log(
+      color.green +
+        `All ${config.displayName.toLowerCase()} removed` +
+        color.reset,
+    )
   }
 }
 
 /**
  * Generate menu options with inline field values and dynamic action buttons
  */
-function generateMenuWithValues(commandData, fieldOptions, originalData = null) {
+function generateMenuWithValues(
+  commandData,
+  fieldOptions,
+  originalData = null,
+) {
   const menuItems = []
 
-  fieldOptions.forEach(field => {
+  fieldOptions.forEach((field) => {
     if (field.name === 'Save & Exit' || field.name === 'Cancel') {
       return
     }
 
     const fieldValue = formatFieldValue(field.name, commandData)
-    const padding = ' '.repeat(Math.max(0, APP_CONSTANTS.MENU_FIELD_NAME_WIDTH - field.name.length))
+    const padding = ' '.repeat(
+      Math.max(0, APP_CONSTANTS.MENU_FIELD_NAME_WIDTH - field.name.length),
+    )
     menuItems.push(`${field.name}${padding} : ${fieldValue}`)
   })
 
@@ -426,9 +491,10 @@ function generateMenuWithValues(commandData, fieldOptions, originalData = null) 
 
   if (originalData && hasChanges(originalData, commandData)) {
     const changedFields = getChangedFields(originalData, commandData)
-    const changesText = changedFields.length === 1
-      ? `${changedFields[0]} changed`
-      : `${changedFields.join(', ')} changed`
+    const changesText =
+      changedFields.length === 1
+        ? `${changedFields[0]} changed`
+        : `${changedFields.join(', ')} changed`
     menuItems.push(`Save & Exit (${changesText})`)
   }
   menuItems.push('Back')
@@ -439,21 +505,33 @@ function generateMenuWithValues(commandData, fieldOptions, originalData = null) 
 // Field editing functions
 async function editName(commandData, context) {
   console.log(color.cyan + '\n=== Edit Name ===' + color.reset)
-  console.log(`Current name: ${color.blue}${commandData.name || 'Not set'}${color.reset}`)
+  console.log(
+    `Current name: ${color.blue}${commandData.name || 'Not set'}${color.reset}`,
+  )
 
-  const newName = await createTextInput('Enter command name', commandData.name, context)
+  const newName = await createTextInput(
+    'Enter command name',
+    commandData.name,
+    context,
+  )
 
   if (newName) {
     const trimmedName = newName.trim()
     if (trimmedName !== commandData.name) {
       commandData.name = trimmedName
       if (trimmedName) {
-        console.log(color.green + `Name set to: ${commandData.name}` + color.reset)
+        console.log(
+          color.green + `Name set to: ${commandData.name}` + color.reset,
+        )
       } else {
         console.log(color.yellow + 'Name cleared' + color.reset)
       }
     } else {
-      console.log(color.yellow + `Name unchanged: ${commandData.name || 'empty'}` + color.reset)
+      console.log(
+        color.yellow +
+          `Name unchanged: ${commandData.name || 'empty'}` +
+          color.reset,
+      )
     }
   }
 }
@@ -479,10 +557,11 @@ function getAllExistingKeys() {
 
 function validateKey(newKey, commandData) {
   if (newKey.includes(' ')) {
-    return "Key cannot contain spaces"
+    return 'Key cannot contain spaces'
   }
 
-  const allowedChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
+  const allowedChars =
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
   for (const char of newKey) {
     if (!allowedChars.includes(char)) {
       return `Invalid character: ${char}`
@@ -490,12 +569,12 @@ function validateKey(newKey, commandData) {
   }
 
   if (commandData.key.includes(newKey)) {
-    return "Key already exists in this command"
+    return 'Key already exists in this command'
   }
 
   const allExistingKeys = getAllExistingKeys()
   if (allExistingKeys.includes(newKey)) {
-    return "Key already exists in system or other commands"
+    return 'Key already exists in system or other commands'
   }
 
   return null
@@ -532,7 +611,7 @@ async function removeKeysInteractive(commandData, context) {
       `Remove key "${commandData.key[0]}"?`,
       ['Yes, remove it', 'No, keep it'],
       0,
-      context
+      context,
     )
 
     if (result === 0) {
@@ -546,14 +625,20 @@ async function removeKeysInteractive(commandData, context) {
     'Confirm removal - keys marked with ☓ will be deleted:',
     commandData.key,
     commandData.key,
-    ['Confirm', 'Back']
+    ['Confirm', 'Back'],
   )
 
   if (result.action === 'confirm') {
     const keysToRemove = result.removedItems
     if (keysToRemove.length > 0) {
-      commandData.key = commandData.key.filter(key => !keysToRemove.includes(key))
-      console.log(color.green + `Removed ${keysToRemove.length} keys: ${keysToRemove.join(', ')}` + color.reset)
+      commandData.key = commandData.key.filter(
+        (key) => !keysToRemove.includes(key),
+      )
+      console.log(
+        color.green +
+          `Removed ${keysToRemove.length} keys: ${keysToRemove.join(', ')}` +
+          color.reset,
+      )
     } else {
       console.log(color.yellow + 'No keys marked for removal' + color.reset)
     }
@@ -561,19 +646,21 @@ async function removeKeysInteractive(commandData, context) {
 }
 
 async function addModelProviderFlow(commandData, context) {
-  const availableProviders = context.providers ? context.providers.getAvailable() : []
+  const availableProviders = context.providers
+    ? context.providers.getAvailable()
+    : []
 
   if (availableProviders.length === 0) {
     console.log(color.yellow + 'No providers available' + color.reset)
     return
   }
 
-  const providerNames = availableProviders.map(p => p.name)
+  const providerNames = availableProviders.map((p) => p.name)
   const providerIndex = await createNavigationMenu(
     'Select provider:',
     providerNames,
     0,
-    context
+    context,
   )
 
   if (providerIndex === -1) {
@@ -591,25 +678,30 @@ async function addModelProviderFlow(commandData, context) {
     providerModels = context.models.getAvailable()
 
     if (providerModels.length === 0) {
-      console.log(color.yellow + `No models available for ${selectedProvider.name}` + color.reset)
+      console.log(
+        color.yellow +
+          `No models available for ${selectedProvider.name}` +
+          color.reset,
+      )
       return
     }
-
   } finally {
     if (originalProvider && originalProvider.key !== selectedProvider.key) {
       await context.providers.switch(originalProvider.key)
     }
   }
 
-  const modelNames = providerModels.map(model => {
-    return typeof model === 'string' ? model : (model.id || model.name || String(model))
+  const modelNames = providerModels.map((model) => {
+    return typeof model === 'string'
+      ? model
+      : model.id || model.name || String(model)
   })
 
   const modelIndex = await createNavigationMenu(
     `Select model from ${selectedProvider.name}:`,
     modelNames,
     0,
-    context
+    context,
   )
 
   if (modelIndex === -1) {
@@ -620,20 +712,32 @@ async function addModelProviderFlow(commandData, context) {
   const selectedModelId = modelNames[modelIndex]
   const modelEntry = {
     provider: selectedProvider.key,
-    model: selectedModelId
+    model: selectedModelId,
   }
 
-  const existsIndex = commandData.models.findIndex(m => {
-    return typeof m === 'object' && m.provider === modelEntry.provider && m.model === modelEntry.model
+  const existsIndex = commandData.models.findIndex((m) => {
+    return (
+      typeof m === 'object' &&
+      m.provider === modelEntry.provider &&
+      m.model === modelEntry.model
+    )
   })
 
   if (existsIndex !== -1) {
-    console.log(color.yellow + `Model "${modelEntry.model}" from ${selectedProvider.name} already exists` + color.reset)
+    console.log(
+      color.yellow +
+        `Model "${modelEntry.model}" from ${selectedProvider.name} already exists` +
+        color.reset,
+    )
     return
   }
 
   commandData.models.push(modelEntry)
-  console.log(color.green + `Added model "${modelEntry.model}" from ${selectedProvider.name}` + color.reset)
+  console.log(
+    color.green +
+      `Added model "${modelEntry.model}" from ${selectedProvider.name}` +
+      color.reset,
+  )
 }
 
 async function removeModelsToggle(commandData, context) {
@@ -642,7 +746,7 @@ async function removeModelsToggle(commandData, context) {
     return
   }
 
-  const modelDisplayNames = commandData.models.map(model => {
+  const modelDisplayNames = commandData.models.map((model) => {
     if (typeof model === 'string') {
       return model
     } else if (typeof model === 'object' && model.provider && model.model) {
@@ -657,12 +761,15 @@ async function removeModelsToggle(commandData, context) {
       `Remove model "${modelDisplayNames[0]}"?`,
       ['Yes, remove it', 'No, keep it'],
       0,
-      context
+      context,
     )
 
     if (result === 0) {
       const removedModel = commandData.models.pop()
-      const displayName = typeof removedModel === 'string' ? removedModel : `${removedModel.model} (${removedModel.provider})`
+      const displayName =
+        typeof removedModel === 'string'
+          ? removedModel
+          : `${removedModel.model} (${removedModel.provider})`
       console.log(color.green + `Model "${displayName}" removed` + color.reset)
     }
     return
@@ -672,7 +779,7 @@ async function removeModelsToggle(commandData, context) {
     'Confirm removal - models marked with ☓ will be deleted:',
     modelDisplayNames,
     modelDisplayNames,
-    ['Confirm', 'Back']
+    ['Confirm', 'Back'],
   )
 
   if (result.action === 'confirm') {
@@ -683,7 +790,11 @@ async function removeModelsToggle(commandData, context) {
         return !modelsToRemove.includes(modelDisplayNames[index])
       })
       const removedCount = originalLength - commandData.models.length
-      console.log(color.green + `Removed ${removedCount} models: ${modelsToRemove.join(', ')}` + color.reset)
+      console.log(
+        color.green +
+          `Removed ${removedCount} models: ${modelsToRemove.join(', ')}` +
+          color.reset,
+      )
     } else {
       console.log(color.yellow + 'No models marked for removal' + color.reset)
     }
@@ -694,32 +805,47 @@ async function editDescription(commandData, context) {
   console.log(color.cyan + '\n=== Edit Description ===' + color.reset)
   console.log(`Current description: ${commandData.description || 'Not set'}`)
 
-  const newDesc = await createTextInput('Enter description', commandData.description, context)
+  const newDesc = await createTextInput(
+    'Enter description',
+    commandData.description,
+    context,
+  )
 
   if (newDesc) {
     const trimmedDesc = newDesc.trim()
     if (trimmedDesc !== commandData.description) {
       commandData.description = trimmedDesc
       if (trimmedDesc) {
-        console.log(color.green + `Description set to: ${trimmedDesc}` + color.reset)
+        console.log(
+          color.green + `Description set to: ${trimmedDesc}` + color.reset,
+        )
       } else {
         console.log(color.yellow + 'Description cleared' + color.reset)
       }
     } else {
-      console.log(color.yellow + `Description unchanged: ${commandData.description || 'empty'}` + color.reset)
+      console.log(
+        color.yellow +
+          `Description unchanged: ${commandData.description || 'empty'}` +
+          color.reset,
+      )
     }
   }
 }
 
 async function editInstruction(commandData, context) {
   console.log(color.cyan + '\n=== Edit Instruction ===' + color.reset)
-  const displayInst = commandData.instruction ?
-    (commandData.instruction.length > 100 ?
-      commandData.instruction.substring(0, 100) + '...' :
-      commandData.instruction) : 'Not set'
+  const displayInst = commandData.instruction
+    ? commandData.instruction.length > 100
+      ? commandData.instruction.substring(0, 100) + '...'
+      : commandData.instruction
+    : 'Not set'
   console.log(`Current instruction: ${displayInst}`)
 
-  const newInst = await createTextInput('Enter instruction', commandData.instruction, context)
+  const newInst = await createTextInput(
+    'Enter instruction',
+    commandData.instruction,
+    context,
+  )
 
   if (newInst) {
     const trimmedInst = newInst.trim()
@@ -740,14 +866,15 @@ async function editModels(commandData, context) {
   await editCollection(commandData, context, 'models')
 }
 
-
 async function handleListCommands(context) {
   try {
     const commands = databaseCommandService.getCommands()
     const commandEntries = Object.entries(commands)
 
     if (commandEntries.length === 0) {
-      console.log(color.yellow + 'No commands found in database.' + color.reset + '\n')
+      console.log(
+        color.yellow + 'No commands found in database.' + color.reset + '\n',
+      )
       return
     }
 
@@ -756,26 +883,34 @@ async function handleListCommands(context) {
     for (const [id, cmd] of commandEntries) {
       const keyText = Array.isArray(cmd.key) ? cmd.key.join(', ') : cmd.key
       const commandName = cmd.name || 'Unnamed Command'
-      
-      // Format created date
-      const createdDate = new Date(cmd.created_at * 1000).toLocaleDateString('en-US', {
-        day: 'numeric',
-        month: 'short', 
-        year: 'numeric'
-      })
 
-      console.log(`${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]`)
+      // Format created date
+      const createdDate = new Date(cmd.created_at * 1000).toLocaleDateString(
+        'en-US',
+        {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        },
+      )
+
+      console.log(
+        `${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]`,
+      )
       console.log(`  ${cmd.description}`)
       console.log(`  ${color.grey}Created: ${createdDate}${color.reset}`)
 
       // Show Updated only if command was actually updated AND date is different
       if (cmd.updated_at) {
-        const updatedDate = new Date(cmd.updated_at * 1000).toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric'
-        })
-        
+        const updatedDate = new Date(cmd.updated_at * 1000).toLocaleDateString(
+          'en-US',
+          {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          },
+        )
+
         if (updatedDate !== createdDate) {
           console.log(`  ${color.grey}Updated: ${updatedDate}${color.reset}`)
         }
@@ -785,9 +920,10 @@ async function handleListCommands(context) {
 
     console.log(color.grey + '\nPress Enter to continue...' + color.reset)
     await createTextInput('Press Enter to continue', '', context)
-
   } catch (error) {
-    console.log(outputHandler.formatError(`Error listing commands: ${error.message}`))
+    console.log(
+      outputHandler.formatError(`Error listing commands: ${error.message}`),
+    )
   }
 }
 
@@ -797,7 +933,9 @@ async function handleDeleteCommand(context) {
     const commandEntries = Object.entries(commands)
 
     if (commandEntries.length === 0) {
-      console.log(color.yellow + 'No commands available to delete.' + color.reset + '\n')
+      console.log(
+        color.yellow + 'No commands available to delete.' + color.reset + '\n',
+      )
       return
     }
 
@@ -812,7 +950,7 @@ async function handleDeleteCommand(context) {
       'Select command to delete:',
       commandOptions,
       0,
-      context
+      context,
     )
 
     if (selectedIndex === -1) {
@@ -822,12 +960,16 @@ async function handleDeleteCommand(context) {
 
     const [commandId, command] = commandEntries[selectedIndex]
 
-    console.log(color.red + `\nAre you sure you want to delete "${command.name}"?` + color.reset)
+    console.log(
+      color.red +
+        `\nAre you sure you want to delete "${command.name}"?` +
+        color.reset,
+    )
     const confirmation = await createNavigationMenu(
       'Confirm deletion:',
       ['Yes, delete it', 'No, cancel'],
       1,
-      context
+      context,
     )
 
     if (confirmation === -1 || confirmation === 1) {
@@ -841,18 +983,23 @@ async function handleDeleteCommand(context) {
     databaseCommandService.deleteCommand(commandId)
 
     spinner.stop('success')
-    console.log(outputHandler.formatSuccess(`✓ Command "${command.name}" deleted successfully!`))
-
+    console.log(
+      outputHandler.formatSuccess(
+        `✓ Command "${command.name}" deleted successfully!`,
+      ),
+    )
   } catch (error) {
     throw error
   }
 }
 
 function isCommandValid(commandData) {
-  return commandData.name &&
-         commandData.key.length > 0 &&
-         commandData.description &&
-         commandData.instruction
+  return (
+    commandData.name &&
+    commandData.key.length > 0 &&
+    commandData.description &&
+    commandData.instruction
+  )
 }
 
 function generateCommandId(name) {
@@ -867,7 +1014,7 @@ function generateCommandId(name) {
     }
   }
 
-  const parts = cleanName.split('_').filter(part => part.length > 0)
+  const parts = cleanName.split('_').filter((part) => part.length > 0)
   const baseId = parts.join('_')
 
   const timestamp = Date.now().toString().slice(-6)

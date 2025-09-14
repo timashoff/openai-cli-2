@@ -15,8 +15,9 @@ export class Router {
 
     // Handler dependencies (injected from app)
     this.systemCommandHandler = dependencies.systemCommandHandler || systemCommandHandler
-    this.commandHandler = dependencies.commandHandler || null
-    this.chatRequest = dependencies.chatRequest || null
+    this.multiModelCommand = dependencies.multiModelCommand || null
+    this.singleModelCommand = dependencies.singleModelCommand || null
+    this.chatHandler = dependencies.chatHandler || null
 
     // Request types
     this.REQUEST_TYPES = {
@@ -75,11 +76,14 @@ export class Router {
           models: analysis.instructionCommand.models || []
         })
 
-        if (this.commandHandler) {
-          return await this.commandHandler.handle(instructionData, applicationLoop.app)
+        // Route based on model count (moved from CommandHandler)
+        if (instructionData.models.length > 1) {
+          logger.debug('Router: Routing to MultiModelCommand')
+          return await this.multiModelCommand.execute(instructionData, applicationLoop.app)
+        } else {
+          logger.debug('Router: Routing to SingleModelCommand')
+          return await this.singleModelCommand.execute(instructionData)
         }
-        // Fallback to direct ChatRequest
-        return await this.chatRequest.processChatRequest(instructionData)
 
       case this.REQUEST_TYPES.INVALID:
         applicationLoop.writeError(analysis.error)
@@ -87,13 +91,8 @@ export class Router {
 
       case this.REQUEST_TYPES.CHAT:
       default:
-        // Create data object - Single Source of Truth
-        const chatData = this.createData({
-          content: analysis.rawInput,
-          userInput: analysis.rawInput,
-          models: []
-        })
-        return await this.chatRequest.processChatRequest(chatData)
+        logger.debug('Router: Routing to ChatHandler')
+        return await this.chatHandler.handle(analysis.rawInput)
     }
   }
 

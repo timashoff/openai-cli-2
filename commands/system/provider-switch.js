@@ -1,8 +1,8 @@
-import { createNavigationMenu } from '../utils/interactive_menu.js'
-import { createSpinner } from '../utils/spinner.js'
-import { outputHandler } from '../core/print/output.js'
+import { createNavigationMenu } from '../../utils/interactive_menu.js'
+import { createSpinner } from '../../utils/spinner.js'
+import { outputHandler } from '../../core/print/output.js'
 
-export const ProviderCommand = {
+export const ProviderSwitch = {
   async execute(args = [], context = {}) {
     try {
       // Use clean interfaces instead of direct API_PROVIDERS access

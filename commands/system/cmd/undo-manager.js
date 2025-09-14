@@ -1,27 +1,26 @@
-/**
- * undo-manager.js - Undo/Redo system for command operations
- * Functional approach with factory functions (NO CLASSES per CLAUDE.md!)
- * New implementation based on CommandHistory_legacy.js
- */
-
-import { logger } from '../../utils/logger.js'
-import { color } from '../../config/color.js'
+import { logger } from '../../../utils/logger.js'
+import { color } from '../../../config/color.js'
 
 /**
  * Create command memento - stores command state for undo operations
  */
-export function createCommandMemento(commandName, operation, data, timestamp = new Date()) {
+export function createCommandMemento(
+  commandName,
+  operation,
+  data,
+  timestamp = new Date(),
+) {
   const memento = {
     commandName,
-    operation,    // 'add', 'edit', 'delete'
-    data,         // Command data snapshot
+    operation, // 'add', 'edit', 'delete'
+    data, // Command data snapshot
     timestamp,
-    id: `${commandName}_${operation}_${timestamp.getTime()}`
+    id: `${commandName}_${operation}_${timestamp.getTime()}`,
   }
 
   return {
     ...memento,
-    
+
     /**
      * Get description of this memento for UI display
      */
@@ -46,23 +45,23 @@ export function createCommandMemento(commandName, operation, data, timestamp = n
         case 'add':
           return {
             operation: 'delete',
-            data: { id: data.id, key: data.key }
+            data: { id: data.id, key: data.key },
           }
         case 'delete':
           return {
             operation: 'add',
-            data: data
+            data: data,
           }
         case 'edit':
           return {
             operation: 'edit',
             data: data.newValues,
-            previousData: data.previousValues
+            previousData: data.previousValues,
           }
         default:
           return null
       }
-    }
+    },
   }
 }
 
@@ -72,24 +71,24 @@ export function createCommandMemento(commandName, operation, data, timestamp = n
 export function createUndoManager(options = {}) {
   const maxUndoSteps = options.maxUndoSteps || 10
   const maxRedoSteps = options.maxRedoSteps || 10
-  
+
   // History stacks
   let undoStack = []
   let redoStack = []
-  
+
   // State tracking
   let currentIndex = -1
   let totalOperations = 0
   const sessionStart = new Date()
-  
+
   // Statistics
   const stats = {
     undoCount: 0,
     redoCount: 0,
     operationsCount: 0,
-    lastOperation: null
+    lastOperation: null,
   }
-  
+
   logger.debug(`UndoManager: Initialized with undo limit: ${maxUndoSteps}`)
 
   return {
@@ -99,32 +98,33 @@ export function createUndoManager(options = {}) {
     recordOperation(commandName, operation, data, options = {}) {
       try {
         const memento = createCommandMemento(commandName, operation, data)
-        
+
         // Add to undo stack
         undoStack.push(memento)
-        
+
         // Limit undo stack size
         if (undoStack.length > maxUndoSteps) {
           undoStack.shift()
         }
-        
+
         // Clear redo stack when new operation is recorded
         redoStack = []
-        
+
         // Update statistics
         stats.operationsCount++
         stats.lastOperation = {
           memento: memento,
-          timestamp: new Date()
+          timestamp: new Date(),
         }
-        
+
         totalOperations++
         currentIndex = undoStack.length - 1
-        
-        logger.debug(`UndoManager: Recorded ${operation} operation for ${commandName}`)
-        
+
+        logger.debug(
+          `UndoManager: Recorded ${operation} operation for ${commandName}`,
+        )
+
         return memento.id
-        
       } catch (error) {
         logger.error('UndoManager: Error recording operation:', error)
         return null
@@ -139,7 +139,7 @@ export function createUndoManager(options = {}) {
     },
 
     /**
-     * Check if redo is available  
+     * Check if redo is available
      */
     canRedo() {
       return redoStack.length > 0
@@ -170,50 +170,51 @@ export function createUndoManager(options = {}) {
           success: false,
           error: 'No operations to undo',
           canUndo: false,
-          canRedo: this.canRedo()
+          canRedo: this.canRedo(),
         }
       }
 
       try {
         const memento = undoStack.pop()
         const undoResult = await this.executeUndoOperation(memento, context)
-        
+
         if (undoResult.success) {
           // Move to redo stack
           redoStack.push(memento)
-          
+
           // Limit redo stack size
           if (redoStack.length > maxRedoSteps) {
             redoStack.shift()
           }
-          
+
           // Update statistics
           stats.undoCount++
           currentIndex--
-          
-          logger.info(`UndoManager: Undo successful - ${memento.getDescription()}`)
-          
+
+          logger.info(
+            `UndoManager: Undo successful - ${memento.getDescription()}`,
+          )
+
           return {
             success: true,
             operation: memento.getDescription(),
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
-            memento: memento
+            memento: memento,
           }
         } else {
           // Restore memento to undo stack on failure
           undoStack.push(memento)
           return undoResult
         }
-        
       } catch (error) {
         logger.error('UndoManager: Undo operation failed:', error)
-        
+
         return {
           success: false,
           error: error.message,
           canUndo: this.canUndo(),
-          canRedo: this.canRedo()
+          canRedo: this.canRedo(),
         }
       }
     },
@@ -227,45 +228,46 @@ export function createUndoManager(options = {}) {
           success: false,
           error: 'No operations to redo',
           canUndo: this.canUndo(),
-          canRedo: false
+          canRedo: false,
         }
       }
 
       try {
         const memento = redoStack.pop()
         const redoResult = await this.executeRedoOperation(memento, context)
-        
+
         if (redoResult.success) {
           // Move back to undo stack
           undoStack.push(memento)
-          
+
           // Update statistics
           stats.redoCount++
           currentIndex++
-          
-          logger.info(`UndoManager: Redo successful - ${memento.getDescription()}`)
-          
+
+          logger.info(
+            `UndoManager: Redo successful - ${memento.getDescription()}`,
+          )
+
           return {
             success: true,
             operation: memento.getDescription(),
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
-            memento: memento
+            memento: memento,
           }
         } else {
           // Restore memento to redo stack on failure
           redoStack.push(memento)
           return redoResult
         }
-        
       } catch (error) {
         logger.error('UndoManager: Redo operation failed:', error)
-        
+
         return {
           success: false,
           error: error.message,
           canUndo: this.canUndo(),
-          canRedo: this.canRedo()
+          canRedo: this.canRedo(),
         }
       }
     },
@@ -275,11 +277,11 @@ export function createUndoManager(options = {}) {
      */
     async executeUndoOperation(memento, context) {
       const { repository } = context
-      
+
       if (!repository) {
         return {
           success: false,
-          error: 'Repository not available for undo operation'
+          error: 'Repository not available for undo operation',
         }
       }
 
@@ -290,35 +292,38 @@ export function createUndoManager(options = {}) {
             await repository.deleteCommand(memento.data.id)
             return {
               success: true,
-              message: `Removed command "${memento.data.key}"`
+              message: `Removed command "${memento.data.key}"`,
             }
-            
+
           case 'delete':
             // Undo delete by re-adding the command
             await repository.createCommand(memento.data)
             return {
               success: true,
-              message: `Restored command "${memento.data.key}"`
+              message: `Restored command "${memento.data.key}"`,
             }
-            
+
           case 'edit':
             // Undo edit by restoring previous values
-            await repository.updateCommand(memento.data.id, memento.data.previousValues)
+            await repository.updateCommand(
+              memento.data.id,
+              memento.data.previousValues,
+            )
             return {
               success: true,
-              message: `Reverted changes to command "${memento.data.key}"`
+              message: `Reverted changes to command "${memento.data.key}"`,
             }
-            
+
           default:
             return {
               success: false,
-              error: `Unknown operation type: ${memento.operation}`
+              error: `Unknown operation type: ${memento.operation}`,
             }
         }
       } catch (error) {
         return {
           success: false,
-          error: `Undo failed: ${error.message}`
+          error: `Undo failed: ${error.message}`,
         }
       }
     },
@@ -328,11 +333,11 @@ export function createUndoManager(options = {}) {
      */
     async executeRedoOperation(memento, context) {
       const { repository } = context
-      
+
       if (!repository) {
         return {
           success: false,
-          error: 'Repository not available for redo operation'
+          error: 'Repository not available for redo operation',
         }
       }
 
@@ -343,35 +348,38 @@ export function createUndoManager(options = {}) {
             await repository.createCommand(memento.data)
             return {
               success: true,
-              message: `Re-added command "${memento.data.key}"`
+              message: `Re-added command "${memento.data.key}"`,
             }
-            
+
           case 'delete':
             // Redo delete by deleting again
             await repository.deleteCommand(memento.data.id)
             return {
               success: true,
-              message: `Re-deleted command "${memento.data.key}"`
+              message: `Re-deleted command "${memento.data.key}"`,
             }
-            
+
           case 'edit':
             // Redo edit by applying new values again
-            await repository.updateCommand(memento.data.id, memento.data.newValues)
+            await repository.updateCommand(
+              memento.data.id,
+              memento.data.newValues,
+            )
             return {
               success: true,
-              message: `Re-applied changes to command "${memento.data.key}"`
+              message: `Re-applied changes to command "${memento.data.key}"`,
             }
-            
+
           default:
             return {
               success: false,
-              error: `Unknown operation type: ${memento.operation}`
+              error: `Unknown operation type: ${memento.operation}`,
             }
         }
       } catch (error) {
         return {
           success: false,
-          error: `Redo failed: ${error.message}`
+          error: `Redo failed: ${error.message}`,
         }
       }
     },
@@ -386,7 +394,7 @@ export function createUndoManager(options = {}) {
       stats.undoCount = 0
       stats.redoCount = 0
       stats.lastOperation = null
-      
+
       logger.debug('UndoManager: History cleared')
     },
 
@@ -394,9 +402,15 @@ export function createUndoManager(options = {}) {
      * Get history summary for UI display
      */
     getHistorySummary() {
-      const recentUndo = undoStack.slice(-3).reverse().map(m => m.getDescription())
-      const recentRedo = redoStack.slice(-3).reverse().map(m => m.getDescription())
-      
+      const recentUndo = undoStack
+        .slice(-3)
+        .reverse()
+        .map((m) => m.getDescription())
+      const recentRedo = redoStack
+        .slice(-3)
+        .reverse()
+        .map((m) => m.getDescription())
+
       return {
         canUndo: this.canUndo(),
         canRedo: this.canRedo(),
@@ -405,7 +419,7 @@ export function createUndoManager(options = {}) {
         recentUndo,
         recentRedo,
         nextUndo: this.peekUndo()?.getDescription() || null,
-        nextRedo: this.peekRedo()?.getDescription() || null
+        nextRedo: this.peekRedo()?.getDescription() || null,
       }
     },
 
@@ -414,7 +428,7 @@ export function createUndoManager(options = {}) {
      */
     getStats() {
       const sessionDuration = Date.now() - sessionStart.getTime()
-      
+
       return {
         ...stats,
         totalOperations: totalOperations,
@@ -423,7 +437,8 @@ export function createUndoManager(options = {}) {
         maxUndoSteps: maxUndoSteps,
         maxRedoSteps: maxRedoSteps,
         sessionDuration: sessionDuration,
-        averageOperationTime: totalOperations > 0 ? sessionDuration / totalOperations : 0
+        averageOperationTime:
+          totalOperations > 0 ? sessionDuration / totalOperations : 0,
       }
     },
 
@@ -434,21 +449,21 @@ export function createUndoManager(options = {}) {
       if (!this.canUndo() && !this.canRedo()) {
         return `${color.grey}No operations to undo/redo${color.reset}`
       }
-      
+
       let status = []
-      
+
       if (this.canUndo()) {
         const next = this.peekUndo().getDescription()
         status.push(`${color.yellow}Undo:${color.reset} ${next}`)
       }
-      
+
       if (this.canRedo()) {
         const next = this.peekRedo().getDescription()
         status.push(`${color.cyan}Redo:${color.reset} ${next}`)
       }
-      
+
       return status.join(' | ')
-    }
+    },
   }
 }
 

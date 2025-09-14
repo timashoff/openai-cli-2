@@ -1,69 +1,57 @@
-/**
- * ChatRequest - Handles final chat request processing
- * Functional object (NO CLASSES per CLAUDE.md!)
- * Final step in Router → CommandHandler → ChatRequest architecture
- */
 import { logger } from '../utils/logger.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
-import { errorHandler } from './error-system/index.js'
-import { outputHandler } from './print/output.js'
+import { errorHandler } from '../core/error-system/index.js'
+import { outputHandler } from '../core/print/output.js'
 
-export function createChatRequest(app) {
-
+export function createSingleModelCommand(app) {
   function extractProviderModel(modelEntry) {
     if (modelEntry.model) {
       return {
         provider: modelEntry.provider,
-        model: modelEntry.model
+        model: modelEntry.model,
       }
     }
     return null
   }
 
-  async function processChatRequest(data) {
-    try {
-      logger.debug('ChatRequest: Processing final chat request')
-
-      // Setup abort signal for outputHandler using app.stateManager
-      const controller = app.stateManager.getCurrentRequestController()
-      if (controller) {
-        outputHandler.setAbortSignal(controller.signal)
-      }
-
-      // Extract specific provider and model if provided
-      const providerModel = data.models.length ? extractProviderModel(data.models[0]) : null
-
-      // Execute chat request with prepared content and provider model
-      return await handleChatRequest(data.content, providerModel)
-
-    } catch (error) {
-      errorHandler.handleError(error, { component: 'ChatRequest' })
-      throw error
-    }
-  }
-
-  function prepareRequestMessages(stateManager, input) {
+  function prepareRequestMessages(stateManager, content) {
     const contextHistory = stateManager.getContextHistory()
-    const messages = contextHistory.map(({ role, content }) => ({ role, content }))
-    messages.push({ role: 'user', content: input })
+    const messages = contextHistory.map(({ role, content }) => ({
+      role,
+      content,
+    }))
+    messages.push({ role: 'user', content })
     return messages
   }
 
-  async function executeStreamingRequest(stateManager, messages, controller, providerModel) {
-    return await stateManager.createChatCompletion(messages, {
-      stream: true,
-      signal: controller.signal
-    }, providerModel)
+  async function executeStreamingRequest(
+    stateManager,
+    messages,
+    controller,
+    providerModel,
+  ) {
+    return await stateManager.createChatCompletion(
+      messages,
+      {
+        stream: true,
+        signal: controller.signal,
+      },
+      providerModel,
+    )
   }
 
-  async function handleStreamResponse(stream, controller, spinner, providerModel) {
+  async function handleStreamResponse(
+    stream,
+    controller,
+    spinner,
+    providerModel,
+  ) {
     const streamProcessor = createStreamProcessor()
     const response = []
     let firstChunk = true
 
     const chunkHandler = async (content) => {
-      // Check for abort
       if (controller.signal.aborted) {
         return
       }
@@ -90,10 +78,16 @@ export function createChatRequest(app) {
 
     // Process stream with abort handling
     try {
-      await streamProcessor.processStream(stream, controller.signal, chunkHandler)
+      await streamProcessor.processStream(
+        stream,
+        controller.signal,
+        chunkHandler,
+      )
     } catch (streamError) {
       // Handle stream-specific abort errors using unified handler
-      const processedError = errorHandler.processError(streamError, { component: 'StreamProcessor' })
+      const processedError = errorHandler.processError(streamError, {
+        component: 'StreamProcessor',
+      })
       if (!processedError.shouldDisplay) {
         return [] // Silent abort - no error message
       }
@@ -103,7 +97,7 @@ export function createChatRequest(app) {
     return response
   }
 
-  function updateContextHistory(stateManager, controller, response, input) {
+  function updateContextHistory(stateManager, controller, response, content) {
     if (!controller.signal.aborted) {
       const fullResponse = response.join('')
 
@@ -112,7 +106,7 @@ export function createChatRequest(app) {
         process.stdout.write('\n')
       }
 
-      stateManager.addToContext('user', input)
+      stateManager.addToContext('user', content)
       stateManager.addToContext('assistant', fullResponse)
 
       // Display context dots after response
@@ -120,7 +114,32 @@ export function createChatRequest(app) {
     }
   }
 
-  async function handleChatRequest(input, providerModel = null) {
+  async function handleSingleModelCommand(data) {
+    try {
+      logger.debug(
+        'SingleModelCommand: Processing instruction command with single model',
+      )
+
+      // Setup abort signal for outputHandler using app.stateManager
+      const controller = app.stateManager.getCurrentRequestController()
+      if (controller) {
+        outputHandler.setAbortSignal(controller.signal)
+      }
+
+      // Extract specific provider and model if provided
+      const providerModel = data.models.length
+        ? extractProviderModel(data.models[0])
+        : null
+
+      // Execute chat request with prepared content and provider model
+      return await processSingleModelRequest(data.content, providerModel)
+    } catch (error) {
+      errorHandler.handleError(error, { component: 'SingleModelCommand' })
+      throw error
+    }
+  }
+
+  async function processSingleModelRequest(content, providerModel = null) {
     // Use StateManager directly instead of ServiceManager
     const stateManager = app.stateManager
 
@@ -134,31 +153,41 @@ export function createChatRequest(app) {
     const spinner = createSpinner()
 
     try {
-
       // Start spinner with ESC handling - UNIFIED!
       spinner.start(controller) // Automatically handles ESC → ☓
 
       // Prepare messages with context
-      const messages = prepareRequestMessages(stateManager, input)
+      const messages = prepareRequestMessages(stateManager, content)
 
       // Create streaming request with abort signal - use StateManager directly
-      const stream = await executeStreamingRequest(stateManager, messages, controller, providerModel)
+      const stream = await executeStreamingRequest(
+        stateManager,
+        messages,
+        controller,
+        providerModel,
+      )
 
       // Process streaming response
-      const response = await handleStreamResponse(stream, controller, spinner, providerModel)
+      const response = await handleStreamResponse(
+        stream,
+        controller,
+        spinner,
+        providerModel,
+      )
 
       // Update context history if request wasn't aborted
-      updateContextHistory(stateManager, controller, response, input)
-
+      updateContextHistory(stateManager, controller, response, content)
     } catch (error) {
       // Check if user cancelled request
       if (controller.signal.aborted) {
         // User pressed ESC - spinner already shows ☓
-        return  // Silent exit
+        return // Silent exit
       }
 
       // Real errors need to be shown to user
-      const processedError = errorHandler.processError(error, { component: 'ChatRequest' })
+      const processedError = errorHandler.processError(error, {
+        component: 'SingleModelCommand',
+      })
       if (spinner.isActive()) {
         spinner.stop('error')
       }
@@ -172,6 +201,6 @@ export function createChatRequest(app) {
 
   // Return functional object (NO CLASS!)
   return {
-    processChatRequest
+    execute: handleSingleModelCommand,
   }
 }

@@ -3,6 +3,11 @@ import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './print/output.js'
 import { PROVIDERS } from '../config/providers.js'
 import { logError, processError } from './error-system/index.js'
+import { HelpCommand } from '../commands/system/help.js'
+import { ExitCommand } from '../commands/system/exit.js'
+import { ModelSwitch } from '../commands/system/model-switch.js'
+import { ProviderSwitch } from '../commands/system/provider-switch.js'
+import { CmdModule } from '../commands/system/cmd/index.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -71,6 +76,17 @@ const createCleanContext = (applicationLoop) => {
 }
 
 /**
+ * Static command handlers mapping - NO dynamic imports!
+ */
+const COMMAND_HANDLERS = {
+  HelpCommand,
+  ExitCommand,
+  ModelSwitch,
+  ProviderSwitch,
+  CmdModule,
+}
+
+/**
  * System command handler - functional object (NOT A CLASS!)
  */
 export const systemCommandHandler = {
@@ -86,23 +102,14 @@ export const systemCommandHandler = {
 
       const systemCommand = getSystemCommand(commandName)
       if (systemCommand) {
-        // Dynamically import and execute the command
-        const CommandModule = await import(systemCommand.module)
-
-        // Try default export first, then named export
-        const CommandClass =
-          CommandModule.default || CommandModule[systemCommand.handler]
-        if (!CommandClass) {
-          throw new Error(`Command not found: ${systemCommand.handler}`)
+        // Get command handler directly from static mapping
+        const CommandHandler = COMMAND_HANDLERS[systemCommand.handler]
+        if (!CommandHandler) {
+          throw new Error(`Command handler not found: ${systemCommand.handler}`)
         }
 
-        // Support both classes (legacy) and functional objects
-        const commandInstance =
-          typeof CommandClass === 'function' &&
-          CommandClass.prototype &&
-          CommandClass.prototype.constructor
-            ? new CommandClass()
-            : CommandClass
+        // All our commands are functional objects (NO CLASSES!)
+        const commandInstance = CommandHandler
 
         // Create clean context interfaces (NO GOD OBJECT!)
         const context = createCleanContext(applicationLoop)
@@ -146,17 +153,17 @@ export const systemCommandHandler = {
     const systemCommand = getSystemCommand(commandName)
     if (systemCommand) {
       try {
-        const CommandModule = await import(systemCommand.module)
-        const Command =
-          CommandModule.default || CommandModule[systemCommand.handler]
+        const CommandHandler = COMMAND_HANDLERS[systemCommand.handler]
+        if (!CommandHandler) {
+          return {
+            description: systemCommand.description,
+            usage: systemCommand.usage,
+            aliases: systemCommand.aliases,
+          }
+        }
 
-        // Support both classes (legacy) and functional objects
-        const commandInstance =
-          typeof Command === 'function' &&
-          Command.prototype &&
-          Command.prototype.constructor
-            ? new Command()
-            : Command
+        // All our commands are functional objects (NO CLASSES!)
+        const commandInstance = CommandHandler
 
         return commandInstance.getHelp
           ? commandInstance.getHelp()
