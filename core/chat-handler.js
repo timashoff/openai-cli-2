@@ -1,30 +1,13 @@
-/**
- * ChatHandler - Pure chat requests without commands
- * Functional object (NO CLASSES per CLAUDE.md!)
- * Handles direct user chat without instruction processing
- */
 import { logger } from '../utils/logger.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from './error-system/index.js'
 import { outputHandler } from './print/output.js'
+import { prepareStreamingMessages } from '../utils/message-utils.js'
+import { updateSingleContext } from '../utils/context-utils.js'
+import { executeStreamingRequest } from '../utils/streaming-utils.js'
 
 export function createChatHandler(app) {
-
-  function prepareRequestMessages(stateManager, input) {
-    const contextHistory = stateManager.getContextHistory()
-    const messages = contextHistory.map(({ role, content }) => ({ role, content }))
-    messages.push({ role: 'user', content: input })
-    return messages
-  }
-
-  async function executeStreamingRequest(stateManager, messages, controller) {
-    return await stateManager.createChatCompletion(messages, {
-      stream: true,
-      signal: controller.signal
-    })
-  }
-
   async function handleStreamResponse(stream, controller, spinner) {
     const streamProcessor = createStreamProcessor()
     const response = []
@@ -51,10 +34,16 @@ export function createChatHandler(app) {
 
     // Process stream with abort handling
     try {
-      await streamProcessor.processStream(stream, controller.signal, chunkHandler)
+      await streamProcessor.processStream(
+        stream,
+        controller.signal,
+        chunkHandler,
+      )
     } catch (streamError) {
       // Handle stream-specific abort errors using unified handler
-      const processedError = errorHandler.processError(streamError, { component: 'StreamProcessor' })
+      const processedError = errorHandler.processError(streamError, {
+        component: 'StreamProcessor',
+      })
       if (!processedError.shouldDisplay) {
         return [] // Silent abort - no error message
       }
@@ -64,24 +53,9 @@ export function createChatHandler(app) {
     return response
   }
 
-  function updateContextHistory(stateManager, controller, response, input) {
-    if (!controller.signal.aborted) {
-      const fullResponse = response.join('')
-
-      // Add newline after LLM response to prevent prompt from overwriting
-      if (fullResponse.trim()) {
-        process.stdout.write('\n')
-      }
-
-      stateManager.addToContext('user', input)
-      stateManager.addToContext('assistant', fullResponse)
-
-      // Display context dots after response
-      outputHandler.writeContextDots(stateManager)
-    }
-  }
-
   async function handleChatRequest(input) {
+    logger.debug('ChatHandler: Processing direct chat request')
+
     // Use StateManager directly instead of ServiceManager
     const stateManager = app.stateManager
 
@@ -95,31 +69,47 @@ export function createChatHandler(app) {
     const spinner = createSpinner()
 
     try {
-
       // Start spinner with ESC handling - UNIFIED!
       spinner.start(controller) // Automatically handles ESC → ☓
 
       // Prepare messages with context
-      const messages = prepareRequestMessages(stateManager, input)
+      const messages = prepareStreamingMessages(stateManager, input)
 
       // Create streaming request with abort signal - use StateManager directly
-      const stream = await executeStreamingRequest(stateManager, messages, controller)
+      const stream = await executeStreamingRequest(
+        stateManager,
+        messages,
+        controller,
+      )
 
       // Process streaming response
       const response = await handleStreamResponse(stream, controller, spinner)
 
       // Update context history if request wasn't aborted
-      updateContextHistory(stateManager, controller, response, input)
+      if (!controller.signal.aborted) {
+        const fullResponse = response.join('')
 
+        // Add newline after LLM response to prevent prompt from overwriting
+        if (fullResponse.trim()) {
+          process.stdout.write('\n')
+        }
+
+        updateSingleContext(stateManager, input, fullResponse)
+
+        // Display context dots after response
+        outputHandler.writeContextDots(stateManager)
+      }
     } catch (error) {
       // Check if user cancelled request
       if (controller.signal.aborted) {
         // User pressed ESC - spinner already shows ☓
-        return  // Silent exit
+        return // Silent exit
       }
 
       // Real errors need to be shown to user
-      const processedError = errorHandler.processError(error, { component: 'ChatHandler' })
+      const processedError = errorHandler.processError(error, {
+        component: 'ChatHandler',
+      })
       if (spinner.isActive()) {
         spinner.stop('error')
       }
@@ -131,8 +121,7 @@ export function createChatHandler(app) {
     }
   }
 
-  // Return functional object (NO CLASS!)
   return {
-    handle: handleChatRequest
+    handle: handleChatRequest,
   }
 }

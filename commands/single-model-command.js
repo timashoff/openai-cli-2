@@ -3,6 +3,9 @@ import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from '../core/error-system/index.js'
 import { outputHandler } from '../core/print/output.js'
+import { prepareStreamingMessages } from '../utils/message-utils.js'
+import { updateSingleContext } from '../utils/context-utils.js'
+import { executeStreamingRequest } from '../utils/streaming-utils.js'
 
 export function createSingleModelCommand(app) {
   function extractProviderModel(modelEntry) {
@@ -15,31 +18,7 @@ export function createSingleModelCommand(app) {
     return null
   }
 
-  function prepareRequestMessages(stateManager, content) {
-    const contextHistory = stateManager.getContextHistory()
-    const messages = contextHistory.map(({ role, content }) => ({
-      role,
-      content,
-    }))
-    messages.push({ role: 'user', content })
-    return messages
-  }
 
-  async function executeStreamingRequest(
-    stateManager,
-    messages,
-    controller,
-    providerModel,
-  ) {
-    return await stateManager.createChatCompletion(
-      messages,
-      {
-        stream: true,
-        signal: controller.signal,
-      },
-      providerModel,
-    )
-  }
 
   async function handleStreamResponse(
     stream,
@@ -97,22 +76,6 @@ export function createSingleModelCommand(app) {
     return response
   }
 
-  function updateContextHistory(stateManager, controller, response, content) {
-    if (!controller.signal.aborted) {
-      const fullResponse = response.join('')
-
-      // Add newline after LLM response to prevent prompt from overwriting
-      if (fullResponse.trim()) {
-        process.stdout.write('\n')
-      }
-
-      stateManager.addToContext('user', content)
-      stateManager.addToContext('assistant', fullResponse)
-
-      // Display context dots after response
-      outputHandler.writeContextDots(stateManager)
-    }
-  }
 
   async function handleSingleModelCommand(data) {
     try {
@@ -157,7 +120,7 @@ export function createSingleModelCommand(app) {
       spinner.start(controller) // Automatically handles ESC → ☓
 
       // Prepare messages with context
-      const messages = prepareRequestMessages(stateManager, content)
+      const messages = prepareStreamingMessages(stateManager, content)
 
       // Create streaming request with abort signal - use StateManager directly
       const stream = await executeStreamingRequest(
@@ -176,7 +139,19 @@ export function createSingleModelCommand(app) {
       )
 
       // Update context history if request wasn't aborted
-      updateContextHistory(stateManager, controller, response, content)
+      if (!controller.signal.aborted) {
+        const fullResponse = response.join('')
+
+        // Add newline after LLM response to prevent prompt from overwriting
+        if (fullResponse.trim()) {
+          process.stdout.write('\n')
+        }
+
+        updateSingleContext(stateManager, content, fullResponse)
+
+        // Display context dots after response
+        outputHandler.writeContextDots(stateManager)
+      }
     } catch (error) {
       // Check if user cancelled request
       if (controller.signal.aborted) {
