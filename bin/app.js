@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { color } from '../config/color.js'
 import { logger } from '../utils/logger.js'
+import { outputHandler } from '../core/print/output.js'
 import { errorHandler } from '../core/error-system/index.js'
 import { Router } from '../core/Router.js'
 import { ApplicationLoop } from '../core/ApplicationLoop.js'
-import { createChatRequest } from '../core/ChatRequest.js'
+import { createChatRequest } from '../core/chat-request.js'
 import { createCommandHandler } from '../core/CommandHandler.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager } from '../core/StateManager.js'
@@ -61,7 +61,7 @@ async function start() {
 
     // Show current model info after spinner cleanup
     const currentModel = stateManager.getCurrentModel()
-    console.log(`current model is ${color.cyan}${currentModel}${color.reset}`)
+    console.log(outputHandler.formatInfo(`current model is ${currentModel}`))
 
     process.title = stateManager.getCurrentModel()
 

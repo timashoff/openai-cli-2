@@ -3,7 +3,7 @@
  * Functional approach with clean interfaces (NO CLASSES per CLAUDE.md!)
  */
 import { createNavigationMenu } from '../utils/interactive_menu.js'
-import { outputHandler } from '../core/output-handler.js'
+import { outputHandler } from '../core/print/output.js'
 
 export const ModelCommand = {
   /**

@@ -13,7 +13,7 @@ import { logger } from '../utils/logger.js'
 import { errorHandler } from './error-system/index.js'
 import { getAllAvailableCommands } from '../utils/autocomplete.js'
 import { getStateManager } from './StateManager.js'
-import { outputHandler } from './output-handler.js'
+import { outputHandler } from './print/output.js'
 
 // Create completer function for system commands autocomplete
 function completer(line) {

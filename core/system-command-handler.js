@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
-import { outputHandler } from './output-handler.js'
+import { outputHandler } from './print/output.js'
 import { PROVIDERS } from '../config/providers.js'
 import { logError, processError } from './error-system/index.js'
 

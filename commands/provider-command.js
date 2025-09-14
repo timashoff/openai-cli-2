@@ -1,6 +1,6 @@
 import { createNavigationMenu } from '../utils/interactive_menu.js'
 import { createSpinner } from '../utils/spinner.js'
-import { outputHandler } from '../core/output-handler.js'
+import { outputHandler } from '../core/print/output.js'
 
 export const ProviderCommand = {
   async execute(args = [], context = {}) {

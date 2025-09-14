@@ -5,7 +5,7 @@
 import readline from 'node:readline'
 import { color } from '../config/color.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-import { outputHandler } from './output-handler.js'
+import { outputHandler } from './print/output.js'
 import { logError, processError } from './error-system/index.js'
 
 export class CLIInterface {

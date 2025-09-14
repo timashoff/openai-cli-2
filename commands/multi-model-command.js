@@ -1,17 +1,11 @@
-import { outputHandler } from '../core/output-handler.js'
+import { outputHandler } from '../core/print/output.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
-import { color } from '../config/color.js'
 import { logError, processError, createBaseError } from '../core/error-system/index.js'
+import { UI_SYMBOLS } from '../config/constants.js'
 
 export const multiModelCommand = {
-  /**
-   * Format model name with consistent styling
-   */
-  formatModelName(model) {
-    return `${color.cyan}[${model.model}]${color.reset}`
-  },
 
   /**
    * Execute multiple models with REACTIVE algorithm
@@ -112,7 +106,7 @@ export const multiModelCommand = {
 
               // Display winner header
               outputHandler.writeNewline()
-              outputHandler.write(this.formatModelName(winModel))
+              outputHandler.writeModel(winModel)
             }
           },
         )
@@ -354,7 +348,7 @@ export const multiModelCommand = {
     const { model, response, timing, success, error } = result
 
     outputHandler.writeNewline()
-    outputHandler.write(this.formatModelName(model))
+    outputHandler.writeModel(model)
 
     if (success) {
       outputHandler.write(response)
@@ -362,9 +356,9 @@ export const multiModelCommand = {
     } else {
       // Show clean error message to user (only if not cancelled)
       if (error !== 'Request cancelled') {
-        outputHandler.write(`${color.red}Error:${color.reset} ${error}`)
+        outputHandler.writeError(error)
       }
-      outputHandler.write(`${color.red}x${color.reset} ${timing.toFixed(1)}s`)
+      outputHandler.write(`${UI_SYMBOLS.CROSS} ${timing.toFixed(1)}s`)
     }
 
     outputHandler.writeNewline()
