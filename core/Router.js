@@ -6,7 +6,8 @@ import { logger } from '../utils/logger.js'
 import { inputProcessingService } from '../services/input-processing-service.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
-import { logError, processError } from './error-system/index.js'
+import { logError, processError, errorHandler } from './error-system/index.js'
+import { outputHandler } from './print/output.js'
 
 export class Router {
   constructor(dependencies = {}) {
@@ -50,10 +51,7 @@ export class Router {
       return await this.executeFromAnalysis(analysis, applicationLoop)
 
     } catch (error) {
-      const processedError = await processError(error, { context: 'Router:routeAndProcess' })
-      await logError(processedError)
-      
-      applicationLoop.writeError(`Error: ${processedError.userMessage}`)
+      await errorHandler.handleError(error, { context: 'Router:routeAndProcess' })
       return null
     }
   }
@@ -86,7 +84,7 @@ export class Router {
         }
 
       case this.REQUEST_TYPES.INVALID:
-        applicationLoop.writeError(analysis.error)
+        outputHandler.writeError(analysis.error)
         return null
 
       case this.REQUEST_TYPES.CHAT:

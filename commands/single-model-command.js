@@ -70,7 +70,9 @@ export function createSingleModelCommand(app) {
       if (!processedError.shouldDisplay) {
         return [] // Silent abort - no error message
       }
-      throw streamError // Re-throw other errors
+      // Zero Trust: Show safe message directly, don't re-throw
+      outputHandler.writeError(processedError.userMessage)
+      return [] // Continue gracefully
     }
 
     return response
@@ -98,7 +100,7 @@ export function createSingleModelCommand(app) {
       return await processSingleModelRequest(data.content, providerModel)
     } catch (error) {
       errorHandler.handleError(error, { component: 'SingleModelCommand' })
-      throw error
+      return [] // Error already handled and shown to user - don't re-throw
     }
   }
 

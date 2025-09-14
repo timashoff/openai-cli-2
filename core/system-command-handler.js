@@ -131,14 +131,14 @@ export const systemCommandHandler = {
 
       // Command not found
       const errorMsg = `System command not found: ${commandName}`
-      applicationLoop.writeError(errorMsg)
+      outputHandler.writeError(errorMsg)
       logger.warn(errorMsg)
       return null
     } catch (error) {
       const processedError = await processError(error, { context: 'SystemCommandHandler:execute' })
       await logError(processedError)
       
-      applicationLoop.writeError(`System command execution failed: ${processedError.userMessage}`)
+      outputHandler.writeError(`System command execution failed: ${processedError.userMessage}`)
       return null
     }
   },
