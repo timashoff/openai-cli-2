@@ -2,6 +2,7 @@ export const SYSTEM_COMMANDS = {
   help: {
     aliases: ['h', '?'],
     handler: 'HelpCommand',
+    filePath: '../commands/system/help.js',
     description: 'Show all commands and usage information',
     usage: 'help',
   },
@@ -9,6 +10,7 @@ export const SYSTEM_COMMANDS = {
   provider: {
     aliases: ['p'],
     handler: 'ProviderSwitch',
+    filePath: '../commands/system/provider-switch.js',
     description: 'Open provider selection menu',
     usage: 'provider',
   },
@@ -16,6 +18,7 @@ export const SYSTEM_COMMANDS = {
   model: {
     aliases: ['m'],
     handler: 'ModelSwitch',
+    filePath: '../commands/system/model-switch.js',
     description: 'Open model selection menu',
     usage: 'model',
   },
@@ -23,6 +26,7 @@ export const SYSTEM_COMMANDS = {
   exit: {
     aliases: ['q', 'quit'],
     handler: 'ExitCommand',
+    filePath: '../commands/system/exit.js',
     description: 'Exit the application',
     usage: 'exit',
   },
@@ -30,6 +34,7 @@ export const SYSTEM_COMMANDS = {
   cmd: {
     aliases: ['кмд'],
     handler: 'CmdModule',
+    filePath: '../commands/system/cmd/index.js',
     description: 'Interactive command management system',
     usage: 'cmd',
   },

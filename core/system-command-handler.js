@@ -3,11 +3,6 @@ import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './print/output.js'
 import { PROVIDERS } from '../config/providers.js'
 import { logError, processError } from './error-system/index.js'
-import { HelpCommand } from '../commands/system/help.js'
-import { ExitCommand } from '../commands/system/exit.js'
-import { ModelSwitch } from '../commands/system/model-switch.js'
-import { ProviderSwitch } from '../commands/system/provider-switch.js'
-import { CmdModule } from '../commands/system/cmd/index.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -76,14 +71,30 @@ const createCleanContext = (applicationLoop) => {
 }
 
 /**
- * Static command handlers mapping - NO dynamic imports!
+ * Dynamic command loading with caching for performance
  */
-const COMMAND_HANDLERS = {
-  HelpCommand,
-  ExitCommand,
-  ModelSwitch,
-  ProviderSwitch,
-  CmdModule,
+const commandCache = new Map()
+
+async function loadCommand(commandConfig) {
+  const { handler, filePath } = commandConfig
+
+  if (commandCache.has(handler)) {
+    return commandCache.get(handler)
+  }
+
+  try {
+    const module = await import(filePath)
+    const commandInstance = module[handler]
+
+    if (!commandInstance) {
+      throw new Error(`Command handler '${handler}' not found in ${filePath}`)
+    }
+
+    commandCache.set(handler, commandInstance)
+    return commandInstance
+  } catch (error) {
+    throw new Error(`Failed to load command '${handler}' from ${filePath}: ${error.message}`)
+  }
 }
 
 /**
@@ -102,14 +113,8 @@ export const systemCommandHandler = {
 
       const systemCommand = getSystemCommand(commandName)
       if (systemCommand) {
-        // Get command handler directly from static mapping
-        const CommandHandler = COMMAND_HANDLERS[systemCommand.handler]
-        if (!CommandHandler) {
-          throw new Error(`Command handler not found: ${systemCommand.handler}`)
-        }
-
-        // All our commands are functional objects (NO CLASSES!)
-        const commandInstance = CommandHandler
+        // Load command handler dynamically from config
+        const commandInstance = await loadCommand(systemCommand)
 
         // Create clean context interfaces (NO GOD OBJECT!)
         const context = createCleanContext(applicationLoop)
@@ -153,17 +158,7 @@ export const systemCommandHandler = {
     const systemCommand = getSystemCommand(commandName)
     if (systemCommand) {
       try {
-        const CommandHandler = COMMAND_HANDLERS[systemCommand.handler]
-        if (!CommandHandler) {
-          return {
-            description: systemCommand.description,
-            usage: systemCommand.usage,
-            aliases: systemCommand.aliases,
-          }
-        }
-
-        // All our commands are functional objects (NO CLASSES!)
-        const commandInstance = CommandHandler
+        const commandInstance = await loadCommand(systemCommand)
 
         return commandInstance.getHelp
           ? commandInstance.getHelp()
