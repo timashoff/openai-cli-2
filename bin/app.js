@@ -32,7 +32,6 @@ async function start() {
 
     // Initialize core components through composition
     const stateManager = getStateManager()
-    const systemCommandHandler_instance = systemCommandHandler
 
     // Create application context for components that need it
     const appContext = { stateManager }
@@ -44,9 +43,9 @@ async function start() {
 
     // Create router with all handler dependencies
     const router = new Router({
-      systemCommandHandler: systemCommandHandler_instance,
-      commandHandler: commandHandler,
-      chatRequest: chatRequest
+      systemCommandHandler,
+      commandHandler,
+      chatRequest,
     })
 
     // Add router to context for ApplicationLoop
@@ -61,20 +60,18 @@ async function start() {
     })
 
     // Show current model info after spinner cleanup
-    const currentProvider = stateManager.getCurrentProvider()
     const currentModel = stateManager.getCurrentModel()
-    if (currentProvider && currentModel) {
-      console.log(`current model is ${currentProvider.instance.config.name} ${currentModel}`)
-    }
+    console.log(`current model is ${color.cyan}${currentModel}${color.reset}`)
 
-    // Set process title
     process.title = stateManager.getCurrentModel()
 
     // Start main application loop
     await applicationLoop.startMainLoop()
-
   } catch (error) {
-    errorHandler.handleError(error, { context: 'application_start', fatal: true })
+    errorHandler.handleError(error, {
+      context: 'application_start',
+      fatal: true,
+    })
     process.exit(1)
   }
 }
