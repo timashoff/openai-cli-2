@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
-import { outputHandler } from './output-handler.js'
+import { outputHandler } from './print/output.js'
 import { PROVIDERS } from '../config/providers.js'
 import { logError, processError } from './error-system/index.js'
 
@@ -71,6 +71,33 @@ const createCleanContext = (applicationLoop) => {
 }
 
 /**
+ * Dynamic command loading with caching for performance
+ */
+const commandCache = new Map()
+
+async function loadCommand(commandConfig) {
+  const { handler, filePath } = commandConfig
+
+  if (commandCache.has(handler)) {
+    return commandCache.get(handler)
+  }
+
+  try {
+    const module = await import(filePath)
+    const commandInstance = module[handler]
+
+    if (!commandInstance) {
+      throw new Error(`Command handler '${handler}' not found in ${filePath}`)
+    }
+
+    commandCache.set(handler, commandInstance)
+    return commandInstance
+  } catch (error) {
+    throw new Error(`Failed to load command '${handler}' from ${filePath}: ${error.message}`)
+  }
+}
+
+/**
  * System command handler - functional object (NOT A CLASS!)
  */
 export const systemCommandHandler = {
@@ -86,23 +113,8 @@ export const systemCommandHandler = {
 
       const systemCommand = getSystemCommand(commandName)
       if (systemCommand) {
-        // Dynamically import and execute the command
-        const CommandModule = await import(systemCommand.module)
-
-        // Try default export first, then named export
-        const CommandClass =
-          CommandModule.default || CommandModule[systemCommand.handler]
-        if (!CommandClass) {
-          throw new Error(`Command not found: ${systemCommand.handler}`)
-        }
-
-        // Support both classes (legacy) and functional objects
-        const commandInstance =
-          typeof CommandClass === 'function' &&
-          CommandClass.prototype &&
-          CommandClass.prototype.constructor
-            ? new CommandClass()
-            : CommandClass
+        // Load command handler dynamically from config
+        const commandInstance = await loadCommand(systemCommand)
 
         // Create clean context interfaces (NO GOD OBJECT!)
         const context = createCleanContext(applicationLoop)
@@ -119,14 +131,14 @@ export const systemCommandHandler = {
 
       // Command not found
       const errorMsg = `System command not found: ${commandName}`
-      applicationLoop.writeError(errorMsg)
+      outputHandler.writeError(errorMsg)
       logger.warn(errorMsg)
       return null
     } catch (error) {
       const processedError = await processError(error, { context: 'SystemCommandHandler:execute' })
       await logError(processedError)
       
-      applicationLoop.writeError(`System command execution failed: ${processedError.userMessage}`)
+      outputHandler.writeError(`System command execution failed: ${processedError.userMessage}`)
       return null
     }
   },
@@ -146,17 +158,7 @@ export const systemCommandHandler = {
     const systemCommand = getSystemCommand(commandName)
     if (systemCommand) {
       try {
-        const CommandModule = await import(systemCommand.module)
-        const Command =
-          CommandModule.default || CommandModule[systemCommand.handler]
-
-        // Support both classes (legacy) and functional objects
-        const commandInstance =
-          typeof Command === 'function' &&
-          Command.prototype &&
-          Command.prototype.constructor
-            ? new Command()
-            : Command
+        const commandInstance = await loadCommand(systemCommand)
 
         return commandInstance.getHelp
           ? commandInstance.getHelp()

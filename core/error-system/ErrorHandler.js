@@ -172,7 +172,13 @@ const logError = async (processedError, context) => {
       break
     case 'error':
     default:
-      logger.error(message, sanitizedStack ? { stack: sanitizedStack } : {})
+      // Zero Trust: Console gets only safe message, NO stack traces
+      logger.error(message)
+
+      // Stack traces only in development file logs for debugging
+      if (process.env.NODE_ENV === 'development' && sanitizedStack) {
+        logger.debug(`Stack trace: ${sanitizedStack}`)
+      }
       break
   }
 }
