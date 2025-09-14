@@ -1,17 +1,13 @@
-import { outputHandler } from '../core/output-handler.js'
+import { outputHandler } from '../core/print/output.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
-import { color } from '../config/color.js'
 import { logError, processError, createBaseError } from '../core/error-system/index.js'
+import { UI_SYMBOLS } from '../config/constants.js'
+import { prepareStreamingMessages } from '../utils/message-utils.js'
+import { updateMultiContext } from '../utils/context-utils.js'
 
 export const multiModelCommand = {
-  /**
-   * Format model name with consistent styling
-   */
-  formatModelName(model) {
-    return `${color.cyan}[${model.model}]${color.reset}`
-  },
 
   /**
    * Execute multiple models with REACTIVE algorithm
@@ -67,12 +63,7 @@ export const multiModelCommand = {
     outputHandler.setAbortSignal(controller.signal)
 
     // Prepare messages
-    const contextHistory = stateManager.getContextHistory()
-    const messages = contextHistory.map(({ role, content }) => ({
-      role,
-      content,
-    }))
-    messages.push({ role: 'user', content: commandData.content })
+    const messages = prepareStreamingMessages(stateManager, commandData.content)
 
     // REACTIVE ALGORITHM: Dynamic pending array [A,B,C] → [A,C] → [C] → []
     const pendingModels = [...liveModels] // This is our dynamic queue
@@ -112,7 +103,7 @@ export const multiModelCommand = {
 
               // Display winner header
               outputHandler.writeNewline()
-              outputHandler.write(this.formatModelName(winModel))
+              outputHandler.writeModel(winModel)
             }
           },
         )
@@ -190,12 +181,11 @@ export const multiModelCommand = {
         outputHandler.clearLine()
       }
 
-      // Add context management for multi-model responses  
+      // Add context management for multi-model responses
       const successfulResults = Array.from(modelResults.values()).filter(r => r.success && r.response)
       if (successfulResults.length > 0 && !controller.signal.aborted) {
-        const allResponses = successfulResults.map(r => r.response).join('\n\n')
-        stateManager.addToContext('user', commandData.content)
-        stateManager.addToContext('assistant', allResponses)
+        const allResponses = successfulResults.map(r => r.response)
+        updateMultiContext(stateManager, commandData.content, allResponses)
       }
 
       return successfulCount
@@ -354,7 +344,7 @@ export const multiModelCommand = {
     const { model, response, timing, success, error } = result
 
     outputHandler.writeNewline()
-    outputHandler.write(this.formatModelName(model))
+    outputHandler.writeModel(model)
 
     if (success) {
       outputHandler.write(response)
@@ -362,9 +352,9 @@ export const multiModelCommand = {
     } else {
       // Show clean error message to user (only if not cancelled)
       if (error !== 'Request cancelled') {
-        outputHandler.write(`${color.red}Error:${color.reset} ${error}`)
+        outputHandler.writeError(error)
       }
-      outputHandler.write(`${color.red}x${color.reset} ${timing.toFixed(1)}s`)
+      outputHandler.write(`${UI_SYMBOLS.CROSS} ${timing.toFixed(1)}s`)
     }
 
     outputHandler.writeNewline()

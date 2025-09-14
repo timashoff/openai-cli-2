@@ -1,7 +1,7 @@
 import { color } from '../config/color.js'
 import { APP_CONSTANTS, UI_SYMBOLS } from '../config/constants.js'
 import readline from 'node:readline'
-import { outputHandler } from '../core/output-handler.js'
+import { outputHandler } from '../core/print/output.js'
 
 export async function createNavigationMenu(title, options, initialIndex = 0, context = null) {
   const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
