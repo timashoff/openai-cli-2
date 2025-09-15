@@ -39,6 +39,13 @@ export const createKeypressHandler = (state) => {
       state.stateManager.setShouldReturnToPrompt(true)
     }
 
+    // Force terminate stream processor (FIX for streaming bug)
+    const streamProcessor = state.stateManager.getCurrentStreamProcessor()
+    if (streamProcessor) {
+      streamProcessor.forceTerminate()
+      logger.debug('ESC: StreamProcessor force terminated')
+    }
+
     // Show cursor
     outputHandler.showCursor()
   }
