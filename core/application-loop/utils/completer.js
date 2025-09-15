@@ -1,5 +1,5 @@
-import { databaseCommandService } from '../services/database-command-service.js'
-import { getAllSystemCommandNames } from './system-commands.js'
+import { databaseCommandService } from '../../../services/database-command-service.js'
+import { getAllSystemCommandNames } from '../../../utils/system-commands.js'
 
 export function getAllAvailableCommands() {
   const systemCommands = getAllSystemCommandNames()

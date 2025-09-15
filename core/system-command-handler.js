@@ -16,7 +16,7 @@ const createCleanContext = (applicationLoop) => {
     // UI interfaces - for user interaction only
     ui: {
       get readline() {
-        return applicationLoop.rl
+        return applicationLoop.ui.readline
       },
       exitApp: () => applicationLoop.exitApp(),
       pauseReadline: () => applicationLoop.pauseReadline(),

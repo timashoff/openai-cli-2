@@ -60,7 +60,8 @@ export const multiModelCommand = {
       throw new Error('AbortController not available')
     }
 
-    outputHandler.setAbortSignal(controller.signal)
+    // AbortSignal automatically managed via Event-Driven StateManager
+    // (No manual outputHandler.setAbortSignal needed)
 
     // Prepare messages
     const messages = prepareStreamingMessages(stateManager, commandData.content)

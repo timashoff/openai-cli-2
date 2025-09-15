@@ -85,11 +85,8 @@ export function createSingleModelCommand(app) {
         'SingleModelCommand: Processing instruction command with single model',
       )
 
-      // Setup abort signal for outputHandler using app.stateManager
-      const controller = app.stateManager.getCurrentRequestController()
-      if (controller) {
-        outputHandler.setAbortSignal(controller.signal)
-      }
+      // AbortSignal automatically managed via Event-Driven StateManager
+      // (No manual outputHandler.setAbortSignal needed)
 
       // Extract specific provider and model if provided
       const providerModel = data.models.length

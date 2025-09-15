@@ -10,6 +10,11 @@ import { executeStreamingRequest } from '../utils/streaming-utils.js'
 export function createChatHandler(app) {
   async function handleStreamResponse(stream, controller, spinner) {
     const streamProcessor = createStreamProcessor()
+
+    // Save streamProcessor to StateManager for ESC cleanup
+    const stateManager = app.stateManager
+    stateManager.setStreamProcessor(streamProcessor)
+
     const response = []
     let firstChunk = true
 
@@ -72,6 +77,9 @@ export function createChatHandler(app) {
       // Start spinner with ESC handling - UNIFIED!
       spinner.start(controller) // Automatically handles ESC → ☓
 
+      // AbortSignal automatically managed via Event-Driven StateManager
+      // (No manual outputHandler.setAbortSignal needed)
+
       // Prepare messages with context
       const messages = prepareStreamingMessages(stateManager, input)
 
@@ -115,6 +123,10 @@ export function createChatHandler(app) {
       }
       errorHandler.displayError(processedError)
     } finally {
+      // Clear streamProcessor from StateManager
+      const stateManager = app.stateManager
+      stateManager.setStreamProcessor(null)
+
       // Cleanup: dispose spinner only
       // Processing state will be cleared by ApplicationLoop
       spinner.dispose()

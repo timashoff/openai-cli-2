@@ -1,16 +1,16 @@
 import { exec } from 'node:child_process'
 import util from 'node:util'
 import { platform } from 'node:os'
-import { createBaseError } from '../core/error-system/index.js'
-import { sanitizeString } from './validation.js'
-import { APP_CONSTANTS, CLIPBOARD_COMMANDS } from '../config/constants.js'
+import { createBaseError } from '../../core/error-system/index.js'
+import { sanitizeString } from '../../utils/validation.js'
+import { APP_CONSTANTS, CLIPBOARD_COMMANDS } from '../../config/constants.js'
 
 const execution = util.promisify(exec)
 
 export const getClipboardContent = async () => {
   const os = platform()
   const command = CLIPBOARD_COMMANDS[os]
-  
+
   if (!command) {
     throw createBaseError(`Unsupported platform: ${os}`, true, 400)
   }
