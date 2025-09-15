@@ -1,11 +1,11 @@
-import { createNavigationMenu } from './interactive_menu.js'
-import { color } from '../config/color.js'
-import { UI_SYMBOLS } from '../config/constants.js'
+import { createNavigationMenu } from '../../../utils/interactive_menu.js'
+import { color } from '../../../config/color.js'
+import { UI_SYMBOLS } from '../../../config/constants.js'
 
 export async function createToggleMenu(title, items, initialSelection = null, actionButtons = ['Confirm', 'Back']) {
   // Initialize selection state - default to all selected if not specified
   const selection = new Set(initialSelection || items)
-  
+
   while (true) {
     // Generate menu options with toggle indicators
     const menuOptions = [
@@ -19,14 +19,14 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
       '', // Visual separator
       ...actionButtons
     ]
-    
+
     const selectedIndex = await createNavigationMenu(title, menuOptions, 0)
-    
+
     // Handle ESC or cancel
     if (selectedIndex === -1) {
       return null
     }
-    
+
     // Handle item toggle (within items range)
     if (selectedIndex < items.length) {
       const selectedItem = items[selectedIndex]
@@ -37,20 +37,20 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
       }
       continue
     }
-    
+
     // Skip empty separator
     if (selectedIndex === items.length) {
       continue
     }
-    
+
     // Handle action buttons
     const actionIndex = selectedIndex - items.length - 1
     const selectedAction = actionButtons[actionIndex]
-    
+
     if (selectedAction === 'Back') {
       return null
     }
-    
+
     if (selectedAction === 'Confirm') {
       return {
         selectedItems: Array.from(selection),
@@ -58,7 +58,7 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
         action: 'confirm'
       }
     }
-    
+
     // Handle other custom actions
     return {
       selectedItems: Array.from(selection),

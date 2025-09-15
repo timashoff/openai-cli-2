@@ -3,6 +3,10 @@ import { createProviderFactory } from '../utils/providers/factory.js'
 import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { logError, processError } from './error-system/index.js'
+import { EventEmitter } from 'node:events'
+
+// Event emitter for StateManager events (Single Source of Truth)
+const stateManagerEmitter = new EventEmitter()
 
 function createStateManager() {
   // Initialize provider factory
@@ -309,6 +313,9 @@ function createStateManager() {
     // Only update controller if explicitly provided, otherwise keep existing
     if (controller !== null) {
       requestState.currentRequestController = controller
+
+      // Emit abort signal change event for Event-Driven AbortSignal management
+      stateManagerEmitter.emit('abort-signal-changed', controller.signal)
     }
 
     notifyListeners('processing-state-changed', {
@@ -783,3 +790,6 @@ export function resetStateManager() {
   }
   stateManagerInstance = null
 }
+
+// Export StateManager events for Event-Driven architecture
+export { stateManagerEmitter as stateManagerEvents }

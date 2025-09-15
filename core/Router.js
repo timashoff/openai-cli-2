@@ -3,7 +3,7 @@
  * Determines request type and creates commandData - NO business logic execution
  */
 import { logger } from '../utils/logger.js'
-import { inputProcessingService } from '../services/input-processing-service.js'
+import { inputProcessingService } from '../services/input-processing/index.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
 import { logError, processError, errorHandler } from './error-system/index.js'
