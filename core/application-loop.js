@@ -1,6 +1,5 @@
 import readline from 'node:readline/promises'
-import * as readlineSync from 'node:readline'
-import { stdin as input, stdout as output } from 'node:process'
+import { emitKeypressEvents } from 'node:readline'
 import { color } from '../config/color.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { sanitizeString, validateString } from '../utils/validation.js'
@@ -21,9 +20,6 @@ const createCompleter = () => {
   }
 }
 
-/**
- * Factory function to create ApplicationLoop instance (FUNCTIONAL PARADIGM)
- */
 export const createApplicationLoop = (app) => {
   // Get StateManager instance
   const stateManager = getStateManager()
@@ -53,9 +49,6 @@ export const createApplicationLoop = (app) => {
     completer: createCompleter(),
   }
 
-  /**
-   * Create readline interface with proper SIGINT handling (DRY principle)
-   */
   const createReadlineInterface = () => {
     const rl = readline.createInterface(readlineConfig)
 
@@ -67,9 +60,6 @@ export const createApplicationLoop = (app) => {
     return rl
   }
 
-  /**
-   * Temporarily pause readline interface for raw mode menus
-   */
   const pauseReadline = () => {
     if (state.rl) {
       state.rl.close()
@@ -77,21 +67,15 @@ export const createApplicationLoop = (app) => {
     }
   }
 
-  /**
-   * Resume readline interface after raw mode menus
-   */
   const resumeReadline = () => {
     if (!state.rl) {
       state.rl = createReadlineInterface()
     }
   }
 
-  /**
-   * Setup escape key handling through stdin data events (without raw mode)
-   */
   const setupEscapeKeyHandling = () => {
     // Setup keypress events for escape handling (compatible with readline)
-    readlineSync.emitKeypressEvents(process.stdin)
+    emitKeypressEvents(process.stdin)
     process.stdin.on('keypress', (str, key) => {
       if (key && key.name === 'escape') {
         handleEscapeKey()
@@ -99,9 +83,6 @@ export const createApplicationLoop = (app) => {
     })
   }
 
-  /**
-   * Handle escape key press - uses dynamic handler system
-   */
   const handleEscapeKey = () => {
     // If there's a specific handler registered, use it
     if (state.currentEscHandler) {
@@ -132,9 +113,6 @@ export const createApplicationLoop = (app) => {
     process.stdout.write('\x1B[?25h')
   }
 
-  /**
-   * Setup global cleanup handlers (extracted from original)
-   */
   const setupCleanupHandlers = () => {
     const cleanup = () => {
       // No raw mode to disable - using readline interface only
@@ -161,9 +139,6 @@ export const createApplicationLoop = (app) => {
     process.on('exit', cleanup)
   }
 
-  /**
-   * Show initialization spinner using utils/spinner.js
-   */
   const showInitializationSpinner = async (callback) => {
     const spinner = createSpinner('Loading AI providers...')
     spinner.start()
@@ -185,9 +160,6 @@ export const createApplicationLoop = (app) => {
 
   // REMOVED: createSpinner() - using utils/spinner.js instead (DRY principle)
 
-  /**
-   * Process user input with validation (extracted from original)
-   */
   const processUserInput = async (userInput) => {
     try {
       userInput = sanitizeString(userInput)
@@ -207,9 +179,6 @@ export const createApplicationLoop = (app) => {
     }
   }
 
-  /**
-   * Handle empty input logic (extracted from original)
-   */
   const handleEmptyInput = async () => {
     const contextHistory = state.stateManager.getContextHistory()
     if (contextHistory.length) {
@@ -226,9 +195,6 @@ export const createApplicationLoop = (app) => {
     }
   }
 
-  /**
-   * Get user prompt based on screen state (extracted from original)
-   */
   const getUserPrompt = () => {
     const colorInput = color.green
     return state.screenWasCleared
@@ -237,9 +203,6 @@ export const createApplicationLoop = (app) => {
 ${colorInput}> `
   }
 
-  /**
-   * Main interaction loop (extracted from original)
-   */
   const startMainLoop = async () => {
     logger.debug('🎯 Starting CLI main loop')
 
@@ -364,69 +327,19 @@ ${colorInput}> `
     }
   }
 
-  /**
-   * Set request processing state
-   */
-  const setProcessingRequest = (
-    value,
-    controller = null,
-    streamProcessor = null,
-  ) => {
-    // Use StateManager for state management
-    state.stateManager.setProcessingRequest(value, controller)
-    if (streamProcessor) {
-      state.stateManager.setStreamProcessor(streamProcessor)
-    }
 
-    // Enable/disable keypress events for escape handling
-    if (value) {
-      enableKeypressEvents()
-    } else {
-      // Keep keypress events enabled for menu interactions
-      // Only disable when explicitly needed
-    }
-  }
-
-  /**
-   * Enable keypress events for escape handling (selective activation)
-   */
   const enableKeypressEvents = () => {
     if (!state.keypressEnabled) {
       // Enable keypress events without raw mode to avoid readline conflicts
-      readlineSync.emitKeypressEvents(process.stdin)
+      emitKeypressEvents(process.stdin)
       process.stdin.on('keypress', state.globalKeyPressHandler)
       state.keypressEnabled = true
     }
   }
 
-  /**
-   * Disable keypress events
-   */
-  const disableKeypressEvents = () => {
-    if (state.keypressEnabled) {
-      process.stdin.removeListener('keypress', state.globalKeyPressHandler)
-      state.keypressEnabled = false
-    }
-  }
 
-  /**
-   * Start interactive session (e.g., command menus) - enables ESC handling
-   */
-  const startInteractiveSession = () => {
-    enableKeypressEvents()
-  }
 
-  /**
-   * End interactive session - keeps keypress for main loop
-   */
-  const endInteractiveSession = () => {
-    // Keep keypress events enabled for main application ESC handling
-    // Don't disable unless explicitly needed
-  }
 
-  /**
-   * Register a custom ESC handler - returns handler ID for unregistering
-   */
   const registerEscHandler = (handlerFunction, description = '') => {
     const handlerId = ++state.handlerIdCounter
     state.escHandlers.set(handlerId, {
@@ -442,9 +355,6 @@ ${colorInput}> `
     return handlerId
   }
 
-  /**
-   * Unregister ESC handler by ID
-   */
   const unregisterEscHandler = (handlerId) => {
     const handlerData = state.escHandlers.get(handlerId)
     if (handlerData) {
@@ -463,9 +373,6 @@ ${colorInput}> `
     return false
   }
 
-  /**
-   * Clear all custom ESC handlers - revert to default behavior
-   */
   const clearAllEscHandlers = () => {
     const count = state.escHandlers.size
     state.escHandlers.clear()
@@ -473,9 +380,6 @@ ${colorInput}> `
     logger.debug(`All ESC handlers cleared (${count} handlers)`)
   }
 
-  /**
-   * Get list of registered ESC handlers (for debugging)
-   */
   const getEscHandlers = () => {
     const handlers = []
     for (const [id, data] of state.escHandlers) {
@@ -489,50 +393,10 @@ ${colorInput}> `
     return handlers
   }
 
-  /**
-   * Set typing response state
-   */
-  const setTypingResponse = (value) => {
-    // Use StateManager for state management
-    state.stateManager.setTypingResponse(value)
-  }
 
-  /**
-   * Set spinner interval
-   */
-  const setSpinnerInterval = (interval) => {
-    // Use StateManager for state management
-    state.stateManager.setSpinnerInterval(interval)
-  }
 
-  /**
-   * Set return to prompt flag
-   */
-  const setShouldReturnToPrompt = (value) => {
-    // Use StateManager for state management
-    state.stateManager.setShouldReturnToPrompt(value)
-  }
 
-  /**
-   * Get current CLI state
-   */
-  const getState = () => {
-    const operationState = state.stateManager.getOperationState()
-    return {
-      isProcessingRequest: operationState.isProcessingRequest,
-      isTypingResponse: operationState.isTypingResponse,
-      shouldReturnToPrompt: operationState.shouldReturnToPrompt,
-      screenWasCleared: state.screenWasCleared,
-    }
-  }
 
-  // REMOVED: Theatrical methods (writeOutput, writeWarning, writeInfo, writeError, showContextHistory)
-  // These methods were not used anywhere in the codebase - PURE THEATER!
-  // Use errorHandler.handleError() and outputHandler.* methods instead
-
-  /**
-   * Handle Ctrl+C interrupt gracefully (same as ESC + exit)
-   */
   const handleInterrupt = async () => {
     // Check if we have active requests that need graceful cancellation
     const controller = state.stateManager.getCurrentRequestController()
@@ -558,78 +422,63 @@ ${colorInput}> `
     await exitApp()
   }
 
-  /**
-   * Graceful application exit with resource cleanup
-   */
   const exitApp = async () => {
-    // Предотвращаем повторный вызов
+    // Prevent duplicate calls
     if (state.isExiting) return
     state.isExiting = true
 
     outputHandler.writeInfo('Shutting down...')
 
-    // ФАЗА 1: Немедленно останавливаем пользовательский ввод
+    // PHASE 1: Immediately stop user input
     stopUserInput()
 
-    // ФАЗА 2: Отменяем активные операции
+    // PHASE 2: Cancel active operations
     await cancelActiveOperations()
 
-    // ФАЗА 3: Финальная очистка и выход
+    // PHASE 3: Final cleanup and exit
     finalCleanup()
   }
 
-  /**
-   * Stop user input immediately
-   */
   const stopUserInput = () => {
     if (state.rl && !state.rl.closed) {
-      state.rl.close() // Разблокирует rl.question()
+      state.rl.close() // Unblocks rl.question()
     }
   }
 
-  /**
-   * Cancel active operations and cleanup resources
-   */
   const cancelActiveOperations = async () => {
     // Clear all custom ESC handlers
     clearAllEscHandlers()
 
-    // Отменяем активные LLM запросы (экономия токенов)
+    // Cancel active LLM requests (save tokens)
     const controller = state.stateManager.getCurrentRequestController()
     if (controller) {
       controller.abort()
       outputHandler.writeWarning('Cancelled pending AI request')
-      // Даем время на отправку abort сигнала
+      // Give time for abort signal to be sent
       await new Promise((r) => setTimeout(r, 100))
     }
 
-    // Очищаем таймеры
+    // Clear timers
     const spinnerInterval = state.stateManager.getSpinnerInterval()
     if (spinnerInterval) {
       clearInterval(spinnerInterval)
       state.stateManager.setSpinnerInterval(null)
     }
 
-    // Отключаем слушателей событий
+    // Remove event listeners
     process.stdin.removeAllListeners('keypress')
   }
 
-  /**
-   * Final cleanup and process exit
-   */
   const finalCleanup = () => {
-    // Показываем курсор
+    // Show cursor
     outputHandler.showCursor()
 
-    // Прощальное сообщение
+    // Farewell message
     outputHandler.writeSuccess('Goodbye!')
 
-    // Даем 50ms на вывод сообщения, затем выход
+    // Give 50ms for message output, then exit
     setTimeout(() => process.exit(0), 50)
   }
-
-  // REMOVED: processStreamingResponse() - DUPLICATES utils/stream-processor.js!
-  // Use createStreamProcessor() from utils/stream-processor.js instead
 
   // Forward declaration for applicationLoopInstance
   const applicationLoopInstance = {}
@@ -662,16 +511,7 @@ ${colorInput}> `
 
     // Keypress management
     enableKeypressEvents,
-    disableKeypressEvents,
-    startInteractiveSession,
-    endInteractiveSession,
 
-    // Processing state
-    setProcessingRequest,
-    setTypingResponse,
-    setSpinnerInterval,
-    setShouldReturnToPrompt,
-    getState,
 
     // Spinner functionality (using utils/spinner.js)
     showInitializationSpinner,
