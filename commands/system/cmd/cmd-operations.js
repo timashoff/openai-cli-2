@@ -2,8 +2,8 @@ import {
   createNavigationMenu,
   createTextInput,
 } from '../../../utils/interactive_menu.js'
-import { createToggleMenu } from '../../../utils/toggle-menu.js'
-import { createSelectionTitle } from '../../../utils/menu-helpers.js'
+import { createToggleMenu } from './toggle-menu.js'
+import { createSelectionTitle } from './menu-helpers.js'
 import { outputHandler } from '../../../core/print/output.js'
 import { color } from '../../../config/color.js'
 import { databaseCommandService } from '../../../services/database-command-service.js'
