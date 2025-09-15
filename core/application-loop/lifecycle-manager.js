@@ -38,8 +38,8 @@ export const createLifecycleManager = (state) => {
       // There's an active request - cancel it gracefully like ESC does
       controller.abort()
 
-      // Use outputHandler with abort signal like ESC does
-      outputHandler.setAbortSignal(controller.signal)
+      // AbortSignal automatically managed via Event-Driven StateManager
+      // (No manual outputHandler.setAbortSignal needed)
 
       // Clean up streaming state
       if (state.stateManager.isTypingResponse()) {

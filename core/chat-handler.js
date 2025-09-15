@@ -77,8 +77,8 @@ export function createChatHandler(app) {
       // Start spinner with ESC handling - UNIFIED!
       spinner.start(controller) // Automatically handles ESC → ☓
 
-      // Setup abort signal for outputHandler (FIX for missing output after ESC)
-      outputHandler.setAbortSignal(controller.signal)
+      // AbortSignal automatically managed via Event-Driven StateManager
+      // (No manual outputHandler.setAbortSignal needed)
 
       // Prepare messages with context
       const messages = prepareStreamingMessages(stateManager, input)
