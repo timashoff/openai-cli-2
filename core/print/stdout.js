@@ -74,7 +74,7 @@ export const stdout = {
    */
   clearScreen() {
     target.write(ANSI.CLEAR.SCREEN) // clear visible screen
-    // target.write(ANSI.CLEAR.SCROLLBACK)  // clear scrollback buffer
+    target.write(ANSI.CLEAR.SCROLLBACK) // clear scrollback buffer
     target.write(ANSI.MOVE.HOME) // move cursor to home position
   },
 }
