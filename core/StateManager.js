@@ -6,7 +6,16 @@ import { logError, processError } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
-const stateManagerEmitter = new EventEmitter()
+export const stateManagerEvents = new EventEmitter()
+
+// Centralized error handling for EventEmitter (CLAUDE.md compliance)
+stateManagerEvents.on('error', async (error) => {
+  const processedError = await processError(error, {
+    context: 'StateManager:EventSystem',
+    component: 'stateManagerEvents'
+  })
+  await logError(processedError)
+})
 
 function createStateManager() {
   // Initialize provider factory
@@ -44,8 +53,6 @@ function createStateManager() {
   }
 
 
-  // State change listeners
-  const listeners = new Map()
 
   // === MAIN OPERATIONS - StateManager handles switching ===
 
@@ -188,7 +195,7 @@ function createStateManager() {
       process.title = aiState.currentModel
     }
 
-    notifyListeners('ai-provider-changed', {
+    stateManagerEvents.emit('ai-provider-changed', {
       previous: previousProvider,
       current: providerInfo.key,
       model: providerInfo.model,
@@ -204,7 +211,7 @@ function createStateManager() {
       process.title = modelId
     }
 
-    notifyListeners('model-changed', {
+    stateManagerEvents.emit('model-changed', {
       previous: previousModel,
       current: modelId,
     })
@@ -268,10 +275,10 @@ function createStateManager() {
       requestState.currentRequestController = controller
 
       // Emit abort signal change event for Event-Driven AbortSignal management
-      stateManagerEmitter.emit('abort-signal-changed', controller.signal)
+      stateManagerEvents.emit('abort-signal-changed', controller.signal)
     }
 
-    notifyListeners('processing-state-changed', {
+    stateManagerEvents.emit('processing-state-changed', {
       isProcessing,
       hasController: !!requestState.currentRequestController,
     })
@@ -279,7 +286,7 @@ function createStateManager() {
 
   function setTypingResponse(isTyping) {
     operationState.isTypingResponse = isTyping
-    notifyListeners('typing-state-changed', { isTyping })
+    stateManagerEvents.emit('typing-state-changed', { isTyping })
   }
 
 
@@ -339,7 +346,7 @@ function createStateManager() {
 
   function clearRequestController() {
     requestState.currentRequestController = null
-    notifyListeners('controller-cleared', {
+    stateManagerEvents.emit('controller-cleared', {
       timestamp: Date.now(),
     })
   }
@@ -356,7 +363,7 @@ function createStateManager() {
 
     // Notify listeners - DatabaseCommandService should listen to this event
     // and handle its own cache invalidation (Single Source of Truth principle)
-    notifyListeners('all-operations-cleared', {
+    stateManagerEvents.emit('all-operations-cleared', {
       timestamp: Date.now(),
     })
 
@@ -375,7 +382,7 @@ function createStateManager() {
       )
     }
 
-    notifyListeners('context-updated', {
+    stateManagerEvents.emit('context-updated', {
       role,
       content,
       historyLength: contextState.contextHistory.length,
@@ -384,7 +391,7 @@ function createStateManager() {
 
   function clearContext() {
     contextState.contextHistory = []
-    notifyListeners('context-cleared', {})
+    stateManagerEvents.emit('context-cleared', {})
   }
 
   function getContextHistory() {
@@ -396,33 +403,13 @@ function createStateManager() {
   // === Event Listener Management ===
 
   function addListener(event, callback) {
-    if (!listeners.has(event)) {
-      listeners.set(event, new Set())
-    }
-    listeners.get(event).add(callback)
+    stateManagerEvents.on(event, callback)
   }
 
   function removeListener(event, callback) {
-    if (listeners.has(event)) {
-      listeners.get(event).delete(callback)
-    }
+    stateManagerEvents.removeListener(event, callback)
   }
 
-  function notifyListeners(event, data) {
-    if (listeners.has(event)) {
-      listeners.get(event).forEach((callback) => {
-        try {
-          callback(data)
-        } catch (error) {
-          // Use async IIFE for processError in event listener
-          ;(async () => {
-            const processedError = await processError(error, { context: 'StateManager:eventListener', component: event })
-            await logError(processedError)
-          })()
-        }
-      })
-    }
-  }
 
   // === Utility Methods ===
 
@@ -443,7 +430,7 @@ function createStateManager() {
     clearRequestState()
     clearContext()
 
-    notifyListeners('state-reset', {})
+    stateManagerEvents.emit('state-reset', {})
   }
 
 
@@ -578,7 +565,6 @@ function createStateManager() {
     // Event listeners
     addListener,
     removeListener,
-    notifyListeners,
 
     // Utilities
     reset,
@@ -601,5 +587,3 @@ export function resetStateManager() {
   stateManagerInstance = null
 }
 
-// Export StateManager events for Event-Driven architecture
-export { stateManagerEmitter as stateManagerEvents }
