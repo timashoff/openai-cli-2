@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger.js'
 import { getClipboardContent } from './clipboard-content.js'
 import { sanitizeString } from '../../utils/validation.js'
 import { APP_CONSTANTS } from '../../config/constants.js'
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 import { logError, processError, createBaseError } from '../../core/error-system/index.js'
 
 /**
@@ -73,7 +73,7 @@ function createInputProcessingService() {
         `InputProcessingService: Clipboard content inserted: ${sanitizedContent.length} chars`,
       )
       console.log(
-        `${color.grey}[Clipboard content inserted (${sanitizedContent.length} chars)]${color.reset}`,
+        `${ANSI.COLORS.GREY}[Clipboard content inserted (${sanitizedContent.length} chars)]${ANSI.COLORS.RESET}`,
       )
 
       return processedInput

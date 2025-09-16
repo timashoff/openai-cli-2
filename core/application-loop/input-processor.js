@@ -1,8 +1,8 @@
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 import { APP_CONSTANTS } from '../../config/constants.js'
 import { sanitizeString, validateString } from '../../utils/validation.js'
 import { errorHandler } from '../error-system/index.js'
-import { outputHandler } from '../print/output.js'
+import { outputHandler } from '../print/index.js'
 
 export const createInputProcessor = (stateManager) => {
   const processUserInput = async (userInput) => {
@@ -11,7 +11,7 @@ export const createInputProcessor = (stateManager) => {
 
       if (userInput.length > APP_CONSTANTS.MAX_INPUT_LENGTH) {
         console.log(
-          `${color.red}Error: Input too long (max ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)${color.reset}`,
+          `${ANSI.COLORS.RED}Error: Input too long (max ${APP_CONSTANTS.MAX_INPUT_LENGTH} characters)${ANSI.COLORS.RESET}`,
         )
         return false
       }
@@ -41,7 +41,7 @@ export const createInputProcessor = (stateManager) => {
   }
 
   const getUserPrompt = (screenWasCleared) => {
-    const colorInput = color.green
+    const colorInput = ANSI.COLORS.GREEN
     return screenWasCleared
       ? `${colorInput}> `
       : `

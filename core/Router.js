@@ -1,54 +1,78 @@
-/**
- * Router - Pure routing decisions only (DECISION ENGINE)
- * Determines request type and creates commandData - NO business logic execution
- */
 import { logger } from '../utils/logger.js'
 import { inputProcessingService } from '../services/input-processing/index.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
-import { logError, processError, errorHandler } from './error-system/index.js'
-import { outputHandler } from './print/output.js'
+import { errorHandler } from './error-system/index.js'
+import { outputHandler } from './print/index.js'
 
-export class Router {
-  constructor(dependencies = {}) {
-    // Use singleton InputProcessingService (Single Source of Truth for commands)
-    this.commandProcessingService = dependencies.commandProcessingService || inputProcessingService
+export const createRouter = (dependencies = {}) => {
+  // Request types constants
+  const REQUEST_TYPES = {
+    SYSTEM: 'system',
+    INSTRUCTION: 'instruction',
+    INVALID: 'invalid',
+    CHAT: 'chat'
+  }
 
-    // Handler dependencies (injected from app)
-    this.systemCommandHandler = dependencies.systemCommandHandler || systemCommandHandler
-    this.multiModelCommand = dependencies.multiModelCommand || null
-    this.singleModelCommand = dependencies.singleModelCommand || null
-    this.chatHandler = dependencies.chatHandler || null
+  // Handler functions mapped to request types (replaces switch/case)
+  const executionHandlers = {
+    [REQUEST_TYPES.SYSTEM]: async (analysis, applicationLoop, handlers) => {
+      return await handlers.systemCommandHandler.handle(analysis.rawInput, applicationLoop)
+    },
 
-    // Request types
-    this.REQUEST_TYPES = {
-      SYSTEM: 'system',
-      INSTRUCTION: 'instruction',
-      INVALID: 'invalid',
-      CHAT: 'chat'
+    [REQUEST_TYPES.INSTRUCTION]: async (analysis, applicationLoop, handlers) => {
+      // Create data object - Single Source of Truth
+      const instructionData = createData({
+        content: analysis.instructionCommand.content,
+        userInput: analysis.instructionCommand.userInput,
+        instruction: analysis.instructionCommand.instruction,
+        commandId: analysis.instructionCommand.id,
+        models: analysis.instructionCommand.models || []
+      })
+
+      // Route based on model count (moved from CommandHandler)
+      if (instructionData.models.length > 1) {
+        logger.debug('Router: Routing to MultiModelCommand')
+        return await handlers.multiModelCommand.execute(instructionData, applicationLoop.app)
+      } else {
+        logger.debug('Router: Routing to SingleModelCommand')
+        return await handlers.singleModelCommand.execute(instructionData)
+      }
+    },
+
+    [REQUEST_TYPES.INVALID]: async (analysis) => {
+      outputHandler.writeError(analysis.error)
+      return null
+    },
+
+    [REQUEST_TYPES.CHAT]: async (analysis, applicationLoop, handlers) => {
+      logger.debug('Router: Routing to ChatHandler')
+      return await handlers.chatHandler.handle(analysis.rawInput)
     }
   }
 
-  /**
-   * Initialize the router
-   */
-  async initialize() {
-    // Initialize CommandProcessingService
-    await this.commandProcessingService.initialize()
+  // State encapsulation through closures
+  const state = {
+    commandProcessingService: dependencies.commandProcessingService || inputProcessingService,
+    systemCommandHandler: dependencies.systemCommandHandler || systemCommandHandler,
+    multiModelCommand: dependencies.multiModelCommand || null,
+    singleModelCommand: dependencies.singleModelCommand || null,
+    chatHandler: dependencies.chatHandler || null
+  }
 
+  const initialize = async () => {
+    // Initialize CommandProcessingService
+    await state.commandProcessingService.initialize()
     logger.debug('Router initialized - routing decisions only')
   }
 
-  /**
-   * Route and process user input - DECISION + EXECUTION (ONE PASS)
-   */
-  async routeAndProcess(input, applicationLoop) {
+  const routeAndProcess = async (input, applicationLoop) => {
     try {
       // Single pass: analyze input and get all data needed (NO DUPLICATION)
-      const analysis = await this.analyzeInput(input)
+      const analysis = await analyzeInput(input)
 
-      // Execute based on analysis type
-      return await this.executeFromAnalysis(analysis, applicationLoop)
+      // Execute based on analysis type using functional handlers
+      return await executeFromAnalysis(analysis, applicationLoop)
 
     } catch (error) {
       await errorHandler.handleError(error, { context: 'Router:routeAndProcess' })
@@ -56,48 +80,12 @@ export class Router {
     }
   }
 
-  /**
-   * Execute command from analysis - SINGLE SOURCE OF TRUTH for data creation
-   */
-  async executeFromAnalysis(analysis, applicationLoop) {
-    switch (analysis.type) {
-      case this.REQUEST_TYPES.SYSTEM:
-        return await this.systemCommandHandler.handle(analysis.rawInput, applicationLoop)
-
-      case this.REQUEST_TYPES.INSTRUCTION:
-        // Create data object - Single Source of Truth
-        const instructionData = this.createData({
-          content: analysis.instructionCommand.content,
-          userInput: analysis.instructionCommand.userInput,
-          instruction: analysis.instructionCommand.instruction,
-          commandId: analysis.instructionCommand.id,
-          models: analysis.instructionCommand.models || []
-        })
-
-        // Route based on model count (moved from CommandHandler)
-        if (instructionData.models.length > 1) {
-          logger.debug('Router: Routing to MultiModelCommand')
-          return await this.multiModelCommand.execute(instructionData, applicationLoop.app)
-        } else {
-          logger.debug('Router: Routing to SingleModelCommand')
-          return await this.singleModelCommand.execute(instructionData)
-        }
-
-      case this.REQUEST_TYPES.INVALID:
-        outputHandler.writeError(analysis.error)
-        return null
-
-      case this.REQUEST_TYPES.CHAT:
-      default:
-        logger.debug('Router: Routing to ChatHandler')
-        return await this.chatHandler.handle(analysis.rawInput)
-    }
+  const executeFromAnalysis = async (analysis, applicationLoop) => {
+    const handler = executionHandlers[analysis.type] || executionHandlers[REQUEST_TYPES.CHAT]
+    return await handler(analysis, applicationLoop, state)
   }
 
-  /**
-   * Create standardized data object - Single Source of Truth
-   */
-  createData(options = {}) {
+  const createData = (options = {}) => {
     return {
       content: options.content || '',
       userInput: options.userInput || options.content || '',
@@ -107,41 +95,37 @@ export class Router {
     }
   }
 
-
-  /**
-   * Analyze input in ONE PASS - get type + all command data (NO DUPLICATION!)
-   */
-  async analyzeInput(input) {
+  const analyzeInput = async (input) => {
     const trimmedInput = input.trim()
 
     // Process clipboard markers FIRST (before any analysis)
-    const cleanInput = await this.commandProcessingService.processInput(trimmedInput)
+    const cleanInput = await state.commandProcessingService.processInput(trimmedInput)
 
     // 1. System commands first (PRIORITY)
     const commandName = cleanInput.split(' ')[0].toLowerCase()
     if (isSystemCommand(commandName)) {
       return {
-        type: this.REQUEST_TYPES.SYSTEM,
+        type: REQUEST_TYPES.SYSTEM,
         rawInput: cleanInput,
         commandName
       }
     }
 
     // 2. Instruction commands - ONE database search!
-    const instructionCommand = await this.commandProcessingService.findInstructionCommand(cleanInput)
-    
+    const instructionCommand = await state.commandProcessingService.findInstructionCommand(cleanInput)
+
     if (instructionCommand) {
       // Check for invalid commands first
       if (instructionCommand.isInvalid) {
         return {
-          type: this.REQUEST_TYPES.INVALID,
+          type: REQUEST_TYPES.INVALID,
           rawInput: cleanInput,
           error: instructionCommand.error
         }
       }
-      
+
       return {
-        type: this.REQUEST_TYPES.INSTRUCTION,
+        type: REQUEST_TYPES.INSTRUCTION,
         rawInput: cleanInput,
         instructionCommand: instructionCommand
       }
@@ -149,36 +133,14 @@ export class Router {
 
     // 3. Default to chat
     return {
-      type: this.REQUEST_TYPES.CHAT,
+      type: REQUEST_TYPES.CHAT,
       rawInput: cleanInput
     }
   }
 
-  /**
-   * Get routing target based on command type - DECISION ONLY
-   */
-  getRoutingTarget(commandType, input) {
-    switch (commandType) {
-      case this.REQUEST_TYPES.SYSTEM:
-        return 'system_command_handler'
-
-      case this.REQUEST_TYPES.INSTRUCTION:
-        return 'instruction_processor'
-
-      case this.REQUEST_TYPES.CHAT:
-      default:
-        return 'ai_processor'
-    }
-  }
-
-
-  /**
-   * Get routing statistics
-   */
-  getRoutingStats() {
-    return {
-      requestTypes: Object.values(this.REQUEST_TYPES),
-      commandProcessingServiceReady: this.commandProcessingService.initialized
-    }
+  return {
+    initialize,
+    routeAndProcess,
+    analyzeInput
   }
 }

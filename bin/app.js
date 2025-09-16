@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { logger } from '../utils/logger.js'
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../core/print/index.js'
 import { errorHandler } from '../core/error-system/index.js'
-import { Router } from '../core/Router.js'
+import { createRouter } from '../core/router.js'
 import { createApplicationLoop } from '../core/application-loop/index.js'
 import { createChatHandler } from '../core/chat-handler.js'
 import { createSingleModelCommand } from '../commands/single-model-command.js'
@@ -49,7 +49,7 @@ async function start() {
     const applicationLoop = createApplicationLoop(appContext)
 
     // Create router with all handler dependencies
-    const router = new Router({
+    const router = createRouter({
       systemCommandHandler,
       multiModelCommand,
       singleModelCommand,
