@@ -1,7 +1,7 @@
-import { color } from '../config/color.js'
-import { APP_CONSTANTS, UI_SYMBOLS } from '../config/constants.js'
+import { color } from '../../../config/color.js'
+import { APP_CONSTANTS, UI_SYMBOLS } from '../../../config/constants.js'
 import readline from 'node:readline'
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../../../core/print/output.js'
 
 export async function createNavigationMenu(title, options, initialIndex = 0, context = null) {
   const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
@@ -17,18 +17,18 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       context.ui.pauseReadline()
     }
 
-    // Setup readline for key handling - РАБОЧИЙ КОД из interactive_menu.js
+    // Setup readline for key handling - working code from interactive_menu.js
     readline.emitKeypressEvents(process.stdin)
     const wasRawMode = process.stdin.isRaw
-    
-    // Force raw mode to block regular input - ВОТ ЭТО БЛОКИРУЕТ ТЕКСТ!
+
+    // Force raw mode to block regular input - this blocks text input
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true)
     }
-    
+
     // Resume stdin to ensure we get keypress events
     process.stdin.resume()
-    
+
     // Clear any accumulated input buffer to prevent leakage
     if (process.stdin.readable && process.stdin.readableLength > 0) {
       process.stdin.read()
@@ -74,8 +74,8 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
     const skipEmptyOptions = (direction) => {
       const increment = direction === 'up' ? -1 : 1
       while (
-        menuState.selectedIndex > 0 && 
-        menuState.selectedIndex < options.length - 1 && 
+        menuState.selectedIndex > 0 &&
+        menuState.selectedIndex < options.length - 1 &&
         options[menuState.selectedIndex] === ''
       ) {
         menuState.selectedIndex += increment
@@ -129,7 +129,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
 
     const onKeypress = (str, key) => {
       if (!key.name) return
-      
+
       // Allow Ctrl+C for emergency exit
       if (key.ctrl && key.name === 'c') {
         cleanupAndExit(APP_CONSTANTS.MENU_CANCELLED_INDEX)
@@ -144,7 +144,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
         left: previousPage,
         right: nextPage
       }
-      
+
       const handler = keyHandlers[key.name]
       if (handler) {
         handler()

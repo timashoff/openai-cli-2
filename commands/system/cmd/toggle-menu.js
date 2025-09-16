@@ -1,4 +1,4 @@
-import { createNavigationMenu } from '../../../utils/interactive_menu.js'
+import { createNavigationMenu } from '../ui/interactive-menu.js'
 import { color } from '../../../config/color.js'
 import { UI_SYMBOLS } from '../../../config/constants.js'
 

@@ -1,7 +1,7 @@
 import {
   createNavigationMenu,
   createTextInput,
-} from '../../../utils/interactive_menu.js'
+} from '../ui/interactive-menu.js'
 import { createToggleMenu } from './toggle-menu.js'
 import { createSelectionTitle } from './menu-helpers.js'
 import { outputHandler } from '../../../core/print/output.js'
@@ -11,9 +11,6 @@ import { createSpinner } from '../../../utils/spinner.js'
 import { APP_CONSTANTS } from '../../../config/constants.js'
 import { getAllSystemCommandNames } from '../../../utils/system-commands.js'
 
-/**
- * Collection editing actions
- */
 const COLLECTION_ACTIONS = {
   ADD: 'Add',
   REMOVE: 'Remove',
@@ -21,16 +18,10 @@ const COLLECTION_ACTIONS = {
   BACK: 'Back',
 }
 
-/**
- * Clean input helper
- */
 function getCleanInput(input) {
   return input?.trim() || null
 }
 
-/**
- * Configuration objects for different collection types
- */
 const COLLECTION_CONFIGS = {
   keys: {
     fieldName: 'key',
@@ -55,9 +46,6 @@ const COLLECTION_CONFIGS = {
   },
 }
 
-/**
- * Main menu actions
- */
 const mainMenuActions = [
   { name: 'Add command', action: handleAddCommand },
   { name: 'Edit command', action: handleEditCommand },
@@ -66,9 +54,6 @@ const mainMenuActions = [
   { name: 'Exit', action: null },
 ]
 
-/**
- * Base CMD Command functional object (NO CLASS!)
- */
 export const BaseCmdCommand = {
   async execute(args = [], context = {}) {
     let escHandlerId = null
@@ -142,9 +127,6 @@ export const BaseCmdCommand = {
   },
 }
 
-/**
- * Handle adding new command
- */
 async function handleAddCommand(context) {
   try {
     console.log(color.cyan + '\n=== Add New Command ===' + color.reset)
@@ -185,9 +167,6 @@ async function handleAddCommand(context) {
   }
 }
 
-/**
- * Handle editing existing command
- */
 async function handleEditCommand(context) {
   try {
     const commands = databaseCommandService.getCommands()
@@ -262,9 +241,6 @@ async function handleEditCommand(context) {
   }
 }
 
-/**
- * Edit command fields with step-by-step menus
- */
 async function editCommandFields(commandData, context, mode) {
   const originalData = JSON.parse(JSON.stringify(commandData))
 
@@ -326,18 +302,12 @@ async function editCommandFields(commandData, context, mode) {
   }
 }
 
-/**
- * Truncate text to maximum length with ellipsis
- */
 function truncateText(text) {
   return text.length > APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH
     ? text.substring(0, APP_CONSTANTS.FIELD_VALUE_MAX_LENGTH) + '...'
     : text
 }
 
-/**
- * Field formatters object - functional approach instead of switch case
- */
 const fieldFormatters = {
   Name: (data) =>
     data.name ? truncateText(data.name) : color.red + 'null' + color.reset,
@@ -360,24 +330,15 @@ const fieldFormatters = {
   },
 }
 
-/**
- * Format field value for inline display using formatters object
- */
 function formatFieldValue(fieldName, commandData) {
   const formatter = fieldFormatters[fieldName]
   return formatter ? formatter(commandData) : ''
 }
 
-/**
- * Check if command data has changes compared to original
- */
 function hasChanges(originalData, currentData) {
   return JSON.stringify(originalData) !== JSON.stringify(currentData)
 }
 
-/**
- * Get list of changed field names using functional approach
- */
 function getChangedFields(originalData, currentData) {
   const fieldCheckers = {
     Name: (orig, curr) => orig.name !== curr.name,
@@ -393,9 +354,6 @@ function getChangedFields(originalData, currentData) {
     .map(([fieldName]) => fieldName)
 }
 
-/**
- * Generate collection actions based on item count
- */
 function generateCollectionActions(items) {
   const actions = [COLLECTION_ACTIONS.ADD]
 
@@ -413,9 +371,6 @@ function generateCollectionActions(items) {
   return actions
 }
 
-/**
- * Universal collection editor
- */
 async function editCollection(commandData, context, configKey) {
   const config = COLLECTION_CONFIGS[configKey]
   const items = commandData[config.fieldName]
@@ -445,9 +400,6 @@ async function editCollection(commandData, context, configKey) {
   }
 }
 
-/**
- * Handle collection action
- */
 async function handleCollectionAction(action, commandData, context, config) {
   const items = commandData[config.fieldName]
 
@@ -465,9 +417,6 @@ async function handleCollectionAction(action, commandData, context, config) {
   }
 }
 
-/**
- * Generate menu options with inline field values and dynamic action buttons
- */
 function generateMenuWithValues(
   commandData,
   fieldOptions,
