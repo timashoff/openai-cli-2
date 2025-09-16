@@ -38,6 +38,22 @@ export const createBaseProvider = (config) => {
     }
   }
 
+  // Timing utilities - Single Source of Truth for provider timing
+  // Follows Colocation Principle: used only by providers, lives with providers
+  const measureTime = async (operation) => {
+    const startTime = Date.now()
+    try {
+      const result = await operation()
+      const responseTime = Date.now() - startTime
+      recordRequest(responseTime)
+      return { result, responseTime, error: null }
+    } catch (error) {
+      const responseTime = Date.now() - startTime
+      recordRequest(responseTime, error)
+      return { result: null, responseTime, error }
+    }
+  }
+
   const getStats = () => {
     return {
       ...state.stats,
@@ -68,6 +84,7 @@ export const createBaseProvider = (config) => {
     validateConfig,
     getApiKey,
     recordRequest,
+    measureTime,
     getStats,
     listModels,
     createChatCompletion,

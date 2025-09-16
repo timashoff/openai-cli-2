@@ -33,30 +33,25 @@ export const createAnthropicProvider = (config) => {
   }
 
   const listModels = async () => {
-    const startTime = Date.now()
-
-    try {
+    const { result, error } = await base.measureTime(async () => {
       const response = await makeRequest('https://api.anthropic.com/v1/models')
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime)
-
       const data = await response.json()
       return data.data || []
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime, error)
+    })
+
+    if (error) {
       throw createBaseError(`Failed to list Anthropic models: ${error.message}`, true, 500)
     }
+
+    return result
   }
 
   const createChatCompletion = async (model, messages, options = {}) => {
-    const startTime = Date.now()
-
     const { signal, ...apiOptions } = options
 
-    try {
+    const { result, error } = await base.measureTime(async () => {
       // Filter out empty messages (Anthropic doesn't allow empty content)
-      const filteredMessages = messages.filter(msg => 
+      const filteredMessages = messages.filter(msg =>
         msg.content && msg.content.trim().length > 0
       )
 
@@ -74,20 +69,17 @@ export const createAnthropicProvider = (config) => {
         body: JSON.stringify(requestBody)
       })
 
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime)
-
       return response.body
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime, error)
+    })
 
+    if (error) {
       if (signal && signal.aborted) {
         throw new Error('AbortError')
       }
-
       throw createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
     }
+
+    return result
   }
 
   const validateModel = async (modelId) => {

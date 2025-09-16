@@ -21,48 +21,38 @@ export const createOpenAIProvider = (config) => {
   }
 
   const listModels = async () => {
-    const startTime = Date.now()
-
-    try {
+    const { result, error } = await base.measureTime(async () => {
       const response = await client.models.list()
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime)
-
       return response.data.sort((a, b) => a.id.localeCompare(b.id))
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime, error)
+    })
+
+    if (error) {
       throw createBaseError(`Failed to list models: ${error.message}`, true, 500)
     }
+
+    return result
   }
 
   const createChatCompletion = async (model, messages, options = {}) => {
-    const startTime = Date.now()
-
     const { signal, ...apiOptions } = options
 
-    try {
-      const response = await client.chat.completions.create({
+    const { result, error } = await base.measureTime(async () => {
+      return await client.chat.completions.create({
         model,
         messages,
         stream: apiOptions.stream || true,
         ...apiOptions
       }, signal ? { signal } : {})
+    })
 
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime)
-
-      return response
-    } catch (error) {
-      const responseTime = Date.now() - startTime
-      base.recordRequest(responseTime, error)
-
+    if (error) {
       if (signal && signal.aborted) {
         throw new Error('AbortError')
       }
-
       throw createBaseError(`Failed to create chat completion: ${error.message}`, true, 500)
     }
+
+    return result
   }
 
   const validateModel = async (modelId) => {
