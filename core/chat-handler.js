@@ -2,10 +2,9 @@ import { logger } from '../utils/logger.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from './error-system/index.js'
-import { outputHandler } from './print/output.js'
+import { outputHandler } from './print/index.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
-import { updateSingleContext } from '../utils/context-utils.js'
-import { executeStreamingRequest } from '../utils/streaming-utils.js'
+import { updateContext } from '../utils/context-utils.js'
 
 export function createChatHandler(app) {
   async function handleStreamResponse(stream, controller, spinner) {
@@ -84,11 +83,10 @@ export function createChatHandler(app) {
       const messages = prepareStreamingMessages(stateManager, input)
 
       // Create streaming request with abort signal - use StateManager directly
-      const stream = await executeStreamingRequest(
-        stateManager,
-        messages,
-        controller,
-      )
+      const stream = await stateManager.createChatCompletion(messages, {
+        stream: true,
+        signal: controller.signal
+      })
 
       // Process streaming response
       const response = await handleStreamResponse(stream, controller, spinner)
@@ -102,7 +100,7 @@ export function createChatHandler(app) {
           process.stdout.write('\n')
         }
 
-        updateSingleContext(stateManager, input, fullResponse)
+        updateContext(stateManager, input, fullResponse)
 
         // Display context dots after response
         outputHandler.writeContextDots(stateManager)

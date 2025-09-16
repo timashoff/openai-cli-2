@@ -3,6 +3,7 @@
  * NO formatting, NO colors - only raw terminal operations
  * Single Responsibility: process.stdout manipulation
  */
+import { ANSI } from '../../config/ansi.js'
 
 const target = process.stdout
 
@@ -50,30 +51,30 @@ export const stdout = {
    * Clear current line
    */
   clearLine() {
-    target.write('\x1B[2K\r')
+    target.write(ANSI.CLEAR.LINE)
+    target.write(ANSI.MOVE.CARRIAGE_RETURN)
   },
 
   /**
    * Hide cursor
    */
   hideCursor() {
-    target.write('\x1B[?25l')
+    target.write(ANSI.CURSOR.HIDE)
   },
 
   /**
    * Show cursor
    */
   showCursor() {
-    target.write('\x1B[?25h')
+    target.write(ANSI.CURSOR.SHOW)
   },
 
   /**
    * Clear screen and scrollback buffer completely
    */
   clearScreen() {
-    target.write('\x1b[2J\x1b[3J\x1b[H')
-    // \x1b[2J - clear visible screen
-    // \x1b[3J - clear scrollback buffer
-    // \x1b[H - move cursor to home position
+    target.write(ANSI.CLEAR.SCREEN) // clear visible screen
+    target.write(ANSI.CLEAR.SCROLLBACK) // clear scrollback buffer
+    target.write(ANSI.MOVE.HOME) // move cursor to home position
   },
 }

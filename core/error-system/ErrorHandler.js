@@ -2,7 +2,7 @@
  * Central Error Handler - Functional error processing system  
  * Consolidates classification, formatting, sanitization, and logging
  */
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 import { logger } from '../../utils/logger.js'
 import { 
   createFromGeneric,
@@ -46,7 +46,7 @@ const handleError = async (error, context = {}) => {
   // Determine if application should exit
   if (!isTrustedError(processedError.originalError)) {
     console.error(
-      `${color.red}Critical error detected. Application will exit.${color.reset}`,
+      `${ANSI.COLORS.RED}Critical error detected. Application will exit.${ANSI.COLORS.RESET}`,
     )
     process.exit(1)
   }
@@ -197,12 +197,12 @@ const displayError = (processedError) => {
 
   // For operational errors, show with color
   if (originalError.isOperational) {
-    console.log(`${color.red}${userMessage}${color.reset}`)
+    console.log(`${ANSI.COLORS.RED}${userMessage}${ANSI.COLORS.RESET}`)
     return
   }
 
   // Default error display
-  console.error(`${color.red}${userMessage}${color.reset}`)
+  console.error(`${ANSI.COLORS.RED}${userMessage}${ANSI.COLORS.RESET}`)
 }
 
 /**
@@ -310,14 +310,14 @@ const setupGlobalHandlers = () => {
   process.on('uncaughtException', (error) => {
     const sanitizedMessage = sanitizeMessage(error.message)
     console.error(
-      `${color.red}Uncaught Exception:${color.reset}`,
+      `${ANSI.COLORS.RED}Uncaught Exception:${ANSI.COLORS.RESET}`,
       sanitizedMessage,
     )
 
     // Simple fallback without circular dependencies
     if (!isTrustedError(error)) {
       console.error(
-        `${color.red}Critical error detected. Application will exit.${color.reset}`,
+        `${ANSI.COLORS.RED}Critical error detected. Application will exit.${ANSI.COLORS.RESET}`,
       )
       process.exit(1)
     }
@@ -327,14 +327,14 @@ const setupGlobalHandlers = () => {
     const error = reason instanceof Error ? reason : new Error(String(reason))
     const sanitizedReason = sanitizeMessage(error.message)
     console.error(
-      `${color.red}Unhandled Rejection:${color.reset}`,
+      `${ANSI.COLORS.RED}Unhandled Rejection:${ANSI.COLORS.RESET}`,
       sanitizedReason,
     )
 
     // Simple fallback without circular dependencies
     if (!isTrustedError(error)) {
       console.error(
-        `${color.red}Critical error detected. Application will exit.${color.reset}`,
+        `${ANSI.COLORS.RED}Critical error detected. Application will exit.${ANSI.COLORS.RESET}`,
       )
       process.exit(1)
     }

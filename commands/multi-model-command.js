@@ -1,11 +1,11 @@
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../core/print/index.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
 import { logError, processError, createBaseError } from '../core/error-system/index.js'
 import { UI_SYMBOLS } from '../config/constants.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
-import { updateMultiContext } from '../utils/context-utils.js'
+import { updateContext } from '../utils/context-utils.js'
 
 export const multiModelCommand = {
 
@@ -186,7 +186,7 @@ export const multiModelCommand = {
       const successfulResults = Array.from(modelResults.values()).filter(r => r.success && r.response)
       if (successfulResults.length > 0 && !controller.signal.aborted) {
         const allResponses = successfulResults.map(r => r.response)
-        updateMultiContext(stateManager, commandData.content, allResponses)
+        updateContext(stateManager, commandData.content, allResponses)
       }
 
       return successfulCount

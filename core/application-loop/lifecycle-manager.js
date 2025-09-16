@@ -1,4 +1,4 @@
-import { outputHandler } from '../print/output.js'
+import { outputHandler } from '../print/index.js'
 import { logger } from '../../utils/logger.js'
 
 export const createLifecycleManager = (state) => {

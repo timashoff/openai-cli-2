@@ -4,34 +4,34 @@
  * Single Responsibility: visual formatting and styling
  */
 
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 import { UI_SYMBOLS } from '../../config/constants.js'
 
 export const ui = {
   /**
    * Format error message with red color
    */
-  error: (text) => `${color.red}Error: ${text}${color.reset}`,
+  error: (text) => `${ANSI.COLORS.RED}Error: ${text}${ANSI.COLORS.RESET}`,
 
   /**
    * Format success message with green color and checkmark
    */
-  success: (text) => `${color.green}✓ ${text}${color.reset}`,
+  success: (text) => `${ANSI.COLORS.GREEN}✓ ${text}${ANSI.COLORS.RESET}`,
 
   /**
    * Format warning message with yellow color
    */
-  warning: (text) => `${color.yellow}${text}${color.reset}`,
+  warning: (text) => `${ANSI.COLORS.YELLOW}${text}${ANSI.COLORS.RESET}`,
 
   /**
    * Format info message with cyan color
    */
-  info: (text) => `${color.cyan}${text}${color.reset}`,
+  info: (text) => `${ANSI.COLORS.CYAN}${text}${ANSI.COLORS.RESET}`,
 
   /**
    * Format model name in unified style [model]
    */
-  model: (model) => `${color.cyan}[${model.model}]${color.reset}`,
+  model: (model) => `${ANSI.COLORS.CYAN}[${model.model}]${ANSI.COLORS.RESET}`,
 
 
   /**
@@ -40,11 +40,11 @@ export const ui = {
   contextDots: (dialogCount) => {
     if (dialogCount <= 0) return ''
     const brailleDots = UI_SYMBOLS.BRAILLE_DOTS
-    return `${color.yellow}${brailleDots[dialogCount - 1]}${color.reset}`
+    return `${ANSI.COLORS.YELLOW}${brailleDots[dialogCount - 1]}${ANSI.COLORS.RESET}`
   },
 
   /**
    * Format current model display
    */
-  currentModel: (model) => `current model is ${color.cyan}${model}${color.reset}`,
+  currentModel: (model) => `current model is ${ANSI.COLORS.CYAN}${model}${ANSI.COLORS.RESET}`,
 }

@@ -1,5 +1,5 @@
-import { createNavigationMenu } from '../../../utils/interactive_menu.js'
-import { color } from '../../../config/color.js'
+import { createNavigationMenu } from '../ui/interactive-menu.js'
+import { ANSI } from '../../../config/ansi.js'
 import { UI_SYMBOLS } from '../../../config/constants.js'
 
 export async function createToggleMenu(title, items, initialSelection = null, actionButtons = ['Confirm', 'Back']) {
@@ -12,8 +12,8 @@ export async function createToggleMenu(title, items, initialSelection = null, ac
       ...items.map(item => {
         const isSelected = selection.has(item)
         const indicator = isSelected
-          ? color.green + `[${UI_SYMBOLS.CHECK}]` + color.reset
-          : color.red + `[${UI_SYMBOLS.CROSS}]` + color.reset
+          ? ANSI.COLORS.GREEN + `[${UI_SYMBOLS.CHECK}]` + ANSI.COLORS.RESET
+          : ANSI.COLORS.RED + `[${UI_SYMBOLS.CROSS}]` + ANSI.COLORS.RESET
         return `${indicator} ${item}`
       }),
       '', // Visual separator

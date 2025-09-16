@@ -6,7 +6,16 @@ import { logError, processError } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
-const stateManagerEmitter = new EventEmitter()
+export const stateManagerEvents = new EventEmitter()
+
+// Centralized error handling for EventEmitter (CLAUDE.md compliance)
+stateManagerEvents.on('error', async (error) => {
+  const processedError = await processError(error, {
+    context: 'StateManager:EventSystem',
+    component: 'stateManagerEvents'
+  })
+  await logError(processedError)
+})
 
 function createStateManager() {
   // Initialize provider factory
@@ -43,17 +52,10 @@ function createStateManager() {
     maxContextHistory: APP_CONSTANTS.MAX_CONTEXT_HISTORY,
   }
 
-  // User session data
-  let userSession = {}
 
-  // State change listeners
-  const listeners = new Map()
 
   // === MAIN OPERATIONS - StateManager handles switching ===
 
-  /**
-   * Ensure provider is initialized (lazy-loading) without changing global state
-   */
   async function ensureProviderInitialized(providerId) {
     // Check if provider is available
     const providerConfig = PROVIDERS[providerId]
@@ -86,9 +88,6 @@ function createStateManager() {
     return providerData
   }
 
-  /**
-   * Switch AI provider (main operation)
-   */
   async function switchProvider(providerId, targetModel = null) {
     try {
       logger.debug(`StateManager: Switching to provider ${providerId}`)
@@ -140,9 +139,6 @@ function createStateManager() {
     }
   }
 
-  /**
-   * Switch AI model (main operation)
-   */
   async function switchModel(targetModel) {
     try {
       if (!aiState.currentProvider) {
@@ -177,9 +173,6 @@ function createStateManager() {
 
   // === AI State Management ===
 
-  /**
-   * Update AI provider state - Single Source of Truth
-   */
   function updateAIProvider(providerInfo) {
     const previousProvider = aiState.currentProviderKey
 
@@ -202,16 +195,13 @@ function createStateManager() {
       process.title = aiState.currentModel
     }
 
-    notifyListeners('ai-provider-changed', {
+    stateManagerEvents.emit('ai-provider-changed', {
       previous: previousProvider,
       current: providerInfo.key,
       model: providerInfo.model,
     })
   }
 
-  /**
-   * Update current model
-   */
   function updateModel(modelId) {
     const previousModel = aiState.currentModel
     aiState.currentModel = modelId
@@ -221,22 +211,16 @@ function createStateManager() {
       process.title = modelId
     }
 
-    notifyListeners('model-changed', {
+    stateManagerEvents.emit('model-changed', {
       previous: previousModel,
       current: modelId,
     })
   }
 
-  /**
-   * Get current AI state
-   */
   function getAIState() {
     return { ...aiState }
   }
 
-  /**
-   * Get current provider with metadata
-   */
   function getCurrentProvider() {
     if (!aiState.currentProvider) return null
     return {
@@ -246,23 +230,14 @@ function createStateManager() {
     }
   }
 
-  /**
-   * Get current provider key
-   */
   function getCurrentProviderKey() {
     return aiState.currentProviderKey
   }
 
-  /**
-   * Get current model
-   */
   function getCurrentModel() {
     return aiState.currentModel
   }
 
-  /**
-   * Get available models for current provider with lazy loading
-   */
   function getAvailableModels() {
     // Lazy loading - if no models but provider exists, load them
     if (aiState.availableModels.length === 0 && aiState.currentProviderKey) {
@@ -274,39 +249,24 @@ function createStateManager() {
     return [...aiState.availableModels]
   }
 
-  /**
-   * Set provider in map
-   */
   function setProvider(key, providerData) {
     aiState.providers.set(key, providerData)
   }
 
-  /**
-   * Get provider from map
-   */
   function getProvider(key) {
     return aiState.providers.get(key)
   }
 
-  /**
-   * Get all providers
-   */
   function getAllProviders() {
     return aiState.providers
   }
 
-  /**
-   * Set service initialization status
-   */
   function setServiceInitialized(initialized) {
     aiState.initialized = initialized
   }
 
   // === Operation State Management ===
 
-  /**
-   * Set processing request state
-   */
   function setProcessingRequest(isProcessing, controller = null) {
     operationState.isProcessingRequest = isProcessing
 
@@ -315,57 +275,35 @@ function createStateManager() {
       requestState.currentRequestController = controller
 
       // Emit abort signal change event for Event-Driven AbortSignal management
-      stateManagerEmitter.emit('abort-signal-changed', controller.signal)
+      stateManagerEvents.emit('abort-signal-changed', controller.signal)
     }
 
-    notifyListeners('processing-state-changed', {
+    stateManagerEvents.emit('processing-state-changed', {
       isProcessing,
       hasController: !!requestState.currentRequestController,
     })
   }
 
-  /**
-   * Set typing response state
-   */
   function setTypingResponse(isTyping) {
     operationState.isTypingResponse = isTyping
-    notifyListeners('typing-state-changed', { isTyping })
+    stateManagerEvents.emit('typing-state-changed', { isTyping })
   }
 
-  /**
-   * Set provider retry state
-   */
-  function setRetryingProvider(isRetrying) {
-    operationState.isRetryingProvider = isRetrying
-    notifyListeners('retry-state-changed', { isRetrying })
-  }
 
-  /**
-   * Get current operation state
-   */
   function getOperationState() {
     return { ...operationState }
   }
 
   // === Request State Management ===
 
-  /**
-   * Set current stream processor
-   */
   function setStreamProcessor(processor) {
     requestState.currentStreamProcessor = processor
   }
 
-  /**
-   * Set spinner interval
-   */
   function setSpinnerInterval(interval) {
     requestState.currentSpinnerInterval = interval
   }
 
-  /**
-   * Clear all request state
-   */
   function clearRequestState() {
     requestState.currentRequestController = null
     requestState.currentSpinnerInterval = null
@@ -374,75 +312,45 @@ function createStateManager() {
     operationState.isTypingResponse = false
   }
 
-  /**
-   * Set current request controller
-   */
   function setCurrentRequestController(controller) {
     requestState.currentRequestController = controller
   }
 
-  /**
-   * Set should return to prompt flag
-   */
   function setShouldReturnToPrompt(shouldReturn) {
     operationState.shouldReturnToPrompt = shouldReturn
   }
 
-  /**
-   * Check if should return to prompt
-   */
   function shouldReturnToPrompt() {
     return operationState.shouldReturnToPrompt
   }
 
-  /**
-   * Check if currently typing response
-   */
   function isTypingResponse() {
     return operationState.isTypingResponse
   }
 
-  /**
-   * Check if currently processing request
-   */
   function isProcessingRequest() {
     return operationState.isProcessingRequest
   }
 
-  /**
-   * Get current spinner interval
-   */
   function getSpinnerInterval() {
     return requestState.currentSpinnerInterval
   }
 
-  /**
-   * Get current request controller
-   */
   function getCurrentRequestController() {
     return requestState.currentRequestController
   }
 
-  /**
-   * Get current stream processor
-   */
   function getCurrentStreamProcessor() {
     return requestState.currentStreamProcessor
   }
 
-  /**
-   * Clear current request controller (explicit cleanup)
-   */
   function clearRequestController() {
     requestState.currentRequestController = null
-    notifyListeners('controller-cleared', {
+    stateManagerEvents.emit('controller-cleared', {
       timestamp: Date.now(),
     })
   }
 
-  /**
-   * Clear all operations and reset state after errors/cancellation
-   */
   function clearAllOperations() {
     // Clear all request and operation state
     clearRequestState()
@@ -455,7 +363,7 @@ function createStateManager() {
 
     // Notify listeners - DatabaseCommandService should listen to this event
     // and handle its own cache invalidation (Single Source of Truth principle)
-    notifyListeners('all-operations-cleared', {
+    stateManagerEvents.emit('all-operations-cleared', {
       timestamp: Date.now(),
     })
 
@@ -464,9 +372,6 @@ function createStateManager() {
 
   // === Context Management ===
 
-  /**
-   * Add message to context history
-   */
   function addToContext(role, content) {
     contextState.contextHistory.push({ role, content })
 
@@ -477,124 +382,38 @@ function createStateManager() {
       )
     }
 
-    notifyListeners('context-updated', {
+    stateManagerEvents.emit('context-updated', {
       role,
       content,
       historyLength: contextState.contextHistory.length,
     })
   }
 
-  /**
-   * Clear context history
-   */
   function clearContext() {
     contextState.contextHistory = []
-    notifyListeners('context-cleared', {})
+    stateManagerEvents.emit('context-cleared', {})
   }
 
-  /**
-   * Get context history
-   */
   function getContextHistory() {
     return [...contextState.contextHistory]
   }
 
-  /**
-   * Set maximum context history length
-   */
-  function setMaxContextHistory(maxLength) {
-    contextState.maxContextHistory = maxLength
 
-    // Trim current history if needed
-    if (contextState.contextHistory.length > maxLength) {
-      contextState.contextHistory =
-        contextState.contextHistory.slice(-maxLength)
-    }
-  }
-
-  /**
-   * Set context history directly
-   */
-  function setContextHistory(history) {
-    contextState.contextHistory = [...history]
-    notifyListeners('context-history-set', { length: history.length })
-  }
-
-  // === User Session Management ===
-
-  /**
-   * Update user session data
-   */
-  function updateUserSession(sessionData) {
-    userSession = { ...userSession, ...sessionData }
-    notifyListeners('session-updated', sessionData)
-  }
-
-  /**
-   * Get user session data
-   */
-  function getUserSession() {
-    return { ...userSession }
-  }
 
   // === Event Listener Management ===
 
-  /**
-   * Add state change listener
-   */
   function addListener(event, callback) {
-    if (!listeners.has(event)) {
-      listeners.set(event, new Set())
-    }
-    listeners.get(event).add(callback)
+    stateManagerEvents.on(event, callback)
   }
 
-  /**
-   * Remove state change listener
-   */
   function removeListener(event, callback) {
-    if (listeners.has(event)) {
-      listeners.get(event).delete(callback)
-    }
+    stateManagerEvents.removeListener(event, callback)
   }
 
-  /**
-   * Notify listeners of state change
-   */
-  function notifyListeners(event, data) {
-    if (listeners.has(event)) {
-      listeners.get(event).forEach((callback) => {
-        try {
-          callback(data)
-        } catch (error) {
-          // Use async IIFE for processError in event listener
-          ;(async () => {
-            const processedError = await processError(error, { context: 'StateManager:eventListener', component: event })
-            await logError(processedError)
-          })()
-        }
-      })
-    }
-  }
 
   // === Utility Methods ===
 
-  /**
-   * Get complete state snapshot
-   */
-  function getStateSnapshot() {
-    return {
-      aiState: getAIState(),
-      operationState: getOperationState(),
-      contextHistory: getContextHistory(),
-      userSession: getUserSession(),
-      timestamp: new Date().toISOString(),
-    }
-  }
 
-  /**
-   * Reset all state to initial values
-   */
   function reset() {
     aiState.currentProvider = null
     aiState.currentProviderKey = ''
@@ -610,21 +429,10 @@ function createStateManager() {
 
     clearRequestState()
     clearContext()
-    userSession = {}
 
-    notifyListeners('state-reset', {})
+    stateManagerEvents.emit('state-reset', {})
   }
 
-  /**
-   * Check if application is currently busy
-   */
-  function isBusy() {
-    return (
-      operationState.isProcessingRequest ||
-      operationState.isTypingResponse ||
-      operationState.isRetryingProvider
-    )
-  }
 
   // === Create AI completion (main operation) ===
 
@@ -731,7 +539,6 @@ function createStateManager() {
     // Operation state
     setProcessingRequest,
     setTypingResponse,
-    setRetryingProvider,
     getOperationState,
 
     // Request state
@@ -753,28 +560,17 @@ function createStateManager() {
     addToContext,
     clearContext,
     getContextHistory,
-    setMaxContextHistory,
-    setContextHistory,
 
-    // User session
-    updateUserSession,
-    getUserSession,
 
     // Event listeners
     addListener,
     removeListener,
-    notifyListeners,
 
     // Utilities
-    getStateSnapshot,
     reset,
-    isBusy,
   }
 }
 
-/**
- * Create and return a singleton StateManager instance
- */
 let stateManagerInstance = null
 
 export function getStateManager() {
@@ -791,5 +587,3 @@ export function resetStateManager() {
   stateManagerInstance = null
 }
 
-// Export StateManager events for Event-Driven architecture
-export { stateManagerEmitter as stateManagerEvents }

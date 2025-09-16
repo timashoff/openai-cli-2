@@ -1,6 +1,6 @@
 import { logger } from '../../utils/logger.js'
 import { errorHandler } from '../error-system/index.js'
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 
 export const createMainLoop = (state, applicationLoopInstance) => {
   // Helper function to get router dynamically
@@ -37,7 +37,7 @@ export const createMainLoop = (state, applicationLoopInstance) => {
       // Get user input using standard readline
       let userInput = await state.readlineManager.getReadlineInterface().question(prompt)
       // Reset color after user input to ensure LLM response is not green
-      process.stdout.write(color.reset)
+      process.stdout.write(ANSI.COLORS.RESET)
       userInput = (userInput || '').trim()
 
       // Reset screen cleared flag after prompt is shown
@@ -119,7 +119,7 @@ export const createMainLoop = (state, applicationLoopInstance) => {
           // But not during shutdown
           if (!state.isExiting) {
             console.log(
-              `${color.red}An error occurred. Please try again.${color.reset}`,
+              `${ANSI.COLORS.RED}An error occurred. Please try again.${ANSI.COLORS.RESET}`,
             )
           }
           continue
