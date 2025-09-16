@@ -1,6 +1,6 @@
 import { createNavigationMenu } from './ui/interactive-menu.js'
 import { createSpinner } from '../../utils/spinner.js'
-import { outputHandler } from '../../core/print/output.js'
+import { outputHandler } from '../../core/print/index.js'
 
 export const ProviderSwitch = {
   async execute(args = [], context = {}) {

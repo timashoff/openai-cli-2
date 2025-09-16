@@ -1,4 +1,4 @@
-import { color } from '../../config/color.js'
+import { ANSI } from '../../config/ansi.js'
 import { SYSTEM_COMMANDS } from '../../config/system-commands.js'
 import { databaseCommandService } from '../../services/database-command-service.js'
 import { UI_CONFIG } from '../../config/constants.js'
@@ -23,12 +23,12 @@ export const HelpCommand = {
 
   async execute(args = [], context = {}) {
     try {
-      let output = `${color.cyan}┌─ OpenAI CLI 2 - Help System ─┐${color.reset}\n`
-      output += `${color.cyan}│                              │${color.reset}\n`
-      output += `${color.cyan}└──────────────────────────────┘${color.reset}\n\n`
+      let output = `${ANSI.COLORS.CYAN}┌─ OpenAI CLI 2 - Help System ─┐${ANSI.COLORS.RESET}\n`
+      output += `${ANSI.COLORS.CYAN}│                              │${ANSI.COLORS.RESET}\n`
+      output += `${ANSI.COLORS.CYAN}└──────────────────────────────┘${ANSI.COLORS.RESET}\n\n`
 
       // System Commands Section
-      output += `${color.blue}━━━ System Commands ━━━${color.reset}\n`
+      output += `${ANSI.COLORS.BLUE}━━━ System Commands ━━━${ANSI.COLORS.RESET}\n`
       const tableConfig = UI_CONFIG.HELP_TABLE.COLUMN_WIDTHS
       const separator = UI_CONFIG.HELP_TABLE.SEPARATORS.COLUMN
       const formatting = UI_CONFIG.HELP_TABLE.FORMATTING
@@ -38,7 +38,7 @@ export const HelpCommand = {
         const keys = [commandKey, ...config.aliases].join(', ')
         const paddedKeys = keys.padEnd(tableConfig.KEYS)
 
-        output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${config.description}\n`
+        output += `${indent}${ANSI.COLORS.WHITE}${paddedKeys}${ANSI.COLORS.RESET}${separator} ${config.description}\n`
       })
       output += '\n'
 
@@ -46,7 +46,7 @@ export const HelpCommand = {
       try {
         const userCommands = databaseCommandService.getCommands()
         if (Object.keys(userCommands).length > 0) {
-          output += `${color.blue}━━━ User Commands ━━━${color.reset}\n`
+          output += `${ANSI.COLORS.BLUE}━━━ User Commands ━━━${ANSI.COLORS.RESET}\n`
 
           // Table headers
           const tableConfig = UI_CONFIG.HELP_TABLE.COLUMN_WIDTHS
@@ -59,7 +59,7 @@ export const HelpCommand = {
           const modelsHeader = 'Models'.padEnd(tableConfig.MODELS)
 
           const indent = ' '.repeat(formatting.ROW_INDENT)
-          output += `${indent}${color.white}${keysHeader}${separator} ${descHeader}${separator} ${modelsHeader}${color.reset}\n`
+          output += `${indent}${ANSI.COLORS.WHITE}${keysHeader}${separator} ${descHeader}${separator} ${modelsHeader}${ANSI.COLORS.RESET}\n`
 
           const separatorWidth =
             formatting.SEPARATOR_COUNT +
@@ -69,7 +69,7 @@ export const HelpCommand = {
             tableConfig.DESCRIPTION +
             tableConfig.MODELS +
             separatorWidth
-          output += `${indent}${color.grey}${rowSep.repeat(totalWidth)}${color.reset}\n`
+          output += `${indent}${ANSI.COLORS.GREY}${rowSep.repeat(totalWidth)}${ANSI.COLORS.RESET}\n`
 
           Object.entries(userCommands).forEach(([commandId, command]) => {
             const keys = command.key.join(', ')
@@ -104,7 +104,7 @@ export const HelpCommand = {
               )
 
               // First line with all columns
-              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedFirstLine}${separator} ${paddedModels}\n`
+              output += `${indent}${ANSI.COLORS.WHITE}${paddedKeys}${ANSI.COLORS.RESET}${separator} ${paddedFirstLine}${separator} ${paddedModels}\n`
 
               // Second line with description continuation (only if needed)
               if (secondLine) {
@@ -125,24 +125,24 @@ export const HelpCommand = {
                 description,
                 tableConfig.DESCRIPTION,
               )
-              output += `${indent}${color.white}${paddedKeys}${color.reset}${separator} ${paddedDescription}${separator} ${paddedModels}\n`
+              output += `${indent}${ANSI.COLORS.WHITE}${paddedKeys}${ANSI.COLORS.RESET}${separator} ${paddedDescription}${separator} ${paddedModels}\n`
             }
           })
           output += '\n'
         }
       } catch (error) {
-        output += `${color.yellow}Note: Could not load user commands from database${color.reset}\n\n`
+        output += `${ANSI.COLORS.YELLOW}Note: Could not load user commands from database${ANSI.COLORS.RESET}\n\n`
       }
 
       // Special Features Section
-      output += `${color.blue}━━━ Special Features ━━━${color.reset}\n`
-      output += `${color.white}Clipboard:${color.reset} Add '${color.yellow}$${color.reset}' to include clipboard content\n`
-      output += `  ${color.grey}Example: code $${color.reset}\n\n`
+      output += `${ANSI.COLORS.BLUE}━━━ Special Features ━━━${ANSI.COLORS.RESET}\n`
+      output += `${ANSI.COLORS.WHITE}Clipboard:${ANSI.COLORS.RESET} Add '${ANSI.COLORS.YELLOW}$${ANSI.COLORS.RESET}' to include clipboard content\n`
+      output += `  ${ANSI.COLORS.GREY}Example: code $${ANSI.COLORS.RESET}\n\n`
 
       process.stdout.write(output + '\n')
       return null
     } catch (error) {
-      return `${color.red}Error: Failed to show help - ${error.message}${color.reset}`
+      return `${ANSI.COLORS.RED}Error: Failed to show help - ${error.message}${ANSI.COLORS.RESET}`
     }
   },
 

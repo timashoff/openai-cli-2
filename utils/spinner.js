@@ -4,13 +4,10 @@
  * Used across the entire application for consistent loading indicators
  */
 import { UI_SYMBOLS, APP_CONSTANTS } from '../config/constants.js'
-import { color } from '../config/color.js'
+import { ANSI } from '../config/ansi.js'
+import { outputHandler } from '../core/print/index.js'
 
-/**
- * Create a new spinner instance
- * @param {string} message - Optional message to display with spinner
- * @returns {Object} Spinner object with start/stop methods
- */
+// Create a new spinner instance with optional message
 export function createSpinner(message = '') {
   let startTime = null
   let interval = null
@@ -26,7 +23,7 @@ export function createSpinner(message = '') {
       charIndex = 0
       
       // Hide cursor for cleaner animation
-      process.stdout.write('\x1B[?25l')
+      outputHandler.hideCursor()
       
       // Subscribe to abort signal - controller MUST be valid
       if (abortController) {
@@ -39,7 +36,7 @@ export function createSpinner(message = '') {
       interval = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000
         const char = UI_SYMBOLS.SPINNER[charIndex++ % UI_SYMBOLS.SPINNER.length]
-        process.stdout.write(`\r${char} ${elapsed.toFixed(1)}s${message ? ' ' + message : ''}`)
+        outputHandler.writeRaw(`${ANSI.MOVE.CARRIAGE_RETURN}${char} ${elapsed.toFixed(1)}s${message ? ' ' + message : ''}`)
       }, APP_CONSTANTS.SPINNER_INTERVAL)
     },
     
@@ -61,16 +58,16 @@ export function createSpinner(message = '') {
       // Show final status (only if operation took time)
       if (elapsed >= 0.1) {
         const symbol = status === 'success' 
-          ? `${color.green}${UI_SYMBOLS.CHECK}${color.reset}`
-          : `${color.red}${UI_SYMBOLS.CROSS}${color.reset}`
-        process.stdout.write(`\r${symbol} ${elapsed.toFixed(1)}s\n`)
+          ? `${ANSI.COLORS.GREEN}${UI_SYMBOLS.CHECK}${ANSI.COLORS.RESET}`
+          : `${ANSI.COLORS.RED}${UI_SYMBOLS.CROSS}${ANSI.COLORS.RESET}`
+        outputHandler.writeRaw(`${ANSI.MOVE.CARRIAGE_RETURN}${symbol} ${elapsed.toFixed(1)}s\n`)
       } else {
         // Clear line if operation was too fast
-        process.stdout.write('\r\x1B[K')
+        outputHandler.clearLine()
       }
       
       // Show cursor again
-      process.stdout.write('\x1B[?25h')
+      outputHandler.showCursor()
     },
     
     isActive() {

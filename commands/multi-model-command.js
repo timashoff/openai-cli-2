@@ -1,4 +1,4 @@
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../core/print/index.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'

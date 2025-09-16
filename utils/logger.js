@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { color } from '../config/color.js'
+import { ANSI } from '../config/ansi.js'
 import { LOG_LEVELS } from '../config/constants.js'
 
 const createLogger = (options = {}) => {
@@ -24,10 +24,10 @@ const createLogger = (options = {}) => {
   }
   
   const colors = {
-    [LOG_LEVELS.DEBUG]: color.grey,
-    [LOG_LEVELS.INFO]: color.cyan,
-    [LOG_LEVELS.WARN]: color.yellow,
-    [LOG_LEVELS.ERROR]: color.red
+    [LOG_LEVELS.DEBUG]: ANSI.COLORS.GREY,
+    [LOG_LEVELS.INFO]: ANSI.COLORS.CYAN,
+    [LOG_LEVELS.WARN]: ANSI.COLORS.YELLOW,
+    [LOG_LEVELS.ERROR]: ANSI.COLORS.RED
   }
 
   const initialize = async () => {
@@ -71,8 +71,8 @@ const createLogger = (options = {}) => {
   const logToConsole = (logData) => {
     if (!state.enableConsole) return
     
-    const levelColor = colors[logData.level] || color.reset
-    const resetColor = color.reset
+    const levelColor = colors[logData.level] || ANSI.COLORS.RESET
+    const resetColor = ANSI.COLORS.RESET
     
     console.log(`${levelColor}[${logData.level.toUpperCase()}]${resetColor} ${logData.message}${logData.meta ? ' ' + logData.meta : ''}`)
   }

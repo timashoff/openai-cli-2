@@ -1,5 +1,5 @@
 import { logger } from '../../../utils/logger.js'
-import { color } from '../../../config/color.js'
+import { ANSI } from '../../../config/ansi.js'
 
 /**
  * Create command memento - stores command state for undo operations
@@ -447,19 +447,19 @@ export function createUndoManager(options = {}) {
      */
     getStatusMessage() {
       if (!this.canUndo() && !this.canRedo()) {
-        return `${color.grey}No operations to undo/redo${color.reset}`
+        return `${ANSI.COLORS.GREY}No operations to undo/redo${ANSI.COLORS.RESET}`
       }
 
       let status = []
 
       if (this.canUndo()) {
         const next = this.peekUndo().getDescription()
-        status.push(`${color.yellow}Undo:${color.reset} ${next}`)
+        status.push(`${ANSI.COLORS.YELLOW}Undo:${ANSI.COLORS.RESET} ${next}`)
       }
 
       if (this.canRedo()) {
         const next = this.peekRedo().getDescription()
-        status.push(`${color.cyan}Redo:${color.reset} ${next}`)
+        status.push(`${ANSI.COLORS.CYAN}Redo:${ANSI.COLORS.RESET} ${next}`)
       }
 
       return status.join(' | ')

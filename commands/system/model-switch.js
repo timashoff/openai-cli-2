@@ -1,5 +1,5 @@
 import { createNavigationMenu } from './ui/interactive-menu.js'
-import { outputHandler } from '../../core/print/output.js'
+import { outputHandler } from '../../core/print/index.js'
 
 export const ModelSwitch = {
   async execute(args = [], context = {}) {

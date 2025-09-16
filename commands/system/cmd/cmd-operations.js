@@ -4,8 +4,8 @@ import {
 } from '../ui/interactive-menu.js'
 import { createToggleMenu } from './toggle-menu.js'
 import { createSelectionTitle } from './menu-helpers.js'
-import { outputHandler } from '../../../core/print/output.js'
-import { color } from '../../../config/color.js'
+import { outputHandler } from '../../../core/print/index.js'
+import { ANSI } from '../../../config/ansi.js'
 import { databaseCommandService } from '../../../services/database-command-service.js'
 import { createSpinner } from '../../../utils/spinner.js'
 import { APP_CONSTANTS } from '../../../config/constants.js'
@@ -129,7 +129,7 @@ export const BaseCmdCommand = {
 
 async function handleAddCommand(context) {
   try {
-    console.log(color.cyan + '\n=== Add New Command ===' + color.reset)
+    console.log(ANSI.COLORS.CYAN + '\n=== Add New Command ===' + ANSI.COLORS.RESET)
 
     const commandData = {
       name: '',
@@ -156,9 +156,9 @@ async function handleAddCommand(context) {
       )
     } else {
       console.log(
-        color.yellow +
+        ANSI.COLORS.YELLOW +
           'Command creation cancelled - no changes made' +
-          color.reset +
+          ANSI.COLORS.RESET +
           '\n',
       )
     }
@@ -174,7 +174,7 @@ async function handleEditCommand(context) {
 
     if (commandEntries.length === 0) {
       console.log(
-        color.yellow + 'No commands available to edit.' + color.reset + '\n',
+        ANSI.COLORS.YELLOW + 'No commands available to edit.' + ANSI.COLORS.RESET + '\n',
       )
       return
     }
@@ -184,7 +184,7 @@ async function handleEditCommand(context) {
       return `${cmd.name} [${keyText}]`
     })
 
-    console.log(color.cyan + '\n=== Select Command to Edit ===' + color.reset)
+    console.log(ANSI.COLORS.CYAN + '\n=== Select Command to Edit ===' + ANSI.COLORS.RESET)
 
     const selectedIndex = await createNavigationMenu(
       'Select command to edit:',
@@ -194,16 +194,16 @@ async function handleEditCommand(context) {
     )
 
     if (selectedIndex === -1) {
-      console.log(color.yellow + 'Edit cancelled.' + color.reset + '\n')
+      console.log(ANSI.COLORS.YELLOW + 'Edit cancelled.' + ANSI.COLORS.RESET + '\n')
       return
     }
 
     const [commandId, existingCommand] = commandEntries[selectedIndex]
 
     console.log(
-      color.cyan +
+      ANSI.COLORS.CYAN +
         `\n=== Edit Command: ${existingCommand.name} ===` +
-        color.reset,
+        ANSI.COLORS.RESET,
     )
 
     const commandData = {
@@ -230,9 +230,9 @@ async function handleEditCommand(context) {
       )
     } else {
       console.log(
-        color.yellow +
+        ANSI.COLORS.YELLOW +
           `Edit cancelled - command "${existingCommand.name}" unchanged` +
-          color.reset +
+          ANSI.COLORS.RESET +
           '\n',
       )
     }
@@ -284,9 +284,9 @@ async function editCommandFields(commandData, context, mode) {
         return true
       } else {
         console.log(
-          color.red +
+          ANSI.COLORS.RED +
             'Please fill all required fields (Name, Keys, Description, Instruction)' +
-            color.reset +
+            ANSI.COLORS.RESET +
             '\n',
         )
         continue
@@ -310,19 +310,19 @@ function truncateText(text) {
 
 const fieldFormatters = {
   Name: (data) =>
-    data.name ? truncateText(data.name) : color.red + 'null' + color.reset,
+    data.name ? truncateText(data.name) : ANSI.COLORS.RED + 'null' + ANSI.COLORS.RESET,
   Keys: (data) =>
     data.key.length > 0
       ? data.key.join(', ')
-      : color.red + 'null' + color.reset,
+      : ANSI.COLORS.RED + 'null' + ANSI.COLORS.RESET,
   Description: (data) =>
     data.description
       ? truncateText(data.description)
-      : color.red + 'null' + color.reset,
+      : ANSI.COLORS.RED + 'null' + ANSI.COLORS.RESET,
   Instruction: (data) =>
     data.instruction
       ? truncateText(data.instruction)
-      : color.red + 'null' + color.reset,
+      : ANSI.COLORS.RED + 'null' + ANSI.COLORS.RESET,
   Models: (data) => {
     if (data.models.length === 0) return 'system (default)'
     if (data.models.length === 1) return data.models[0].model
@@ -410,9 +410,9 @@ async function handleCollectionAction(action, commandData, context, config) {
   } else if (action === COLLECTION_ACTIONS.REMOVE_ALL) {
     commandData[config.fieldName] = []
     console.log(
-      color.green +
+      ANSI.COLORS.GREEN +
         `All ${config.displayName.toLowerCase()} removed` +
-        color.reset,
+        ANSI.COLORS.RESET,
     )
   }
 }
@@ -453,9 +453,9 @@ function generateMenuWithValues(
 
 // Field editing functions
 async function editName(commandData, context) {
-  console.log(color.cyan + '\n=== Edit Name ===' + color.reset)
+  console.log(ANSI.COLORS.CYAN + '\n=== Edit Name ===' + ANSI.COLORS.RESET)
   console.log(
-    `Current name: ${color.blue}${commandData.name || 'Not set'}${color.reset}`,
+    `Current name: ${ANSI.COLORS.BLUE}${commandData.name || 'Not set'}${ANSI.COLORS.RESET}`,
   )
 
   const newName = await createTextInput(
@@ -470,16 +470,16 @@ async function editName(commandData, context) {
       commandData.name = trimmedName
       if (trimmedName) {
         console.log(
-          color.green + `Name set to: ${commandData.name}` + color.reset,
+          ANSI.COLORS.GREEN + `Name set to: ${commandData.name}` + ANSI.COLORS.RESET,
         )
       } else {
-        console.log(color.yellow + 'Name cleared' + color.reset)
+        console.log(ANSI.COLORS.YELLOW + 'Name cleared' + ANSI.COLORS.RESET)
       }
     } else {
       console.log(
-        color.yellow +
+        ANSI.COLORS.YELLOW +
           `Name unchanged: ${commandData.name || 'empty'}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
     }
   }
@@ -534,24 +534,24 @@ async function addKeyWithValidation(commandData, context) {
   const keyValue = getCleanInput(newKey)
 
   if (!keyValue) {
-    console.log(color.yellow + 'Key addition cancelled' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'Key addition cancelled' + ANSI.COLORS.RESET)
     return
   }
 
   const validationError = validateKey(keyValue, commandData)
 
   if (validationError) {
-    console.log(color.red + `Invalid key: ${validationError}` + color.reset)
+    console.log(ANSI.COLORS.RED + `Invalid key: ${validationError}` + ANSI.COLORS.RESET)
     return
   }
 
   commandData.key.push(keyValue)
-  console.log(color.green + `Key "${keyValue}" added` + color.reset)
+  console.log(ANSI.COLORS.GREEN + `Key "${keyValue}" added` + ANSI.COLORS.RESET)
 }
 
 async function removeKeysInteractive(commandData, context) {
   if (commandData.key.length === 0) {
-    console.log(color.yellow + 'No keys to remove' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'No keys to remove' + ANSI.COLORS.RESET)
     return
   }
 
@@ -565,7 +565,7 @@ async function removeKeysInteractive(commandData, context) {
 
     if (result === 0) {
       const removedKey = commandData.key.pop()
-      console.log(color.green + `Key "${removedKey}" removed` + color.reset)
+      console.log(ANSI.COLORS.GREEN + `Key "${removedKey}" removed` + ANSI.COLORS.RESET)
     }
     return
   }
@@ -584,12 +584,12 @@ async function removeKeysInteractive(commandData, context) {
         (key) => !keysToRemove.includes(key),
       )
       console.log(
-        color.green +
+        ANSI.COLORS.GREEN +
           `Removed ${keysToRemove.length} keys: ${keysToRemove.join(', ')}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
     } else {
-      console.log(color.yellow + 'No keys marked for removal' + color.reset)
+      console.log(ANSI.COLORS.YELLOW + 'No keys marked for removal' + ANSI.COLORS.RESET)
     }
   }
 }
@@ -600,7 +600,7 @@ async function addModelProviderFlow(commandData, context) {
     : []
 
   if (availableProviders.length === 0) {
-    console.log(color.yellow + 'No providers available' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'No providers available' + ANSI.COLORS.RESET)
     return
   }
 
@@ -613,7 +613,7 @@ async function addModelProviderFlow(commandData, context) {
   )
 
   if (providerIndex === -1) {
-    console.log(color.yellow + 'Model addition cancelled' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'Model addition cancelled' + ANSI.COLORS.RESET)
     return
   }
 
@@ -628,9 +628,9 @@ async function addModelProviderFlow(commandData, context) {
 
     if (providerModels.length === 0) {
       console.log(
-        color.yellow +
+        ANSI.COLORS.YELLOW +
           `No models available for ${selectedProvider.name}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
       return
     }
@@ -654,7 +654,7 @@ async function addModelProviderFlow(commandData, context) {
   )
 
   if (modelIndex === -1) {
-    console.log(color.yellow + 'Model addition cancelled' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'Model addition cancelled' + ANSI.COLORS.RESET)
     return
   }
 
@@ -674,24 +674,24 @@ async function addModelProviderFlow(commandData, context) {
 
   if (existsIndex !== -1) {
     console.log(
-      color.yellow +
+      ANSI.COLORS.YELLOW +
         `Model "${modelEntry.model}" from ${selectedProvider.name} already exists` +
-        color.reset,
+        ANSI.COLORS.RESET,
     )
     return
   }
 
   commandData.models.push(modelEntry)
   console.log(
-    color.green +
+    ANSI.COLORS.GREEN +
       `Added model "${modelEntry.model}" from ${selectedProvider.name}` +
-      color.reset,
+      ANSI.COLORS.RESET,
   )
 }
 
 async function removeModelsToggle(commandData, context) {
   if (commandData.models.length === 0) {
-    console.log(color.yellow + 'No models to remove' + color.reset)
+    console.log(ANSI.COLORS.YELLOW + 'No models to remove' + ANSI.COLORS.RESET)
     return
   }
 
@@ -719,7 +719,7 @@ async function removeModelsToggle(commandData, context) {
         typeof removedModel === 'string'
           ? removedModel
           : `${removedModel.model} (${removedModel.provider})`
-      console.log(color.green + `Model "${displayName}" removed` + color.reset)
+      console.log(ANSI.COLORS.GREEN + `Model "${displayName}" removed` + ANSI.COLORS.RESET)
     }
     return
   }
@@ -740,18 +740,18 @@ async function removeModelsToggle(commandData, context) {
       })
       const removedCount = originalLength - commandData.models.length
       console.log(
-        color.green +
+        ANSI.COLORS.GREEN +
           `Removed ${removedCount} models: ${modelsToRemove.join(', ')}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
     } else {
-      console.log(color.yellow + 'No models marked for removal' + color.reset)
+      console.log(ANSI.COLORS.YELLOW + 'No models marked for removal' + ANSI.COLORS.RESET)
     }
   }
 }
 
 async function editDescription(commandData, context) {
-  console.log(color.cyan + '\n=== Edit Description ===' + color.reset)
+  console.log(ANSI.COLORS.CYAN + '\n=== Edit Description ===' + ANSI.COLORS.RESET)
   console.log(`Current description: ${commandData.description || 'Not set'}`)
 
   const newDesc = await createTextInput(
@@ -766,23 +766,23 @@ async function editDescription(commandData, context) {
       commandData.description = trimmedDesc
       if (trimmedDesc) {
         console.log(
-          color.green + `Description set to: ${trimmedDesc}` + color.reset,
+          ANSI.COLORS.GREEN + `Description set to: ${trimmedDesc}` + ANSI.COLORS.RESET,
         )
       } else {
-        console.log(color.yellow + 'Description cleared' + color.reset)
+        console.log(ANSI.COLORS.YELLOW + 'Description cleared' + ANSI.COLORS.RESET)
       }
     } else {
       console.log(
-        color.yellow +
+        ANSI.COLORS.YELLOW +
           `Description unchanged: ${commandData.description || 'empty'}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
     }
   }
 }
 
 async function editInstruction(commandData, context) {
-  console.log(color.cyan + '\n=== Edit Instruction ===' + color.reset)
+  console.log(ANSI.COLORS.CYAN + '\n=== Edit Instruction ===' + ANSI.COLORS.RESET)
   const displayInst = commandData.instruction
     ? commandData.instruction.length > 100
       ? commandData.instruction.substring(0, 100) + '...'
@@ -801,12 +801,12 @@ async function editInstruction(commandData, context) {
     if (trimmedInst !== commandData.instruction) {
       commandData.instruction = trimmedInst
       if (trimmedInst) {
-        console.log(color.green + `Instruction set` + color.reset)
+        console.log(ANSI.COLORS.GREEN + `Instruction set` + ANSI.COLORS.RESET)
       } else {
-        console.log(color.yellow + 'Instruction cleared' + color.reset)
+        console.log(ANSI.COLORS.YELLOW + 'Instruction cleared' + ANSI.COLORS.RESET)
       }
     } else {
-      console.log(color.yellow + `Instruction unchanged` + color.reset)
+      console.log(ANSI.COLORS.YELLOW + `Instruction unchanged` + ANSI.COLORS.RESET)
     }
   }
 }
@@ -822,12 +822,12 @@ async function handleListCommands(context) {
 
     if (commandEntries.length === 0) {
       console.log(
-        color.yellow + 'No commands found in database.' + color.reset + '\n',
+        ANSI.COLORS.YELLOW + 'No commands found in database.' + ANSI.COLORS.RESET + '\n',
       )
       return
     }
 
-    console.log(color.cyan + '\n=== Available Commands ===' + color.reset)
+    console.log(ANSI.COLORS.CYAN + '\n=== Available Commands ===' + ANSI.COLORS.RESET)
 
     for (const [id, cmd] of commandEntries) {
       const keyText = Array.isArray(cmd.key) ? cmd.key.join(', ') : cmd.key
@@ -844,10 +844,10 @@ async function handleListCommands(context) {
       )
 
       console.log(
-        `${color.blue}${commandName}${color.reset} [${color.yellow}${keyText}${color.reset}]`,
+        `${ANSI.COLORS.BLUE}${commandName}${ANSI.COLORS.RESET} [${ANSI.COLORS.YELLOW}${keyText}${ANSI.COLORS.RESET}]`,
       )
       console.log(`  ${cmd.description}`)
-      console.log(`  ${color.grey}Created: ${createdDate}${color.reset}`)
+      console.log(`  ${ANSI.COLORS.GREY}Created: ${createdDate}${ANSI.COLORS.RESET}`)
 
       // Show Updated only if command was actually updated AND date is different
       if (cmd.updated_at) {
@@ -861,13 +861,13 @@ async function handleListCommands(context) {
         )
 
         if (updatedDate !== createdDate) {
-          console.log(`  ${color.grey}Updated: ${updatedDate}${color.reset}`)
+          console.log(`  ${ANSI.COLORS.GREY}Updated: ${updatedDate}${ANSI.COLORS.RESET}`)
         }
       }
       console.log('')
     }
 
-    console.log(color.grey + '\nPress Enter to continue...' + color.reset)
+    console.log(ANSI.COLORS.GREY + '\nPress Enter to continue...' + ANSI.COLORS.RESET)
     await createTextInput('Press Enter to continue', '', context)
   } catch (error) {
     console.log(
@@ -883,7 +883,7 @@ async function handleDeleteCommand(context) {
 
     if (commandEntries.length === 0) {
       console.log(
-        color.yellow + 'No commands available to delete.' + color.reset + '\n',
+        ANSI.COLORS.YELLOW + 'No commands available to delete.' + ANSI.COLORS.RESET + '\n',
       )
       return
     }
@@ -893,7 +893,7 @@ async function handleDeleteCommand(context) {
       return `${cmd.name} [${keyText}]`
     })
 
-    console.log(color.red + '\n=== Delete Command ===' + color.reset)
+    console.log(ANSI.COLORS.RED + '\n=== Delete Command ===' + ANSI.COLORS.RESET)
 
     const selectedIndex = await createNavigationMenu(
       'Select command to delete:',
@@ -903,16 +903,16 @@ async function handleDeleteCommand(context) {
     )
 
     if (selectedIndex === -1) {
-      console.log(color.yellow + 'Delete cancelled.' + color.reset + '\n')
+      console.log(ANSI.COLORS.YELLOW + 'Delete cancelled.' + ANSI.COLORS.RESET + '\n')
       return
     }
 
     const [commandId, command] = commandEntries[selectedIndex]
 
     console.log(
-      color.red +
+      ANSI.COLORS.RED +
         `\nAre you sure you want to delete "${command.name}"?` +
-        color.reset,
+        ANSI.COLORS.RESET,
     )
     const confirmation = await createNavigationMenu(
       'Confirm deletion:',
@@ -922,7 +922,7 @@ async function handleDeleteCommand(context) {
     )
 
     if (confirmation === -1 || confirmation === 1) {
-      console.log(color.yellow + 'Delete cancelled.' + color.reset + '\n')
+      console.log(ANSI.COLORS.YELLOW + 'Delete cancelled.' + ANSI.COLORS.RESET + '\n')
       return
     }
 

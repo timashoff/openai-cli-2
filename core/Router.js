@@ -7,7 +7,7 @@ import { inputProcessingService } from '../services/input-processing/index.js'
 import { systemCommandHandler } from './system-command-handler.js'
 import { isSystemCommand } from '../utils/system-commands.js'
 import { logError, processError, errorHandler } from './error-system/index.js'
-import { outputHandler } from './print/output.js'
+import { outputHandler } from './print/index.js'
 
 export class Router {
   constructor(dependencies = {}) {

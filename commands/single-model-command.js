@@ -2,10 +2,9 @@ import { logger } from '../utils/logger.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from '../core/error-system/index.js'
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../core/print/index.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
 import { updateContext } from '../utils/context-utils.js'
-import { executeStreamingRequest } from '../utils/streaming-utils.js'
 
 export function createSingleModelCommand(app) {
   function extractProviderModel(modelEntry) {
@@ -122,12 +121,10 @@ export function createSingleModelCommand(app) {
       const messages = prepareStreamingMessages(stateManager, content)
 
       // Create streaming request with abort signal - use StateManager directly
-      const stream = await executeStreamingRequest(
-        stateManager,
-        messages,
-        controller,
-        providerModel,
-      )
+      const stream = await stateManager.createChatCompletion(messages, {
+        stream: true,
+        signal: controller.signal
+      }, providerModel)
 
       // Process streaming response
       const response = await handleStreamResponse(

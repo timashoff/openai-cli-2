@@ -1,7 +1,7 @@
-import { color } from '../../../config/color.js'
 import { APP_CONSTANTS, UI_SYMBOLS } from '../../../config/constants.js'
+import { ANSI } from '../../../config/ansi.js'
 import readline from 'node:readline'
-import { outputHandler } from '../../../core/print/output.js'
+import { outputHandler } from '../../../core/print/index.js'
 
 export async function createNavigationMenu(title, options, initialIndex = 0, context = null) {
   const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
@@ -39,23 +39,23 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       const end = Math.min(start + pageSize, options.length)
 
       outputHandler.clearScreen()
-      console.log(color.cyan + title + color.reset)
+      console.log(ANSI.COLORS.CYAN + title + ANSI.COLORS.RESET)
       console.log('')
 
       for (let i = start; i < end; i++) {
         const isSelected = i === menuState.selectedIndex
-        const prefix = isSelected ? color.green + UI_SYMBOLS.ARROW + ' ' : '  '
-        const suffix = isSelected ? color.reset : ''
-        const textColor = isSelected ? color.yellow : color.reset
+        const prefix = isSelected ? ANSI.COLORS.GREEN + UI_SYMBOLS.ARROW + ' ' : '  '
+        const suffix = isSelected ? ANSI.COLORS.RESET : ''
+        const textColor = isSelected ? ANSI.COLORS.YELLOW : ANSI.COLORS.RESET
         console.log(`${prefix}${textColor}${options[i]}${suffix}`)
       }
 
       console.log('')
       const pageInfo = menuState.totalPages > 1 ? ` (page ${menuState.currentPage + 1}/${menuState.totalPages})` : ''
       console.log(
-        color.reset +
+        ANSI.COLORS.RESET +
           `Use ↑/↓ to navigate${menuState.totalPages > 1 ? ', ←/→ to change page' : ''}, Enter to select, Esc to cancel${pageInfo}` +
-          color.reset,
+          ANSI.COLORS.RESET,
       )
     }
 
@@ -150,7 +150,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
         handler()
       } else {
         // Block non-navigation keys with subtle feedback
-        process.stdout.write('\x07') // Bell sound
+        process.stdout.write(ANSI.SOUND.BELL) // Bell sound
       }
     }
 

@@ -1,6 +1,6 @@
 import { emitKeypressEvents } from 'node:readline'
 import { logger } from '../../utils/logger.js'
-import { outputHandler } from '../print/output.js'
+import { outputHandler } from '../print/index.js'
 
 export const createKeypressHandler = (state) => {
   const setupEscapeKeyHandling = () => {

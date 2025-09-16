@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { logger } from '../utils/logger.js'
-import { outputHandler } from '../core/print/output.js'
+import { outputHandler } from '../core/print/index.js'
 import { errorHandler } from '../core/error-system/index.js'
 import { Router } from '../core/Router.js'
 import { createApplicationLoop } from '../core/application-loop/index.js'
