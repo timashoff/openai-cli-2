@@ -33,7 +33,6 @@ export const createAnthropicProvider = (config) => {
   }
 
   const listModels = async () => {
-    base.rateLimiter.recordRequest()
     const startTime = Date.now()
 
     try {
@@ -51,7 +50,6 @@ export const createAnthropicProvider = (config) => {
   }
 
   const createChatCompletion = async (model, messages, options = {}) => {
-    base.rateLimiter.recordRequest()
     const startTime = Date.now()
 
     const { signal, ...apiOptions } = options

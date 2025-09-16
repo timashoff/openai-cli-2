@@ -21,7 +21,6 @@ export const createOpenAIProvider = (config) => {
   }
 
   const listModels = async () => {
-    base.rateLimiter.recordRequest()
     const startTime = Date.now()
 
     try {
@@ -38,7 +37,6 @@ export const createOpenAIProvider = (config) => {
   }
 
   const createChatCompletion = async (model, messages, options = {}) => {
-    base.rateLimiter.recordRequest()
     const startTime = Date.now()
 
     const { signal, ...apiOptions } = options
