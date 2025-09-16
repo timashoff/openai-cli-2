@@ -4,7 +4,7 @@ import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from './error-system/index.js'
 import { outputHandler } from './print/output.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
-import { updateSingleContext } from '../utils/context-utils.js'
+import { updateContext } from '../utils/context-utils.js'
 import { executeStreamingRequest } from '../utils/streaming-utils.js'
 
 export function createChatHandler(app) {
@@ -102,7 +102,7 @@ export function createChatHandler(app) {
           process.stdout.write('\n')
         }
 
-        updateSingleContext(stateManager, input, fullResponse)
+        updateContext(stateManager, input, fullResponse)
 
         // Display context dots after response
         outputHandler.writeContextDots(stateManager)

@@ -4,7 +4,7 @@ import { createSpinner } from '../utils/spinner.js'
 import { errorHandler } from '../core/error-system/index.js'
 import { outputHandler } from '../core/print/output.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
-import { updateSingleContext } from '../utils/context-utils.js'
+import { updateContext } from '../utils/context-utils.js'
 import { executeStreamingRequest } from '../utils/streaming-utils.js'
 
 export function createSingleModelCommand(app) {
@@ -146,7 +146,7 @@ export function createSingleModelCommand(app) {
           process.stdout.write('\n')
         }
 
-        updateSingleContext(stateManager, content, fullResponse)
+        updateContext(stateManager, content, fullResponse)
 
         // Display context dots after response
         outputHandler.writeContextDots(stateManager)

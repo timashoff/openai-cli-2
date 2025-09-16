@@ -1,28 +1,11 @@
-/**
- * Context utilities - Unified context management for streaming
- * Functional approach (NO CLASSES per CLAUDE.md!)
- * Single Source of Truth for context update logic
- */
+export function updateContext(stateManager, userInput, response) {
+  // Normalize input: array -> joined string, string -> as-is
+  const normalizedResponse = Array.isArray(response)
+    ? response.join('\n\n')
+    : response
 
-/**
- * Update context for single model responses
- * Adds user input and assistant response to context history
- */
-export function updateSingleContext(stateManager, userInput, response) {
-  if (response.trim()) {
+  if (normalizedResponse.trim()) {
     stateManager.addToContext('user', userInput)
-    stateManager.addToContext('assistant', response)
-  }
-}
-
-/**
- * Update context for multi-model responses
- * Combines multiple responses and adds to context history
- */
-export function updateMultiContext(stateManager, userInput, responses) {
-  const combined = responses.join('\n\n')
-  if (combined.trim()) {
-    stateManager.addToContext('user', userInput)
-    stateManager.addToContext('assistant', combined)
+    stateManager.addToContext('assistant', normalizedResponse)
   }
 }
