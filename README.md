@@ -102,6 +102,7 @@ System Commands:
 - help – Show all available commands and usage.
 - provider – Switch AI provider.
 - model – List and pick a different model.
+- cmd – Interactive command manager for adding/editing/removing user commands.
 - exit – Quit the application.
 
 Instruction Commands (translation & other tasks):
@@ -127,15 +128,29 @@ Special Features:
 
 ## For Developers: Adding a New Command
 
-1. Open `config/instructions.js`.
-2. Add a new entry to the `INSTRUCTIONS` object:
-   ```javascript
-   YOUR_NEW_COMMAND: {
-     key: ['-yourkey', ':yourkey'],
-     description: 'A brief description of what it does.',
-     instruction: 'The full prompt to send to the AI model.',
-   },
+The application uses an interactive command management system with SQLite database storage.
+
+1. Run the interactive command manager:
+   ```bash
+   cmd
    ```
+   Or in Russian:
+   ```bash
+   кмд
+   ```
+
+2. Choose "Add command" from the main menu.
+
+3. Follow the interactive prompts to configure:
+   - **Command keys**: Text triggers that activate the command (e.g., `gg`, `rr`, `translate`)
+   - **Command description**: Brief explanation of what the command does
+   - **AI instruction**: The full prompt sent to the AI model
+   - **Target models**: Optionally specify which models can use this command
+   - **Undo/Redo**: The system supports operation rollback
+
+4. Your command is immediately available for use across all providers and models.
+
+The interactive system also supports editing, removing, and bulk operations on existing commands.
 
 ## License
 
@@ -263,6 +278,7 @@ node bin/app.js
 | `help`     | Отображает справочное сообщение со всеми командами. |
 | `provider` | Позволяет переключить ИИ-провайдера.         |
 | `model`    | Показывает доступные модели и предлагает выбрать новую. |
+| `cmd`, `кмд` | Интерактивный менеджер команд для добавления/редактирования/удаления пользовательских команд. |
 | `exit`     | Закрывает приложение.                        |
 
 ### Команды-инструкции
@@ -300,15 +316,29 @@ node bin/app.js
 
 ## Для разработчиков: Как добавить новую команду
 
-1.  Откройте файл `config/instructions.js`.
-2.  Добавьте новую запись в объект `INSTRUCTIONS`.
-    ```javascript
-    YOUR_NEW_COMMAND: {
-      key: ['-yourkey', ':yourkey'],
-      description: 'Краткое описание того, что она делает.',
-      instruction: 'Полная инструкция для отправки ИИ-модели.',
-    },
-    ```
+Приложение использует интерактивную систему управления командами с хранением в SQLite базе данных.
+
+1. Запустите интерактивный менеджер команд:
+   ```bash
+   cmd
+   ```
+   Или на русском языке:
+   ```bash
+   кмд
+   ```
+
+2. Выберите "Add command" в главном меню.
+
+3. Следуйте интерактивным подсказкам для настройки:
+   - **Ключи команд**: Текстовые триггеры, активирующие команду (например, `gg`, `rr`, `translate`)
+   - **Описание команды**: Краткое объяснение функций команды
+   - **ИИ-инструкция**: Полный промпт, отправляемый ИИ-модели
+   - **Целевые модели**: По желанию укажите, какие модели могут использовать команду
+   - **Отмена/Повтор**: Система поддерживает откат операций
+
+4. Ваша команда немедленно становится доступной для всех провайдеров и моделей.
+
+Интерактивная система также поддерживает редактирование, удаление и массовые операции с существующими командами.
 
 ## Лицензия
 
@@ -417,6 +447,7 @@ ai
 - help    — 显示所有可用命令及用法
 - provider — 切换 AI 提供商
 - model   — 列出并选择不同模型
+- cmd, кмд — 交互式命令管理器，用于添加/编辑/删除用户命令
 - exit    — 退出应用
 
 指令命令（翻译及其他任务）：
@@ -443,15 +474,29 @@ ai
 
 ## 开发者：添加新命令
 
-1. 打开 `config/instructions.js`。
-2. 在 `INSTRUCTIONS` 对象中添加一条新条目：
-   ```javascript
-   YOUR_NEW_COMMAND: {
-     key: ['-yourkey', ':yourkey'],
-     description: '简要描述该命令功能。',
-     instruction: '发送给 AI 模型的完整提示。',
-   },
+应用程序使用具有 SQLite 数据库存储的交互式命令管理系统。
+
+1. 运行交互式命令管理器：
+   ```bash
+   cmd
    ```
+   或俄语版本：
+   ```bash
+   кмд
+   ```
+
+2. 从主菜单选择 "Add command"。
+
+3. 按照交互式提示进行配置：
+   - **命令键**：激活命令的文本触发器（例如 `gg`、`rr`、`translate`）
+   - **命令描述**：命令功能的简要说明
+   - **AI 指令**：发送给 AI 模型的完整提示
+   - **目标模型**：可选择指定哪些模型可以使用此命令
+   - **撤销/重做**：系统支持操作回滚
+
+4. 您的命令立即可用于所有提供商和模型。
+
+交互式系统还支持编辑、删除现有命令以及批量操作。
 
 ## 许可证
 
