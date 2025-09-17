@@ -2,7 +2,7 @@ import { outputHandler } from '../core/print/index.js'
 import { createStreamProcessor } from '../utils/stream-processor.js'
 import { logger } from '../utils/logger.js'
 import { createSpinner } from '../utils/spinner.js'
-import { logError, processError, createBaseError } from '../core/error-system/index.js'
+import { logError, processError } from '../core/error-system/index.js'
 import { UI_SYMBOLS } from '../config/constants.js'
 import { prepareStreamingMessages } from '../utils/message-utils.js'
 import { updateContext } from '../utils/context-utils.js'
@@ -20,7 +20,6 @@ export const multiModelCommand = {
         `MultiModelCommand: Executing ${commandData.models.length} models`,
       )
 
-      // Cache is disabled - all models are live
       const liveModels = commandData.models
 
       // Execute live models with reactive algorithm
@@ -35,21 +34,21 @@ export const multiModelCommand = {
 
       // Display final summary
       this.displaySummary(
-        0, // cachedCount always 0 (cache disabled)
         successfulLiveModels,
         commandData.models.length,
         app.stateManager,
       )
     } catch (error) {
-      const processedError = await processError(error, { context: 'MultiModelCommand' })
+      const processedError = await processError(error, {
+        context: 'MultiModelCommand',
+      })
       await logError(processedError)
-      outputHandler.writeError(`Multi-model execution failed: ${processedError.userMessage}`)
+      outputHandler.writeError(
+        `Multi-model execution failed: ${processedError.userMessage}`,
+      )
       throw processedError.originalError
     }
   },
-
-
-
 
   async executeReactiveModels(liveModels, commandData, app) {
     const stateManager = app.stateManager
@@ -206,9 +205,11 @@ export const multiModelCommand = {
       }
 
       // Add context management for multi-model responses
-      const successfulResults = Array.from(modelResults.values()).filter(r => r.success && r.response)
+      const successfulResults = Array.from(modelResults.values()).filter(
+        (r) => r.success && r.response,
+      )
       if (successfulResults.length > 0 && !controller.signal.aborted) {
-        const allResponses = successfulResults.map(r => r.response)
+        const allResponses = successfulResults.map((r) => r.response)
         updateContext(stateManager, commandData.content, allResponses)
       }
 
@@ -250,13 +251,11 @@ export const multiModelCommand = {
         },
       )
 
-      // Wait for NEXT completion (event-driven, not polling!)
       const completion = await Promise.race(completionPromises)
 
       // CRITICAL: Remove completed model from pending Map
       pendingPromises.delete(completion.modelKey)
 
-      // Yield completion event - this is where the magic happens!
       yield completion
     }
 
@@ -326,8 +325,6 @@ export const multiModelCommand = {
         outputHandler.writeNewline()
       }
 
-      // Cache is globally disabled - no caching
-
       return {
         model,
         response: fullResponse,
@@ -370,11 +367,10 @@ export const multiModelCommand = {
     outputHandler.writeNewline()
   },
 
-  displaySummary(cachedCount, liveCount, totalCount, stateManager) {
+  displaySummary(liveCount, totalCount, stateManager) {
     if (totalCount > 1) {
       outputHandler.writeNewline()
-      const respondedCount = cachedCount + liveCount
-      outputHandler.write(`[${respondedCount}/${totalCount} models responded]`)
+      outputHandler.write(`[${liveCount}/${totalCount} models responded]`)
 
       // Display context dots after multi-model response
       outputHandler.writeContextDots(stateManager)
