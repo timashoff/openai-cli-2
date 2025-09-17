@@ -1,7 +1,7 @@
 {
   "name": "openai-cli",
-  "version": "4.4.0",
-  "description": "Professional command-line AI assistant with modern OOP architecture, instant escape responsiveness, multi-provider support, and seamless UX",
+  "version": "5.2.8",
+  "description": "Professional command-line AI assistant with functional event-driven architecture, SQLite command management, interactive cmd/кмд system, and Zero Trust error handling",
   "type": "module",
   "main": "bin/app.js",
   "bin": {
@@ -9,10 +9,7 @@
   },
   "scripts": {
     "start": "node bin/app.js",
-    "dev": "node --watch bin/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "echo \"Add ESLint configuration for linting\"",
-    "format": "echo \"Add Prettier configuration for formatting\""
+    "dev": "node --watch bin/app.js"
   },
   "keywords": [
     "ai",
@@ -23,7 +20,11 @@
     "claude",
     "chatgpt",
     "terminal",
-    "assistant"
+    "assistant",
+    "sqlite",
+    "functional",
+    "event-driven",
+    "interactive"
   ],
   "author": "Roman Timashev",
   "license": "MIT",
@@ -42,6 +43,9 @@
     "bin/",
     "config/",
     "utils/",
+    "core/",
+    "services/",
+    "commands/",
     "README.md",
     "LICENSE"
   ]
