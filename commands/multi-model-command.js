@@ -8,10 +8,12 @@ import { prepareStreamingMessages } from '../utils/message-utils.js'
 import { updateContext } from '../utils/context-utils.js'
 
 export const multiModelCommand = {
+  // Local streaming state to prevent race conditions
+  streamingState: {
+    winnerIsStreaming: false,
+    pendingResults: [],
+  },
 
-  /**
-   * Execute multiple models with REACTIVE algorithm
-   */
   async execute(commandData, app) {
     try {
       logger.debug(
@@ -49,9 +51,6 @@ export const multiModelCommand = {
 
 
 
-  /**
-   * Execute models with REACTIVE algorithm - the correct way
-   */
   async executeReactiveModels(liveModels, commandData, app) {
     const stateManager = app.stateManager
     const controller = stateManager.getCurrentRequestController()
@@ -67,9 +66,14 @@ export const multiModelCommand = {
     const messages = prepareStreamingMessages(stateManager, commandData.content)
 
     // REACTIVE ALGORITHM: Dynamic pending array [A,B,C] → [A,C] → [C] → []
-    const pendingModels = [...liveModels] // This is our dynamic queue
     const modelPromises = new Map()
     const modelResults = new Map()
+
+    // O(1) lookup optimization: modelKey -> model
+    const modelKeyToModel = new Map()
+    liveModels.forEach((model) => {
+      modelKeyToModel.set(this.getModelKey(model), model)
+    })
 
     // Global winner state
     let globalWinnerFound = false
@@ -94,13 +98,16 @@ export const multiModelCommand = {
               winnerModel = winModel
 
               // Stop initial spinner immediately
-              if (initialSpinner.isActive()) {
-                initialSpinner.stop('success')
-                initialSpinner.dispose()
+              if (initialSpinner) {
+                this.cleanupSpinner(initialSpinner)
               }
 
               // Clear spinner artifacts
               outputHandler.clearLine()
+
+              // Set local streaming state
+              this.streamingState.winnerIsStreaming = true
+              this.streamingState.pendingResults = []
 
               // Display winner header
               outputHandler.writeNewline()
@@ -124,15 +131,13 @@ export const multiModelCommand = {
       )) {
         const { modelKey, result, success, error } = completion
 
-        // Find model from key
-        const model = liveModels.find((m) => this.getModelKey(m) === modelKey)
+        // Find model from key using O(1) lookup
+        const model = modelKeyToModel.get(modelKey)
         if (!model) continue
 
         // Stop current spinner if active
         if (currentSpinner) {
-          currentSpinner.stop('success')
-          currentSpinner.dispose()
-          outputHandler.clearLine() // Clear "Waiting..." message
+          this.cleanupSpinner(currentSpinner, true)
           currentSpinner = null
         }
 
@@ -144,7 +149,16 @@ export const multiModelCommand = {
 
         // Display result (skip winner - already streamed)
         if (model !== winnerModel) {
-          this.displayModelResult(modelResult)
+          if (this.streamingState.winnerIsStreaming) {
+            // Queue with timestamp to prevent race condition
+            this.streamingState.pendingResults.push({
+              result: modelResult,
+              timestamp: Date.now(),
+            })
+          } else {
+            // Winner already finished, display immediately
+            this.displayModelResult(modelResult)
+          }
         }
 
         // Count successful
@@ -155,6 +169,16 @@ export const multiModelCommand = {
         // Track winner completion for proper spinner synchronization
         if (result.isWinner) {
           winnerCompleted = true
+          // Winner finished streaming, flush pending results
+          this.streamingState.winnerIsStreaming = false
+
+          // Display queued results in chronological order
+          this.streamingState.pendingResults
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .forEach((item) => this.displayModelResult(item.result))
+
+          // Clear queue
+          this.streamingState.pendingResults = []
         }
 
         // Calculate remaining models - same logic as before!
@@ -177,9 +201,8 @@ export const multiModelCommand = {
 
       // Clean up final spinner
       if (currentSpinner) {
-        currentSpinner.stop('success')
-        currentSpinner.dispose()
-        outputHandler.clearLine()
+        this.cleanupSpinner(currentSpinner, true)
+        currentSpinner = null
       }
 
       // Add context management for multi-model responses
@@ -192,18 +215,13 @@ export const multiModelCommand = {
       return successfulCount
     } catch (error) {
       // Cleanup spinners
-      if (initialSpinner && initialSpinner.isActive()) {
-        initialSpinner.stop('error')
-        initialSpinner.dispose()
+      if (initialSpinner) {
+        this.cleanupSpinner(initialSpinner)
       }
       throw error
     }
   },
 
-  /**
-   * EVENT-DRIVEN async generator - NO MORE CPU WASTE!
-   * Processes models as they complete, removing them from pending Map
-   */
   async *processModelsEventDriven(modelPromises, controller) {
     // Use Map for proper tracking and removal
     const pendingPromises = new Map(modelPromises)
@@ -226,7 +244,7 @@ export const multiModelCommand = {
               modelKey,
               result: null,
               success: false,
-              error: error.message || 'Unknown error',
+              error: 'Model processing failed',
             }
           }
         },
@@ -248,9 +266,6 @@ export const multiModelCommand = {
     }
   },
 
-  /**
-   * Start model request with winner detection in chunkHandler
-   */
   async startModelWithWinnerDetection(
     model,
     messages,
@@ -327,20 +342,14 @@ export const multiModelCommand = {
         return { model, timing, success: false, error: 'Request cancelled' }
       }
 
-      return { model, timing, success: false, error: error.message }
+      return { model, timing, success: false, error: 'Model request failed' }
     }
   },
 
-  /**
-   * Get model key for maps
-   */
   getModelKey(model) {
     return `${model.provider}:${model.model}`
   },
 
-  /**
-   * Display model result (for non-winners)
-   */
   displayModelResult(result) {
     const { model, response, timing, success, error } = result
 
@@ -361,17 +370,22 @@ export const multiModelCommand = {
     outputHandler.writeNewline()
   },
 
-  /**
-   * Display final summary
-   */
   displaySummary(cachedCount, liveCount, totalCount, stateManager) {
     if (totalCount > 1) {
       outputHandler.writeNewline()
       const respondedCount = cachedCount + liveCount
       outputHandler.write(`[${respondedCount}/${totalCount} models responded]`)
-      
+
       // Display context dots after multi-model response
       outputHandler.writeContextDots(stateManager)
+    }
+  },
+
+  cleanupSpinner(spinner, clearLine = false) {
+    spinner.stop('success')
+    spinner.dispose()
+    if (clearLine) {
+      outputHandler.clearLine()
     }
   },
 }
