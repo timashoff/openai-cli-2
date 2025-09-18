@@ -34,7 +34,9 @@ export function createSpinner(message = '') {
       interval = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000
         const char = UI_SYMBOLS.SPINNER[charIndex++ % UI_SYMBOLS.SPINNER.length]
-        process.stdout.write(`${ANSI.MOVE.CARRIAGE_RETURN}${char} ${elapsed.toFixed(1)}s${message ? ' ' + message : ''}`)
+        process.stdout.write(
+          `${ANSI.MOVE.CARRIAGE_RETURN}${char} ${elapsed.toFixed(1)}s${message ? ' ' + message : ''}`,
+        )
       }, APP_CONSTANTS.SPINNER_INTERVAL)
     },
 
@@ -59,7 +61,9 @@ export function createSpinner(message = '') {
           status === 'success'
             ? `${ANSI.COLORS.GREEN}${UI_SYMBOLS.CHECK}${ANSI.COLORS.RESET}`
             : `${ANSI.COLORS.RED}${UI_SYMBOLS.CROSS}${ANSI.COLORS.RESET}`
-        process.stdout.write(`${ANSI.MOVE.CARRIAGE_RETURN}${symbol} ${elapsed.toFixed(1)}s\n`)
+        process.stdout.write(
+          `${ANSI.MOVE.CARRIAGE_RETURN}${symbol} ${elapsed.toFixed(1)}s\n`,
+        )
       } else {
         // Clear line if operation was too fast
         process.stdout.write(`${ANSI.MOVE.CARRIAGE_RETURN}${ANSI.CLEAR.LINE}`)
