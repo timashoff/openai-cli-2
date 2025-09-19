@@ -131,7 +131,6 @@ export const createModelExecutor = (stateManager) => {
   }
 
   return {
-    executeModel,
     executeModelsRace
   }
 }

@@ -27,7 +27,7 @@ export const createUIManager = () => {
 
   const displayWinnerHeader = (model) => {
     currentSpinner.dispose()
-    outputHandler.clearLine()
+    // outputHandler.clearLine()
     outputHandler.writeNewline()
     outputHandler.writeModel(model)
     logger.debug(
@@ -51,8 +51,9 @@ export const createUIManager = () => {
       outputHandler.write(`finished: ${timing.toFixed(1)}s`)
     } else {
       if (error !== 'Request cancelled') {
+        currentSpinner.dispose()
         outputHandler.write('\x1B[1A\x1B[2K') // clear 1 line
-        console.log('zaluoa')
+        outputHandler.writeModel(model)
         outputHandler.writeError(error)
       }
       outputHandler.write(`${UI_SYMBOLS.CROSS} failed: ${timing.toFixed(1)}s`)
@@ -81,10 +82,16 @@ export const createUIManager = () => {
     }
   }
 
+  const cleanup = () => {
+    currentSpinner.dispose()
+    outputHandler.clearLine()
+  }
+
   return {
     // Spinner management
     startInitialSpinner,
     showRemainingSpinner,
+    cleanup,
     // Display methods
     displayWinnerHeader,
     displayWinnerTiming,

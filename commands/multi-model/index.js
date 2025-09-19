@@ -3,7 +3,6 @@ import { createUIManager } from './ui-manager.js'
 import { createModelExecutor } from './model-executor.js'
 import { prepareStreamingMessages } from '../../utils/message-utils.js'
 import { updateContext } from '../../utils/context-utils.js'
-import { outputHandler } from '../../core/print/index.js'
 import { logger } from '../../utils/logger.js'
 
 export const createMultiModelCommand = () => {
@@ -17,45 +16,31 @@ export const createMultiModelCommand = () => {
     const uiManager = createUIManager()
     const modelExecutor = createModelExecutor(stateManager)
 
-    // Track winner completion state
-    let winnerHasCompleted = false
 
-    // Setup event handlers for proper result display coordination
+    // Pure event-driven handlers - no logic duplication
     coordinator.onDisplayResult((event) => {
       // Only display non-winner results (winner already shown via displayWinnerTiming)
       if (!event.result.isWinner) {
         uiManager.displayModelResult(event.result)
-
-        // IMMEDIATELY update spinner after showing result
-        if (winnerHasCompleted && !controller.signal.aborted) {
-          const remainingCount = coordinator.getRemainingCount()
-          if (remainingCount > 0) {
-            uiManager.showRemainingSpinner(controller, remainingCount)
-          } else {
-            // No more models remaining - cleanup
-            outputHandler.clearLine()
-          }
-        }
       }
     })
 
-    // Setup spinner management after winner completion
-
-    coordinator.onWinnerCompleted((event) => {
-      winnerHasCompleted = true
-      // After winner completes, start spinner for remaining models
-      const remainingCount = coordinator.getRemainingCount()
-      if (remainingCount > 0 && !controller.signal.aborted) {
-        uiManager.showRemainingSpinner(controller, remainingCount)
+    coordinator.onRemainingCountChanged((event) => {
+      // Reactive spinner management based on remaining count
+      if (event.remainingCount > 0) {
+        uiManager.showRemainingSpinner(controller, event.remainingCount)
       }
     })
-
-    // Removed spinner logic from here - now handled synchronously in onDisplayResult
 
     coordinator.onAllCompleted(() => {
-      // All models completed - cleanup
-      outputHandler.clearLine()
+      uiManager.cleanup()
     })
+
+    // Single abort handling - reactive approach
+    controller.signal.addEventListener('abort', () => {
+      uiManager.cleanup()
+      coordinator.resetState()
+    }, { once: true })
 
     // Prepare messages for streaming
     const messages = prepareStreamingMessages(stateManager, commandData.content)
@@ -84,15 +69,13 @@ export const createMultiModelCommand = () => {
       )
 
       // Update context with successful responses
-      if (successfulResults.length > 0 && !controller.signal.aborted) {
+      if (successfulResults.length > 0) {
         const allResponses = successfulResults.map((r) => r.response)
         updateContext(stateManager, commandData.content, allResponses)
       }
 
       // Display final summary
-      if (!controller.signal.aborted) {
-        uiManager.displaySummary(successfulCount, models.length, stateManager)
-      }
+      uiManager.displaySummary(successfulCount, models.length, stateManager)
 
       return successfulCount
     } catch (error) {

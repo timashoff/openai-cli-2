@@ -76,6 +76,10 @@ export const createMultiModelCoordinator = () => {
 
     eventBus.emit('model:completed', { model, result, isWinner })
 
+    // Emit remaining count change for reactive UI
+    const remainingCount = getRemainingCount()
+    eventBus.emit('remaining-count:changed', { remainingCount })
+
     // Check if all models completed
     if (isAllCompleted()) {
       eventBus.emit('all:completed', {
@@ -112,6 +116,7 @@ export const createMultiModelCoordinator = () => {
   const onWinnerCompleted = (handler) => eventBus.on('winner:completed', handler)
   const onModelCompleted = (handler) => eventBus.on('model:completed', handler)
   const onDisplayResult = (handler) => eventBus.on('model:display-result', handler)
+  const onRemainingCountChanged = (handler) => eventBus.on('remaining-count:changed', handler)
   const onAllCompleted = (handler) => eventBus.on('all:completed', handler)
 
   return {
@@ -134,6 +139,7 @@ export const createMultiModelCoordinator = () => {
     onWinnerCompleted,
     onModelCompleted,
     onDisplayResult,
+    onRemainingCountChanged,
     onAllCompleted,
 
     // State getters
