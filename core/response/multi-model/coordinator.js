@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { logger } from '../../utils/logger.js'
+import { logger } from '../../../utils/logger.js'
 
 export const createMultiModelCoordinator = () => {
   const eventBus = new EventEmitter()

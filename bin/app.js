@@ -5,8 +5,10 @@ import { errorHandler } from '../core/error-system/index.js'
 import { createRouter } from '../core/router.js'
 import { createApplicationLoop } from '../core/application-loop/index.js'
 import { createChatHandler } from '../core/chat-handler.js'
-import { createSingleModelCommand } from '../commands/single-model-command.js'
-import { createMultiModelCommand } from '../commands/multi-model/index.js'
+import {
+  createSingleModelCommand,
+  createMultiModelCommand,
+} from '../core/response/index.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
 import { PROVIDERS } from '../config/providers.js'

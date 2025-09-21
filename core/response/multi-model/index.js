@@ -1,9 +1,8 @@
 import { createMultiModelCoordinator } from './coordinator.js'
 import { createUIManager } from './ui-manager.js'
 import { createModelExecutor } from './model-executor.js'
-import { prepareStreamingMessages } from '../../utils/message-utils.js'
-import { updateContext } from '../../utils/context-utils.js'
-import { logger } from '../../utils/logger.js'
+import { prepareStreamingMessages } from '../../../utils/message-utils.js'
+import { updateContext } from '../../../utils/context-utils.js'
 
 export const createMultiModelCommand = () => {
   const executeModels = async (

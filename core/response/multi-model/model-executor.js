@@ -1,36 +1,34 @@
-import { createStreamProcessor } from '../../utils/stream-processor.js'
-import { logger } from '../../utils/logger.js'
-import { outputHandler } from '../../core/print/index.js'
+import { logger } from '../../../utils/logger.js'
+import { outputHandler } from '../../print/index.js'
+import { errorHandler } from '../../error-system/index.js'
+import { createResponseSessionFactory } from '../session.js'
 
 export const createModelExecutor = (stateManager) => {
-  const executeModel = async (model, messages, coordinator, uiManager, signal) => {
+  const sessionFactory = createResponseSessionFactory({ stateManager })
+
+  const executeModel = async (model, messages, coordinator, uiManager, controller) => {
     const startTime = Date.now()
     let isThisModelWinner = false
+    const responseBuffer = []
+    let session
 
     try {
       logger.debug(`ModelExecutor: Starting model ${coordinator.getModelKey(model)}`)
 
-      // Create streaming request
-      const stream = await stateManager.createChatCompletion(
+      session = sessionFactory.createSession({
         messages,
-        {
-          stream: true,
-          signal,
-        },
-        model,
-      )
+        controller,
+        providerModel: model,
+      })
 
-      const streamProcessor = createStreamProcessor()
-      const responseBuffer = []
-
-      // Winner detection happens HERE in chunkHandler
-      const chunkHandler = async (content) => {
-        if (signal.aborted) return
+      session.on('stream:chunk', ({ content }) => {
+        if (!content || controller.signal.aborted) {
+          return
+        }
 
         responseBuffer.push(content)
 
-        // First meaningful chunk makes this model the winner - simplified check
-        if (!coordinator.winnerModel && content.trim()) {
+        if (!isThisModelWinner && content.trim()) {
           isThisModelWinner = coordinator.setWinner(model)
 
           if (isThisModelWinner) {
@@ -38,48 +36,60 @@ export const createModelExecutor = (stateManager) => {
           }
         }
 
-        // Real-time streaming ONLY for winner
-        if (isThisModelWinner && content) {
+        if (isThisModelWinner) {
           outputHandler.writeStream(content)
         }
-      }
+      })
 
-      // Process stream
-      await streamProcessor.processStream(
-        stream,
-        signal,
-        chunkHandler,
-      )
+      const { aborted } = await session.start()
 
       const timing = (Date.now() - startTime) / 1000
       const fullResponse = responseBuffer.join('')
 
       // Display timing for winner
-      if (isThisModelWinner) {
+      if (!aborted && isThisModelWinner) {
         uiManager.displayWinnerTiming(timing)
       }
 
-      const result = {
-        model,
-        response: fullResponse,
-        timing,
-        success: true,
-        isWinner: isThisModelWinner,
-      }
+      const result = aborted
+        ? {
+            model,
+            timing,
+            success: false,
+            error: 'Request cancelled',
+            isWinner: isThisModelWinner,
+          }
+        : {
+            model,
+            response: fullResponse,
+            timing,
+            success: true,
+            isWinner: isThisModelWinner,
+          }
 
       // Notify coordinator of completion
       coordinator.completeModel(model, result)
 
-      logger.debug(`ModelExecutor: Model ${coordinator.getModelKey(model)} completed successfully`)
+      logger.debug(
+        `ModelExecutor: Model ${coordinator.getModelKey(model)} completed ${result.success ? 'successfully' : 'with cancellation'}`,
+      )
 
       return result
-
     } catch (error) {
       const timing = (Date.now() - startTime) / 1000
 
       let errorMessage = 'Model request failed'
       if (error.message === 'AbortError' || error.name === 'AbortError') {
         errorMessage = 'Request cancelled'
+      } else {
+        const processedError = await errorHandler.processError(error, {
+          component: 'ModelExecutor',
+          model: coordinator.getModelKey(model),
+        })
+
+        if (processedError.userMessage) {
+          errorMessage = processedError.userMessage
+        }
       }
 
       const result = {
@@ -96,6 +106,10 @@ export const createModelExecutor = (stateManager) => {
       logger.debug(`ModelExecutor: Model ${coordinator.getModelKey(model)} failed - ${errorMessage}`)
 
       return result
+    } finally {
+      if (session) {
+        session.dispose()
+      }
     }
   }
 
@@ -104,7 +118,7 @@ export const createModelExecutor = (stateManager) => {
 
     // Start all models in parallel - clean Promise approach
     const modelPromises = models.map(model => {
-      const promise = executeModel(model, messages, coordinator, uiManager, controller.signal)
+      const promise = executeModel(model, messages, coordinator, uiManager, controller)
       coordinator.registerModel(model, promise)
       return promise
     })
