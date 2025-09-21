@@ -54,14 +54,10 @@ export const createUIManager = () => {
     pendingWaitingMessage = waitingStr
 
     if (winnerStreaming) {
-      if (lastWaitingCount !== remainingCount) {
-        outputHandler.writeNewline()
-        outputHandler.write(waitingStr)
-        lastWaitingCount = remainingCount
-        logger.debug(
-          `UIManager: Remaining count updated (winner streaming) - ${remainingCount}`,
-        )
-      }
+      lastWaitingCount = remainingCount
+      logger.debug(
+        `UIManager: Cached remaining count during winner stream - ${remainingCount}`,
+      )
       return
     }
 

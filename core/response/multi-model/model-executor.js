@@ -1,47 +1,44 @@
 import { logger } from '../../../utils/logger.js'
 import { outputHandler } from '../../print/index.js'
 import { errorHandler } from '../../error-system/index.js'
-import { createResponseSessionFactory } from '../session.js'
+import { createStreamCommandRunner } from '../stream-runner.js'
 
 export const createModelExecutor = (stateManager) => {
-  const sessionFactory = createResponseSessionFactory({ stateManager })
+  const runStreamCommand = createStreamCommandRunner({ stateManager })
 
   const executeModel = async (model, messages, coordinator, uiManager, controller) => {
     const startTime = Date.now()
     let isThisModelWinner = false
     const responseBuffer = []
-    let session
 
     try {
       logger.debug(`ModelExecutor: Starting model ${coordinator.getModelKey(model)}`)
 
-      session = sessionFactory.createSession({
-        messages,
+      const { aborted } = await runStreamCommand({
         controller,
+        messages,
         providerModel: model,
-      })
+        useSpinner: false,
+        onChunk: ({ content }) => {
+          if (!content || controller.signal.aborted) {
+            return
+          }
 
-      session.on('stream:chunk', ({ content }) => {
-        if (!content || controller.signal.aborted) {
-          return
-        }
+          responseBuffer.push(content)
 
-        responseBuffer.push(content)
+          if (!isThisModelWinner && content.trim()) {
+            isThisModelWinner = coordinator.setWinner(model)
 
-        if (!isThisModelWinner && content.trim()) {
-          isThisModelWinner = coordinator.setWinner(model)
+            if (isThisModelWinner) {
+              uiManager.displayWinnerHeader(model)
+            }
+          }
 
           if (isThisModelWinner) {
-            uiManager.displayWinnerHeader(model)
+            outputHandler.writeStream(content)
           }
-        }
-
-        if (isThisModelWinner) {
-          outputHandler.writeStream(content)
-        }
+        },
       })
-
-      const { aborted } = await session.start()
 
       const timing = (Date.now() - startTime) / 1000
       const fullResponse = responseBuffer.join('')
@@ -106,10 +103,6 @@ export const createModelExecutor = (stateManager) => {
       logger.debug(`ModelExecutor: Model ${coordinator.getModelKey(model)} failed - ${errorMessage}`)
 
       return result
-    } finally {
-      if (session) {
-        session.dispose()
-      }
     }
   }
 
