@@ -22,7 +22,7 @@ A command-line tool for interacting with AI providers (OpenAI, DeepSeek), design
 ## Installation Requirements
 
 1. Software
-   - **Node.js:** Version 18.x or higher recommended.
+   - **Node.js:** Version 22.x or higher required.
    - **npm:** Included with Node.js, used for package management.
    - **Git:** For cloning the repository.
    - **(Linux only) xclip:** Needed for clipboard support on Linux. Install via your package manager (e.g., `sudo apt-get install xclip`).
@@ -180,7 +180,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 ## Требования для установки
 
 ### 1. Программное обеспечение
-- **Node.js:** Рекомендуется версия 18.x или выше.
+- **Node.js:** Требуется версия 22.x или новее.
 - **npm:** Поставляется вместе с Node.js. Используется для управления пакетами.
 - **Git:** Для клонирования репозитория.
 - **(Только для Linux) xclip:** Функциональность буфера обмена в Linux зависит от этой утилиты. Вы можете установить ее с помощью вашего менеджера пакетов, например, `sudo apt-get install xclip`.
@@ -368,7 +368,7 @@ node bin/app.js
 ## 安装要求
 
 1. 软件
-   - **Node.js**：建议使用 18.x 或更高版本。
+   - **Node.js**：需使用 22.x 或更高版本。
    - **npm**：随 Node.js 一同安装，用于包管理。
    - **Git**：用于克隆仓库。
    - **（仅限 Linux）xclip**：在 Linux 下实现剪贴板支持。可通过包管理器安装（例如 `sudo apt-get install xclip`）。

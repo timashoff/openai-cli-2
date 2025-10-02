@@ -103,7 +103,12 @@ export const createUIManager = () => {
     outputHandler.write(`finished: ${timing.toFixed(1)}s`)
     winnerStreaming = false
 
-    if (pendingWaitingMessage && activeController && lastWaitingCount && lastWaitingCount > 0) {
+    if (
+      pendingWaitingMessage &&
+      activeController &&
+      lastWaitingCount &&
+      lastWaitingCount > 0
+    ) {
       outputHandler.writeNewline()
       startSpinner(activeController, pendingWaitingMessage, { force: true })
       logger.debug(
