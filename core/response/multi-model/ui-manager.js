@@ -54,10 +54,14 @@ export const createUIManager = () => {
     pendingWaitingMessage = waitingStr
 
     if (winnerStreaming) {
-      lastWaitingCount = remainingCount
-      logger.debug(
-        `UIManager: Cached remaining count during winner stream - ${remainingCount}`,
-      )
+      if (lastWaitingCount !== remainingCount) {
+        outputHandler.writeNewline()
+        outputHandler.write(waitingStr)
+        lastWaitingCount = remainingCount
+        logger.debug(
+          `UIManager: Remaining count updated (winner streaming) - ${remainingCount}`,
+        )
+      }
       return
     }
 
@@ -99,7 +103,12 @@ export const createUIManager = () => {
     outputHandler.write(`finished: ${timing.toFixed(1)}s`)
     winnerStreaming = false
 
-    if (pendingWaitingMessage && activeController && lastWaitingCount && lastWaitingCount > 0) {
+    if (
+      pendingWaitingMessage &&
+      activeController &&
+      lastWaitingCount &&
+      lastWaitingCount > 0
+    ) {
       outputHandler.writeNewline()
       startSpinner(activeController, pendingWaitingMessage, { force: true })
       logger.debug(
