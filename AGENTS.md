@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `bin/app.js` bootstraps the CLI and composes router, state manager, and application loop.
 - `core/` hosts routing, print, error, and `application-loop/`; `core/response/` centralizes chat, single/multi-model handlers, and the shared stream runner, `commands/system/` covers system verbs.
-- `services/` preprocess input and expose SQLite `DatabaseCommandService`; `config/` stores provider constants; `utils/` holds shared helpers.
+- `services/` preprocess input and expose SQLite-backed services (`DatabaseCommandService`, `AgentProfileService`); `config/` stores provider constants; `utils/` держат общий код.
 - `db/commands.db` seeds instruction shortcuts consumed during routing.
 
 ## Business Logic & Architecture

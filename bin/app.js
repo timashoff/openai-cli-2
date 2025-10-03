@@ -8,6 +8,7 @@ import {
   createSingleModelCommand,
   createMultiModelCommand,
   createChatHandler,
+  createResponsesAgentCommand,
 } from '../core/response/index.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
@@ -43,11 +44,15 @@ async function start() {
     })
 
     // Create application context for components that need it
-    const appContext = { stateManager }
+    const appContext = {
+      stateManager,
+      agentProfiles: stateManager.agentProfiles,
+    }
 
     // Create dependent components through functional composition
     const chatHandler = createChatHandler(appContext)
     const singleModelCommand = createSingleModelCommand(appContext)
+    const responsesAgentCommand = createResponsesAgentCommand(appContext)
     const applicationLoop = createApplicationLoop(appContext)
 
     // Create router with all handler dependencies
@@ -57,6 +62,7 @@ async function start() {
       multiModelCommand,
       singleModelCommand,
       chatHandler,
+      responsesAgentCommand,
     })
 
     // Add router to context for ApplicationLoop
@@ -64,6 +70,7 @@ async function start() {
 
     // Initialize providers with ApplicationLoop spinner
     await applicationLoop.showInitializationSpinner(async () => {
+      await stateManager.loadAgentProfiles()
       // Initialize default provider through StateManager
       await initializeDefaultProvider(stateManager)
       // Initialize router if needed

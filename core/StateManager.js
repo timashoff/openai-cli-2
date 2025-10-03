@@ -4,6 +4,8 @@ import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { logError, processError } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
+import { agentProfileService } from '../services/agent-profile-service.js'
+import { prepareResponseInput } from '../utils/message-utils.js'
 
 // Event emitter for StateManager events (Single Source of Truth)
 export const stateManagerEvents = new EventEmitter()
@@ -20,6 +22,8 @@ stateManagerEvents.on('error', async (error) => {
 function createStateManager() {
   // Initialize provider factory
   const providerFactory = createProviderFactory()
+  let agentProfilesCache = new Map()
+  let lastProfileOwnerId = null
 
   // Private state with closures
   const aiState = {
@@ -399,6 +403,111 @@ function createStateManager() {
   }
 
 
+  // === Agent Profile Management ===
+
+  async function loadAgentProfiles(options = {}) {
+    const ownerId = options.ownerId || null
+    try {
+      const profiles = await agentProfileService.listProfiles({ ownerId })
+      cacheAgentProfiles(profiles, ownerId)
+      return profiles
+    } catch (error) {
+      const processedError = await processError(error, {
+        context: 'StateManager:loadAgentProfiles',
+        component: 'agentProfiles',
+      })
+      await logError(processedError)
+      throw processedError.originalError || error
+    }
+  }
+
+  async function reloadAgentProfiles(options = {}) {
+    agentProfilesCache.clear()
+    return await loadAgentProfiles(options)
+  }
+
+  function cacheAgentProfiles(profiles, ownerId) {
+    lastProfileOwnerId = ownerId || null
+    agentProfilesCache = new Map()
+    for (const profile of profiles) {
+      agentProfilesCache.set(profile.id, profile)
+    }
+  }
+
+  async function getAgentProfiles({ ownerId = null } = {}) {
+    if (ownerId !== lastProfileOwnerId || agentProfilesCache.size === 0) {
+      const profiles = await agentProfileService.listProfiles({ ownerId })
+      cacheAgentProfiles(profiles, ownerId)
+      return profiles
+    }
+    return Array.from(agentProfilesCache.values())
+  }
+
+  async function getAgentProfile(profileId, options = {}) {
+    if (agentProfilesCache.has(profileId)) {
+      return agentProfilesCache.get(profileId)
+    }
+    const profile = await agentProfileService.getProfile(profileId)
+    if (profile) {
+      agentProfilesCache.set(profile.id, profile)
+    }
+    return profile
+  }
+
+  async function hasAgentProfile(profileId) {
+    if (agentProfilesCache.has(profileId)) {
+      return true
+    }
+    return await agentProfileService.profileExists(profileId)
+  }
+
+  async function getAgentProfileSummary(profileId) {
+    const profile = await getAgentProfile(profileId)
+    if (!profile) {
+      return null
+    }
+
+    return {
+      id: profile.id,
+      name: profile.name,
+      model: profile.model,
+      provider: profile.provider,
+      instructionsPreview: profile.instructions
+        ? profile.instructions.replace(/\s+/g, ' ').slice(0, 120) + (profile.instructions.length > 120 ? '…' : '')
+        : '',
+      tools: Array.isArray(profile.tools) ? profile.tools.map((tool) => (typeof tool === 'string' ? tool : tool.type || tool.name)).filter(Boolean) : [],
+      metadata: profile.metadata || {},
+    }
+  }
+
+  function getAgentProfileStats() {
+    return {
+      totalProfiles: agentProfilesCache.size,
+      lastOwnerId: lastProfileOwnerId,
+    }
+  }
+
+  async function createAgentProfile(profile) {
+    const created = await agentProfileService.createProfile(profile)
+    agentProfilesCache.set(created.id, created)
+    return created
+  }
+
+  async function updateAgentProfile(id, profile) {
+    const updated = await agentProfileService.updateProfile(id, profile)
+    agentProfilesCache.set(updated.id, updated)
+    return updated
+  }
+
+  async function deleteAgentProfile(id) {
+    const removed = await agentProfileService.deleteProfile(id)
+    if (removed) {
+      agentProfilesCache.delete(id)
+    }
+    return removed
+  }
+
+
 
   // === Event Listener Management ===
 
@@ -514,12 +623,244 @@ function createStateManager() {
     }
   }
 
+  async function createResponseStream({
+    profile,
+    userInput,
+    signal,
+    responseOptions = {},
+  }) {
+    if (!profile || !profile.id) {
+      throw new Error('Agent profile is required to create a response stream')
+    }
+
+    if (!profile.model) {
+      throw new Error(`Agent profile ${profile.id} is missing a model`)
+    }
+
+    const input = prepareResponseInput(contextState.contextHistory, userInput || '')
+    const providerKey = profile.provider || aiState.currentProviderKey || 'openai'
+
+    if (!PROVIDERS[providerKey]) {
+      throw new Error(`Unknown provider for response stream: ${providerKey}`)
+    }
+
+    logger.debug(
+      `StateManager: Creating Responses stream for profile ${profile.id} using provider ${providerKey}`,
+    )
+
+    const providerData = await ensureProviderInitialized(providerKey)
+
+    const metadata = normalizeMetadata(profile.metadata)
+
+    const params = {
+      model: profile.model,
+      input,
+      instructions: profile.instructions,
+      tools: Array.isArray(profile.tools) ? profile.tools : [],
+      ...(metadata ? { metadata } : {}),
+      ...responseOptions,
+      signal,
+    }
+
+    const responseStream = await providerData.instance.createResponseStream(params)
+
+    const emitter = new EventEmitter()
+    let aggregatedText = ''
+    let aborted = false
+    let completed = false
+    let finalResponse = null
+    let firstDeltaEmitted = false
+
+    const extractTextFromResponse = (response) => {
+      if (!response || !response.output) {
+        return aggregatedText
+      }
+
+      const collected = []
+
+      for (const item of response.output) {
+        if (item?.type === 'message' && Array.isArray(item.content)) {
+          for (const contentPart of item.content) {
+            if (contentPart?.type === 'output_text' && contentPart.text) {
+              collected.push(contentPart.text)
+            }
+          }
+        }
+      }
+
+      if (collected.length === 0) {
+        return aggregatedText
+      }
+
+      return collected.join('\n')
+    }
+
+    const handleDelta = (event) => {
+      const delta = event.delta || ''
+      aggregatedText = event.snapshot || (aggregatedText + delta)
+
+      if (!firstDeltaEmitted && delta) {
+        firstDeltaEmitted = true
+        emitter.emit('first-delta', {
+          delta,
+          snapshot: event.snapshot,
+        })
+      }
+
+      if (delta) {
+        emitter.emit('delta', {
+          delta,
+          snapshot: event.snapshot,
+        })
+      }
+    }
+
+    const handleFunctionCallDelta = (event) => {
+      emitter.emit('function-call-delta', event)
+    }
+
+    const handleCompleted = (event) => {
+      completed = true
+      const completedText = extractTextFromResponse(event.response)
+      aggregatedText = completedText || aggregatedText
+      emitter.emit('completed', {
+        text: aggregatedText,
+        response: event.response,
+      })
+    }
+
+    const handleFailed = (event) => {
+      const error = new Error(event.error?.message || 'Response stream failed')
+      emitter.emit('error', error)
+    }
+
+    const handleError = (error) => {
+      emitter.emit('error', error)
+    }
+
+    const handleAbort = (error) => {
+      aborted = true
+      emitter.emit('aborted', error)
+    }
+
+    const handleEnd = () => {
+      emitter.emit('end', {
+        text: aggregatedText,
+        completed,
+      })
+    }
+
+    responseStream.on('response.output_text.delta', handleDelta)
+    responseStream.on('response.function_call_arguments.delta', handleFunctionCallDelta)
+    responseStream.on('response.completed', handleCompleted)
+    responseStream.on('response.failed', handleFailed)
+    responseStream.on('error', handleError)
+    responseStream.on('abort', handleAbort)
+    responseStream.on('end', handleEnd)
+
+    const removeHandlers = () => {
+      responseStream.off('response.output_text.delta', handleDelta)
+      responseStream.off(
+        'response.function_call_arguments.delta',
+        handleFunctionCallDelta,
+      )
+      responseStream.off('response.completed', handleCompleted)
+      responseStream.off('response.failed', handleFailed)
+      responseStream.off('error', handleError)
+      responseStream.off('abort', handleAbort)
+      responseStream.off('end', handleEnd)
+    }
+
+    const finalPromise = responseStream
+      .finalResponse()
+      .then((response) => {
+        finalResponse = response
+        const finalText = extractTextFromResponse(response)
+        aggregatedText = finalText || aggregatedText
+        emitter.emit('final', {
+          text: aggregatedText,
+          response,
+        })
+        return {
+          text: aggregatedText,
+          response,
+          aborted: false,
+        }
+      })
+      .catch((error) => {
+        const isAbort =
+          error &&
+          (error.name === 'AbortError' || error.name === 'APIUserAbortError')
+
+        if (isAbort) {
+          aborted = true
+          emitter.emit('aborted', error)
+          return {
+            text: aggregatedText,
+            response: null,
+            aborted: true,
+          }
+        }
+
+        emitter.emit('error', error)
+        throw error
+      })
+      .finally(() => {
+        removeHandlers()
+      })
+
+    return {
+      on: (event, handler) => {
+        emitter.on(event, handler)
+        return () => emitter.removeListener(event, handler)
+      },
+      once: (event, handler) => emitter.once(event, handler),
+      off: (event, handler) => emitter.removeListener(event, handler),
+      waitForCompletion: () => finalPromise,
+      abort: () => {
+        aborted = true
+        responseStream.abort()
+      },
+      isAborted: () => aborted,
+      getSnapshot: () => aggregatedText,
+      getFinalResponse: () => finalResponse,
+      stream: responseStream,
+    }
+  }
+
+  function normalizeMetadata(metadata) {
+    if (!metadata || typeof metadata !== 'object') {
+      return null
+    }
+
+    const normalizedEntries = Object.entries(metadata)
+      .filter(([key, value]) => typeof key === 'string' && value !== undefined && value !== null)
+      .map(([key, value]) => {
+        if (typeof value === 'string') {
+          return [key, value]
+        }
+
+        try {
+          return [key, JSON.stringify(value)]
+        } catch {
+          return [key, String(value)]
+        }
+      })
+
+    if (normalizedEntries.length === 0) {
+      return null
+    }
+
+    return Object.fromEntries(normalizedEntries)
+  }
+
   // Return the functional object (NO CLASS!)
   return {
     // Main operations
     switchProvider,
     switchModel,
     createChatCompletion,
+    createResponseStream,
 
     // AI state getters
     getAIState,
@@ -561,6 +902,32 @@ function createStateManager() {
     clearContext,
     getContextHistory,
 
+    // Agent profiles
+    loadAgentProfiles,
+    reloadAgentProfiles,
+    getAgentProfiles,
+    getAgentProfile,
+    hasAgentProfile,
+    getAgentProfileSummary,
+    getAgentProfileStats,
+    createAgentProfile,
+    updateAgentProfile,
+    deleteAgentProfile,
+
+    agentProfiles: {
+      loadProfiles: loadAgentProfiles,
+      reloadProfiles: reloadAgentProfiles,
+      getProfiles: getAgentProfiles,
+      getProfile: getAgentProfile,
+      hasProfile: hasAgentProfile,
+      getProfileSummary: getAgentProfileSummary,
+      getStats: getAgentProfileStats,
+      createProfile: createAgentProfile,
+      updateProfile: updateAgentProfile,
+      deleteProfile: deleteAgentProfile,
+      listProfiles: getAgentProfiles,
+    },
+
 
     // Event listeners
     addListener,
@@ -586,4 +953,3 @@ export function resetStateManager() {
   }
   stateManagerInstance = null
 }
-

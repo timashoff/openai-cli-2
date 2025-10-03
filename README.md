@@ -16,6 +16,7 @@ A command-line tool for interacting with AI providers (OpenAI, DeepSeek), design
 - **~~Force Refresh~~ Disabled:** --force/-f flags are parsed but ignored (cache disabled).
 - **Request Cancellation:** Abort a long-running or unwanted API call by pressing `Esc`.
 - **Clipboard Integration:** Insert your clipboard contents into the prompt with the `$$` token.
+- **Agent Profiles:** User commands map to reusable profiles stored in SQLite and edited through the built-in `cmd` UI, streaming via the OpenAI Responses API.
 - **Contextual Chat:** Keeps a conversation history for coherent multi-turn dialogue (for non-translation queries).
 - **Cross-Platform:** Works on macOS (tested), Linux, and Windows (needs testing).
 
@@ -90,7 +91,7 @@ ai
 3. **User Input:** Acts like a chat interface.
 4. **Command Handling:**
    - **System commands** (`help`, `model`, `provider`, `exit`) run locally.
-   - **Translation commands** (`rr`, `ee`, etc.) are sent directly to the API (caching disabled).
+   - **Instruction commands** (`rr`, `gg`, etc.) resolve to stored agent profiles, then stream through the OpenAI Responses API.
    - **General chat** (any other input) is sent to the API along with the current conversation history for context.
 5. **Streaming Responses:** The AI’s reply streams in real time; press `Esc` to interrupt.
 6. **Clearing Context:** Entering an empty line clears the conversation context to avoid hitting token limits when you switch topics.
@@ -142,15 +143,19 @@ The application uses an interactive command management system with SQLite databa
 2. Choose "Add command" from the main menu.
 
 3. Follow the interactive prompts to configure:
-   - **Command keys**: Text triggers that activate the command (e.g., `gg`, `rr`, `translate`)
-   - **Command description**: Brief explanation of what the command does
-   - **AI instruction**: The full prompt sent to the AI model
-   - **Target models**: Optionally specify which models can use this command
-   - **Undo/Redo**: The system supports operation rollback
+   - **Command keys**: Триггеры, вызывающие команду (например, `gg`, `rr`).
+   - **Command description**: Короткое описание действия.
+   - **Agent profile**: Выберите или создайте профиль агента прямо в меню `Manage agent profiles`.
+   - **Command type** / **Input mode**: По умолчанию команда работает как агент с текстовым вводом.
+   - **Legacy instruction field**: Опционально, сохраняется для старых сценариев.
+   - **Target models**: Доступно для legacy-команд и кастомных сценариев.
+   - **Undo/Redo**: Меню поддерживает откат операций.
 
-4. Your command is immediately available for use across all providers and models.
+4. Управляйте агентами через пункт меню **Manage agent profiles**: создавайте, редактируйте, удаляйте и просматривайте профили без прямого доступа к БД.
 
-The interactive system also supports editing, removing, and bulk operations on existing commands.
+5. Команда сразу готова к работе. Маршрутизатор загружает профили из SQLite на старте и использует их для стриминга через Responses API.
+
+The interactive system also supports editing, removing, and bulk operations on existing commands. Run `npm test` to execute the lightweight Node.js test suite (`node --test`).
 
 ## License
 

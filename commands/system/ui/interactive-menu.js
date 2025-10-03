@@ -4,12 +4,35 @@ import readline from 'node:readline'
 import { outputHandler } from '../../../core/print/index.js'
 
 export async function createNavigationMenu(title, options, initialIndex = 0, context = null) {
+  const normalizedOptions = options.map((option) => {
+    if (option && typeof option === 'object') {
+      return {
+        label: option.label ?? '',
+        hint: option.hint ?? '',
+      }
+    }
+    return {
+      label: option !== undefined && option !== null ? String(option) : '',
+      hint: '',
+    }
+  })
+
   const pageSize = APP_CONSTANTS.MENU_PAGE_SIZE
+  const totalOptions = normalizedOptions.length
+  const safeInitialIndex = Math.min(Math.max(initialIndex, 0), Math.max(totalOptions - 1, 0))
   return new Promise((resolve) => {
+    if (totalOptions === 0) {
+      outputHandler.clearScreen()
+      console.log(ANSI.COLORS.CYAN + title + ANSI.COLORS.RESET)
+      console.log(`${ANSI.COLORS.GREY}No options available.${ANSI.COLORS.RESET}`)
+      resolve(APP_CONSTANTS.MENU_CANCELLED_INDEX)
+      return
+    }
+
     const menuState = {
-      selectedIndex: initialIndex,
-      currentPage: Math.floor(initialIndex / pageSize),
-      totalPages: Math.ceil(options.length / pageSize)
+      selectedIndex: safeInitialIndex,
+      currentPage: Math.floor((safeInitialIndex || 0) / pageSize),
+      totalPages: Math.ceil(totalOptions / pageSize) || 1,
     }
 
     // Pause ApplicationLoop readline interface to avoid conflicts
@@ -36,18 +59,25 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
 
     const renderMenu = () => {
       const start = menuState.currentPage * pageSize
-      const end = Math.min(start + pageSize, options.length)
+      const end = Math.min(start + pageSize, totalOptions)
 
       outputHandler.clearScreen()
       console.log(ANSI.COLORS.CYAN + title + ANSI.COLORS.RESET)
+
+      const currentOption = normalizedOptions[menuState.selectedIndex]
+      if (currentOption && currentOption.hint) {
+        console.log(`${ANSI.COLORS.GREY}${currentOption.hint}${ANSI.COLORS.RESET}`)
+      }
       console.log('')
 
       for (let i = start; i < end; i++) {
+        const option = normalizedOptions[i]
+        const label = option ? option.label : ''
         const isSelected = i === menuState.selectedIndex
         const prefix = isSelected ? ANSI.COLORS.GREEN + UI_SYMBOLS.ARROW + ' ' : '  '
         const suffix = isSelected ? ANSI.COLORS.RESET : ''
         const textColor = isSelected ? ANSI.COLORS.YELLOW : ANSI.COLORS.RESET
-        console.log(`${prefix}${textColor}${options[i]}${suffix}`)
+        console.log(`${prefix}${textColor}${label}${suffix}`)
       }
 
       console.log('')
@@ -75,8 +105,9 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       const increment = direction === 'up' ? -1 : 1
       while (
         menuState.selectedIndex > 0 &&
-        menuState.selectedIndex < options.length - 1 &&
-        options[menuState.selectedIndex] === ''
+        menuState.selectedIndex < totalOptions - 1 &&
+        normalizedOptions[menuState.selectedIndex] &&
+        normalizedOptions[menuState.selectedIndex].label === ''
       ) {
         menuState.selectedIndex += increment
       }
@@ -90,7 +121,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
       if (menuState.selectedIndex > 0) {
         menuState.selectedIndex--
       } else {
-        menuState.selectedIndex = options.length - 1
+        menuState.selectedIndex = totalOptions - 1
       }
       skipEmptyOptions('up')
       updateCurrentPageForIndex()
@@ -98,7 +129,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
     }
 
     const navigateDown = () => {
-      if (menuState.selectedIndex < options.length - 1) {
+      if (menuState.selectedIndex < totalOptions - 1) {
         menuState.selectedIndex++
       } else {
         menuState.selectedIndex = 0
@@ -120,7 +151,7 @@ export async function createNavigationMenu(title, options, initialIndex = 0, con
     }
 
     const nextPage = () => {
-      if ((menuState.currentPage + 1) * pageSize < options.length) {
+      if ((menuState.currentPage + 1) * pageSize < totalOptions) {
         menuState.currentPage++
         menuState.selectedIndex = Math.max(menuState.selectedIndex, menuState.currentPage * pageSize)
         renderMenu()

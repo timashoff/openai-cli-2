@@ -74,6 +74,10 @@ export const createBaseProvider = (config) => {
     throw new Error('createChatCompletion() must be implemented by provider subclass')
   }
 
+  const createResponseStream = async (_options = {}) => {
+    throw new Error('createResponseStream() must be implemented by provider subclass')
+  }
+
   const validateModel = async (modelId) => {
     throw new Error('validateModel() must be implemented by provider subclass')
   }
@@ -88,6 +92,7 @@ export const createBaseProvider = (config) => {
     getStats,
     listModels,
     createChatCompletion,
+    createResponseStream,
     validateModel
   }
 }

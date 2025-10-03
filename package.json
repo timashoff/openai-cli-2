@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node bin/app.js",
-    "dev": "node --watch bin/app.js"
+    "dev": "node --watch bin/app.js",
+    "test": "node --test"
   },
   "keywords": [
     "ai",

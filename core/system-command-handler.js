@@ -61,6 +61,19 @@ const createCleanContext = (applicationLoop) => {
       },
     },
 
+    agentProfiles: {
+      loadProfiles: (options) => app.stateManager.loadAgentProfiles(options),
+      reloadProfiles: (options) => app.stateManager.reloadAgentProfiles(options),
+      getProfiles: (options) => app.stateManager.getAgentProfiles(options),
+      list: (options) => app.stateManager.getAgentProfiles(options),
+      getProfile: (id, options) => app.stateManager.getAgentProfile(id, options),
+      hasProfile: (id) => app.stateManager.hasAgentProfile(id),
+      getProfileSummary: (id) => app.stateManager.getAgentProfileSummary(id),
+      createProfile: (profile) => app.agentProfiles.createProfile(profile),
+      updateProfile: (id, profile) => app.agentProfiles.updateProfile(id, profile),
+      deleteProfile: (id) => app.agentProfiles.deleteProfile(id),
+    },
+
     // State interfaces - for application state
     state: {
       getAIState: () => app.stateManager.getAIState(),

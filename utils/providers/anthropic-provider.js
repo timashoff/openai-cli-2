@@ -82,6 +82,10 @@ export const createAnthropicProvider = (config) => {
     return result
   }
 
+  const createResponseStream = async () => {
+    throw createBaseError('Responses API streaming is not supported for Anthropic provider yet', true, 501)
+  }
+
   const validateModel = async (modelId) => {
     try {
       const models = await listModels()
@@ -97,6 +101,7 @@ export const createAnthropicProvider = (config) => {
     makeRequest,
     listModels,
     createChatCompletion,
+    createResponseStream,
     validateModel
   }
 }

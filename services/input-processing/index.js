@@ -106,15 +106,20 @@ function createInputProcessingService() {
         if (prompt.startsWith(key + ' ')) {
           const userInput = prompt.substring(key.length + 1).trim()
           if (userInput) {
+            const executionMode = command.command_type || 'instruction'
+            const instructionContent = `${command.instruction}: ${userInput}`
             return {
               id,
               commandKey: key,
+              executionMode,
+              agentProfileId: command.agent_profile_id || id,
               instruction: command.instruction,
-              content: `${command.instruction}: ${userInput}`,
+              content: instructionContent,
               userInput,
               models: command.models,
               hasUrl: hasUrl(userInput),
               description: command.description,
+              inputMode: command.input_mode || 'text',
             }
           }
         }

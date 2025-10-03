@@ -11,7 +11,8 @@ export const createRouter = (dependencies = {}) => {
     SYSTEM: 'system',
     INSTRUCTION: 'instruction',
     INVALID: 'invalid',
-    CHAT: 'chat'
+    CHAT: 'chat',
+    AGENT: 'agent',
   }
 
   // Handler functions mapped to request types (replaces switch/case)
@@ -21,6 +22,35 @@ export const createRouter = (dependencies = {}) => {
     },
 
     [REQUEST_TYPES.INSTRUCTION]: async (analysis, applicationLoop, handlers) => {
+      if (
+        analysis.instructionCommand &&
+        analysis.instructionCommand.executionMode === REQUEST_TYPES.AGENT &&
+        (!Array.isArray(analysis.instructionCommand.models) ||
+          analysis.instructionCommand.models.length <= 1)
+      ) {
+        logger.debug('Router: Routing to ResponsesAgentCommand (executionMode=agent)')
+
+        const stateManager = applicationLoop.app.stateManager
+        const profileId = analysis.instructionCommand.agentProfileId
+        const profile = await stateManager.getAgentProfile(profileId)
+
+        if (!profile) {
+          outputHandler.writeError(
+            `Agent profile "${profileId}" not found. Use cmd to configure profiles.`,
+          )
+          return null
+        }
+
+        if (!handlers.responsesAgentCommand) {
+          throw new Error('Router: Agent command handler not configured')
+        }
+
+        return await handlers.responsesAgentCommand.execute({
+          profile,
+          userInput: analysis.instructionCommand.userInput,
+        })
+      }
+
       // Create data object - Single Source of Truth
       const instructionData = createData({
         content: analysis.instructionCommand.content,
@@ -48,7 +78,35 @@ export const createRouter = (dependencies = {}) => {
     [REQUEST_TYPES.CHAT]: async (analysis, applicationLoop, handlers) => {
       logger.debug('Router: Routing to ChatHandler')
       return await handlers.chatHandler.handle(analysis.rawInput)
-    }
+    },
+
+    [REQUEST_TYPES.AGENT]: async (analysis, applicationLoop, handlers) => {
+      const stateManager = applicationLoop.app.stateManager
+      const agentCommand = analysis.agentCommand || analysis.instructionCommand
+
+      if (!agentCommand) {
+        throw new Error('Router: Agent command payload missing')
+      }
+
+      const profileId = agentCommand.agentProfileId || agentCommand.profileId
+      const profile = agentCommand.profile || (await stateManager.getAgentProfile(profileId))
+
+      if (!profile) {
+        outputHandler.writeError(
+          `Agent profile "${profileId}" not found. Use cmd to configure profiles.`,
+        )
+        return null
+      }
+
+      if (!handlers.responsesAgentCommand) {
+        throw new Error('Router: Agent command handler not configured')
+      }
+
+      return await handlers.responsesAgentCommand.execute({
+        profile,
+        userInput: agentCommand.userInput || agentCommand.content || '',
+      })
+    },
   }
 
   // State encapsulation through closures
@@ -57,7 +115,8 @@ export const createRouter = (dependencies = {}) => {
     systemCommandHandler: dependencies.systemCommandHandler || systemCommandHandler,
     multiModelCommand: dependencies.multiModelCommand || null,
     singleModelCommand: dependencies.singleModelCommand || null,
-    chatHandler: dependencies.chatHandler || null
+    chatHandler: dependencies.chatHandler || null,
+    responsesAgentCommand: dependencies.responsesAgentCommand || null,
   }
 
   const initialize = async () => {
@@ -124,11 +183,30 @@ export const createRouter = (dependencies = {}) => {
         }
       }
 
-      return {
-        type: REQUEST_TYPES.INSTRUCTION,
+      const executionMode = instructionCommand.executionMode || REQUEST_TYPES.INSTRUCTION
+      const isAgentCommand = executionMode === REQUEST_TYPES.AGENT
+      const hasMultipleModels = Array.isArray(instructionCommand.models) && instructionCommand.models.length > 1
+      const requestType =
+        isAgentCommand && !hasMultipleModels
+          ? REQUEST_TYPES.AGENT
+          : REQUEST_TYPES.INSTRUCTION
+
+      const analysisResult = {
+        type: requestType,
         rawInput: cleanInput,
-        instructionCommand: instructionCommand
+        instructionCommand,
       }
+
+      if (requestType === REQUEST_TYPES.AGENT) {
+        analysisResult.agentCommand = {
+          id: instructionCommand.id,
+          agentProfileId: instructionCommand.agentProfileId,
+          userInput: instructionCommand.userInput,
+          profile: instructionCommand.profile,
+        }
+      }
+
+      return analysisResult
     }
 
     // 3. Default to chat

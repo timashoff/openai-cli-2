@@ -15,8 +15,12 @@ const COMMANDS_SCHEMA = {
     description: 'TEXT NOT NULL',
     instruction: 'TEXT NOT NULL',
     models: "TEXT DEFAULT '[]'",
+    command_type: "TEXT DEFAULT 'agent'",
+    agent_profile_id: 'TEXT DEFAULT NULL',
+    input_mode: "TEXT DEFAULT 'text'",
     created_at: "INTEGER DEFAULT (strftime('%s', 'now'))",
     updated_at: "INTEGER DEFAULT NULL",
+    is_cached: 'BOOLEAN DEFAULT 0',
   },
 }
 
@@ -53,6 +57,21 @@ function createDatabaseCommandService() {
     `
 
     db.exec(createTableSQL)
+
+    ensureSchemaFields()
+  }
+
+  function ensureSchemaFields() {
+    const tableInfoQuery = db.prepare(`PRAGMA table_info(${COMMANDS_SCHEMA.tableName})`)
+    const existingColumns = new Set(tableInfoQuery.all().map((column) => column.name))
+
+    for (const [fieldName, fieldType] of Object.entries(COMMANDS_SCHEMA.fields)) {
+      if (!existingColumns.has(fieldName)) {
+        db.exec(
+          `ALTER TABLE ${COMMANDS_SCHEMA.tableName} ADD COLUMN ${fieldName} ${fieldType}`,
+        )
+      }
+    }
   }
 
   // Initialize immediately
@@ -140,8 +159,12 @@ function createDatabaseCommandService() {
         description: row.description,
         instruction: row.instruction,
         models: JSON.parse(row.models),
+        command_type: row.command_type || 'agent',
+        agent_profile_id: row.agent_profile_id,
+        input_mode: row.input_mode || 'text',
         created_at: row.created_at,
         updated_at: row.updated_at,
+        is_cached: Boolean(row.is_cached),
       }
     }
 
@@ -179,7 +202,17 @@ function createDatabaseCommandService() {
   }
 
   function saveCommand(id, commandData) {
-    const { name, key, description, instruction, models } = commandData
+    const {
+      name,
+      key,
+      description,
+      instruction,
+      models,
+      command_type = 'agent',
+      agent_profile_id = null,
+      input_mode = 'text',
+      is_cached = false,
+    } = commandData
 
     const keyJson = JSON.stringify(key)
     const modelsJson = JSON.stringify(models)
@@ -210,8 +243,12 @@ function createDatabaseCommandService() {
       description,
       instruction,
       models: modelsJson,
+      command_type,
+      agent_profile_id,
+      input_mode,
       created_at: currentTimestamp,
-      updated_at: null
+      updated_at: null,
+      is_cached: is_cached ? 1 : 0,
     }
 
     // Generate parameters in schema field order

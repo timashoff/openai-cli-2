@@ -55,6 +55,28 @@ export const createOpenAIProvider = (config) => {
     return result
   }
 
+  const createResponseStream = async (params = {}) => {
+    const { signal, ...streamParams } = params
+
+    const { result, error } = await base.measureTime(async () => {
+      return await client.responses.stream(
+        {
+          ...streamParams,
+        },
+        signal ? { signal } : {},
+      )
+    })
+
+    if (error) {
+      if (signal && signal.aborted) {
+        throw new Error('AbortError')
+      }
+      throw createBaseError(`Failed to create response stream: ${error.message}`, true, 500)
+    }
+
+    return result
+  }
+
   const validateModel = async (modelId) => {
     try {
       const models = await listModels()
@@ -69,6 +91,7 @@ export const createOpenAIProvider = (config) => {
     initializeClient,
     listModels,
     createChatCompletion,
+    createResponseStream,
     validateModel
   }
 }

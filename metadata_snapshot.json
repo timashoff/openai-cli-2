@@ -1,0 +1,18 @@
+{
+  "HSK_SS": "{\"description\": \"create a simple sentence in chinese, and translate it\", \"commandKeys\": [\"hskss\"]}",
+  "HSK": "{\"description\": \"translate into Eng, Ru, Pinyin\", \"commandKeys\": [\"hsk\"]}",
+  "PINYIN": "{\"description\": \"show the Pinyin transcription\", \"commandKeys\": [\"\\u043f\\u043f\", \"pp\"]}",
+  "SENTENCE": "{\"description\": \"create a simple sentence\", \"commandKeys\": [\"ss\"]}",
+  "TRANSCRIPTION": "{\"description\": \"show the English transcription\", \"commandKeys\": [\"tr\"]}",
+  "DOC": "{\"description\": \"translate complex articles to Russian using Claude Sonnet\", \"commandKeys\": [\"doc\"]}",
+  "GRAMMAR": "{\"description\": \"check the grammar\", \"commandKeys\": [\"gg\"]}",
+  "KYRGYZ": "{\"description\": \"Translate to Kyrgyz language\", \"commandKeys\": [\"kg\", \"\\u043a\\u0433\"]}",
+  "ENGLISH": "{\"description\": \"translate into English\", \"commandKeys\": [\"\\u0430\\u0430\", \"aa\"]}",
+  "CHINESE": "{\"description\": \"\\u043f\\u0440\\u043e\\u0441\\u0442\\u043e\\u0439 \\u043f\\u0435\\u0440\\u0435\\u0432\\u043e\\u0434 \\u043d\\u0430 \\u043a\\u0438\\u0442\\u0430\\u0439\\u0441\\u043a\\u0438\\u0439\", \"commandKeys\": [\"\\u0441\\u0441\", \"cc\"]}",
+  "CODE": "{\"description\": \"check the code\", \"commandKeys\": [\"code\"]}",
+  "WTF": "{\"description\": \"explain what this means?\", \"commandKeys\": [\"\\u0432\\u0442\\u0444\", \"wtf\"]}",
+  "RUSSIAN": "{\"description\": \"\\u043f\\u0435\\u0440\\u0435\\u0432\\u043e\\u0434 \\u043d\\u0430 \\u0420\\u0443\\u0441\\u0441\\u043a\\u0438\\u0439\", \"commandKeys\": [\"rr\"]}",
+  "idiom_489116": "{\"description\": \"\\u0431\\u043e\\u043b\\u0435\\u0435 \\u0433\\u043b\\u0443\\u0431\\u043e\\u043a\\u0438\\u0439 \\u0438\\u0434\\u0438\\u043e\\u043c\\u0430\\u0442\\u0438\\u0447\\u0435\\u0441\\u043a\\u0438\\u0439 \\u043f\\u0435\\u0440\\u0435\\u0432\\u043e\\u0434 \\u0441 \\u0442\\u0440\\u0430\\u043d\\u0441\\u043a\\u0440\\u0438\\u043f\\u0446\\u0438\\u0435\\u0439\", \"commandKeys\": [\"ii\"]}",
+  "test_398109": "{\"description\": \"test\", \"commandKeys\": [\"test\", \"test2\"]}",
+  "TEST": "{}"
+}

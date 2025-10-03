@@ -22,19 +22,10 @@
 - Adjust `cmd` UI (`commands/system/cmd/*`) to expose the new fields when creating or editing commands, and validate that an agent profile exists.
 
 ### 2. Introduce Agent Profiles
-- Create `config/agents/` with one JSON file per command (e.g., `config/agents/DOC.json`). Each file contains:
-  ```json
-  {
-    "id": "DOC",
-    "model": "gpt-5-mini",
-    "instructions": "...",
-    "tools": [],
-    "metadata": {}
-  }
-  ```
-- Build `core/agents/profile-loader.js` that loads and validates these JSON files at startup (Single Source of Truth).
-- Expose `agentProfileService` via `core/StateManager` with methods `loadProfiles`, `getProfile(id)`, and reload hooks for future hot updates.
-- Update `cmd` UI to preview the profile summary so users understand what a command will trigger.
+- Добавить таблицу `agent_profiles` в SQLite (поля: `id`, `owner_id`, `name`, `description`, `provider`, `model`, `instructions`, `tools`, `metadata`, `created_at`, `updated_at`).
+- Реализовать сервис `services/agent-profile-service.js`, выполняющий CRUD, кеширование и единоразовый импорт legacy JSON-файлов, если таковые остались.
+- Подключить сервис в `StateManager`, предоставив методы загрузки, кеша и горячих операций (`createAgentProfile`, `updateAgentProfile`, `deleteAgentProfile`).
+- Дополнить `cmd` новым меню «Manage agent profiles», позволяющим создавать/редактировать/удалять профили без прямого доступа к файловой системе.
 
 ### 3. Wire Responses API Support
 - Add `prepareResponseInput(history, userText)` in `utils/message-utils.js` to transform `contextHistory` into Responses-compatible input:
@@ -57,11 +48,11 @@
 - Keep `singleModelCommand` for future compatibility but mark it as deprecated in comments.
 
 ### 5. Migrate All Commands
-- For every command in the database:
-  1. Create a matching profile JSON in `config/agents/` with the previous instruction text and desired model.
-  2. Run a migration script (or manual SQL) to update `command_type`, `agent_profile_id`, and clear the old `instruction` field (or keep for historical reference until cleanup).
-  3. Verify the `cmd` editor shows the profile linkage and that `help`/`help -a` reflect the new state.
-- Remove any code paths that rely on legacy instruction concatenation once migration is complete.
+- Для каждой команды в базе:
+  1. Создать профиль в таблице `agent_profiles` (через CLI или миграционный скрипт) с прежними инструкциями и моделью.
+  2. Обновить поля `command_type`, `agent_profile_id`, `input_mode` в таблице `commands`.
+  3. Убедиться, что `cmd` корректно валидирует связь и показывает предпросмотр профиля.
+- После миграции удалить оставшийся код, опирающийся на конкатенацию инструкций или файловые профили.
 
 ### 6. Testing Checklist
 - **Automated**: add unit tests for `prepareResponseInput` and `stateManager.createResponseStream` using mocked Responses events.
@@ -80,5 +71,5 @@
 ## Additional Notes
 - Responses API emits richer events (reasoning, function calls). Keep the stream handler extensible so we can surface these features later.
 - Store only English instructions/logs, per project guidelines.
-- Avoid duplicating profile data between JSON and DB. The DB references profile IDs; JSON holds the authoritative configuration.
+- Хранить агентские профили исключительно в SQLite; JSON использовать только для экспорта/импорта при необходимости.
 - If future providers appear, wrap Responses calls behind a provider-agnostic interface to maintain modularity.
