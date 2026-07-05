@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js'
 import { outputHandler } from '../core/print/index.js'
 import { errorHandler } from '../core/error-system/index.js'
-import { createRouter } from '../core/router.js'
+import { createRouter } from '../core/Router.js'
 import { createApplicationLoop } from '../core/application-loop/index.js'
 import {
   createSingleModelCommand,
