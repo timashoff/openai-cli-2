@@ -11,6 +11,7 @@ import {
 } from '../core/response/index.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
+import { commandService } from '../services/commands/index.js'
 import { PROVIDERS } from '../config/providers.js'
 
 async function initializeDefaultProvider(stateManager) {
@@ -32,6 +33,9 @@ async function initializeDefaultProvider(stateManager) {
 async function start() {
   try {
     logger.debug('🚀 Starting AI Application - Pure Functional Style')
+
+    // Ensure the user commands file exists (migrate legacy db once, or copy defaults)
+    commandService.bootstrap()
 
     // Initialize core components through composition
     const stateManager = getStateManager()

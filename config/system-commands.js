@@ -33,9 +33,9 @@ export const SYSTEM_COMMANDS = {
 
   cmd: {
     aliases: ['кмд'],
-    handler: 'CmdModule',
-    filePath: '../commands/system/cmd/index.js',
-    description: 'Interactive command management system',
-    usage: 'cmd',
+    handler: 'CmdCommand',
+    filePath: '../commands/system/cmd.js',
+    description: 'Edit command definitions in your $EDITOR; "cmd list" prints them',
+    usage: 'cmd [list]',
   },
 }

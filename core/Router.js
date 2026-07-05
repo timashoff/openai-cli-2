@@ -27,7 +27,8 @@ export const createRouter = (dependencies = {}) => {
         userInput: analysis.instructionCommand.userInput,
         instruction: analysis.instructionCommand.instruction,
         commandId: analysis.instructionCommand.id,
-        models: analysis.instructionCommand.models || []
+        models: analysis.instructionCommand.models || [],
+        context: analysis.instructionCommand.context === true
       })
 
       // Route based on model count (moved from CommandHandler)
@@ -91,7 +92,8 @@ export const createRouter = (dependencies = {}) => {
       userInput: options.userInput || options.content || '',
       instruction: options.instruction || null,
       commandId: options.commandId || null,
-      models: options.models || []
+      models: options.models || [],
+      context: options.context === true
     }
   }
 

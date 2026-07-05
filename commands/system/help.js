@@ -1,7 +1,7 @@
 import { ANSI } from '../../config/ansi.js'
 import { SYSTEM_COMMANDS } from '../../config/system-commands.js'
-import { databaseCommandService } from '../../services/database-command-service.js'
-import { UI_CONFIG } from '../../config/constants.js'
+import { commandService } from '../../services/commands/index.js'
+import { UI_CONFIG, APP_CONSTANTS } from '../../config/constants.js'
 
 export const HelpCommand = {
   /**
@@ -44,7 +44,7 @@ export const HelpCommand = {
 
       // User Commands Section
       try {
-        const userCommands = databaseCommandService.getCommands()
+        const userCommands = commandService.getCommands()
         if (Object.keys(userCommands).length > 0) {
           output += `${ANSI.COLORS.BLUE}━━━ User Commands ━━━${ANSI.COLORS.RESET}\n`
 
@@ -136,8 +136,8 @@ export const HelpCommand = {
 
       // Special Features Section
       output += `${ANSI.COLORS.BLUE}━━━ Special Features ━━━${ANSI.COLORS.RESET}\n`
-      output += `${ANSI.COLORS.WHITE}Clipboard:${ANSI.COLORS.RESET} Add '${ANSI.COLORS.YELLOW}$${ANSI.COLORS.RESET}' to include clipboard content\n`
-      output += `  ${ANSI.COLORS.GREY}Example: code $${ANSI.COLORS.RESET}\n\n`
+      output += `${ANSI.COLORS.WHITE}Clipboard:${ANSI.COLORS.RESET} Add '${ANSI.COLORS.YELLOW}${APP_CONSTANTS.CLIPBOARD_MARKER}${ANSI.COLORS.RESET}' to include clipboard content\n`
+      output += `  ${ANSI.COLORS.GREY}Example: code ${APP_CONSTANTS.CLIPBOARD_MARKER}${ANSI.COLORS.RESET}\n\n`
 
       process.stdout.write(output + '\n')
       return null

@@ -1,4 +1,4 @@
-import { databaseCommandService } from '../database-command-service.js'
+import { commandService } from '../commands/index.js'
 import { logger } from '../../utils/logger.js'
 import { getClipboardContent } from './clipboard-content.js'
 import { sanitizeString } from '../../utils/validation.js'
@@ -86,14 +86,14 @@ function createInputProcessingService() {
    * Find instruction command in database
    */
   async function findInstructionCommand(prompt) {
-    const commands = databaseCommandService.getCommands()
+    const commands = commandService.getCommands()
 
     if (!commands) return null
 
     const trimmedInput = prompt.trim()
 
     // Check if input is just a command key without content (e.g., "gg" alone)
-    if (databaseCommandService.hasCommand(trimmedInput)) {
+    if (commandService.hasCommand(trimmedInput)) {
       return {
         error: `Command "${trimmedInput}" requires additional input.`,
         isInvalid: true,
@@ -113,6 +113,7 @@ function createInputProcessingService() {
               content: `${command.instruction}: ${userInput}`,
               userInput,
               models: command.models,
+              context: command.context === true,
               hasUrl: hasUrl(userInput),
               description: command.description,
             }

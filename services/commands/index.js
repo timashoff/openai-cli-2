@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { logger } from '../../utils/logger.js'
 import { commandsFilePath, legacyDbPath } from './paths.js'
 import { loadCommandsFile } from './loader.js'
@@ -75,19 +76,39 @@ const createCommandService = () => {
     }
   }
 
-  // Ensure a commands.toml exists: migrate the legacy db once, or start empty.
-  const bootstrap = (exclude = []) => {
+  const defaultCommandsPath = () =>
+    path.join(import.meta.dirname, '../../config/commands-default.toml')
+
+  // Ensure a commands.toml exists: migrate the legacy db once, else copy shipped defaults.
+  const bootstrap = () => {
     const tomlPath = commandsFilePath()
-    const dbPath = legacyDbPath()
-    const backupPath = dbPath + USER_CONFIG.BACKUP_SUFFIX
-    const report = migrateIfNeeded({ dbPath, tomlPath, backupPath, exclude })
-    if (report.migrated) {
-      logger.info(
-        `Migrated ${report.commandCount} command(s) to ${report.tomlPath}; legacy db saved as ${report.backup}`,
-      )
+    if (fs.existsSync(tomlPath)) {
+      refreshIfChanged()
+      return
     }
+
+    const dbPath = legacyDbPath()
+    if (fs.existsSync(dbPath)) {
+      const report = migrateIfNeeded({
+        dbPath,
+        tomlPath,
+        backupPath: dbPath + USER_CONFIG.BACKUP_SUFFIX,
+      })
+      if (report.migrated) {
+        logger.info(
+          `Migrated ${report.commandCount} command(s) to ${report.tomlPath}; legacy db saved as ${report.backup}`,
+        )
+      }
+    } else {
+      const defaults = defaultCommandsPath()
+      if (fs.existsSync(defaults)) {
+        fs.mkdirSync(path.dirname(tomlPath), { recursive: true })
+        fs.copyFileSync(defaults, tomlPath)
+        logger.info(`Created ${tomlPath} from shipped defaults`)
+      }
+    }
+
     refreshIfChanged()
-    return report
   }
 
   return {

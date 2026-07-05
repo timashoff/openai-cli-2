@@ -16,13 +16,14 @@ export const createStreamResponder = ({
     input,
     providerModel = null,
     onComplete,
+    includeContext = true,
   }) {
     const controller = stateManager.getCurrentRequestController()
     if (!controller) {
       throw new Error('No abort controller available for request')
     }
 
-    const messages = prepareStreamingMessages(stateManager, input)
+    const messages = prepareStreamingMessages(stateManager, input, includeContext)
 
     const result = await runStreamCommand({
       controller,
