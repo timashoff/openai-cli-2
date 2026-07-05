@@ -36,7 +36,6 @@ export const createKeypressHandler = (state) => {
     // Clean up streaming state
     if (state.stateManager.isTypingResponse()) {
       state.stateManager.setTypingResponse(false)
-      state.stateManager.setShouldReturnToPrompt(true)
     }
 
     // Force terminate stream processor (FIX for streaming bug)

@@ -36,7 +36,6 @@ function createStateManager() {
     isProcessingRequest: false,
     isTypingResponse: false,
     isRetryingProvider: false,
-    shouldReturnToPrompt: false,
   }
 
   // Request management
@@ -230,10 +229,6 @@ function createStateManager() {
     }
   }
 
-  function getCurrentProviderKey() {
-    return aiState.currentProviderKey
-  }
-
   function getCurrentModel() {
     return aiState.currentModel
   }
@@ -249,20 +244,8 @@ function createStateManager() {
     return [...aiState.availableModels]
   }
 
-  function setProvider(key, providerData) {
-    aiState.providers.set(key, providerData)
-  }
-
   function getProvider(key) {
     return aiState.providers.get(key)
-  }
-
-  function getAllProviders() {
-    return aiState.providers
-  }
-
-  function setServiceInitialized(initialized) {
-    aiState.initialized = initialized
   }
 
   // === Operation State Management ===
@@ -289,11 +272,6 @@ function createStateManager() {
     stateManagerEvents.emit('typing-state-changed', { isTyping })
   }
 
-
-  function getOperationState() {
-    return { ...operationState }
-  }
-
   // === Request State Management ===
 
   function setStreamProcessor(processor) {
@@ -316,18 +294,6 @@ function createStateManager() {
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
     notifyAbortSignalCleared()
-  }
-
-  function setCurrentRequestController(controller) {
-    requestState.currentRequestController = controller
-  }
-
-  function setShouldReturnToPrompt(shouldReturn) {
-    operationState.shouldReturnToPrompt = shouldReturn
-  }
-
-  function shouldReturnToPrompt() {
-    return operationState.shouldReturnToPrompt
   }
 
   function isTypingResponse() {
@@ -363,7 +329,6 @@ function createStateManager() {
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
     operationState.isRetryingProvider = false
-    operationState.shouldReturnToPrompt = false
 
     // Notify listeners - DatabaseCommandService should listen to this event
     // and handle its own cache invalidation (Single Source of Truth principle)
@@ -402,40 +367,6 @@ function createStateManager() {
     return [...contextState.contextHistory]
   }
 
-
-
-  // === Event Listener Management ===
-
-  function addListener(event, callback) {
-    stateManagerEvents.on(event, callback)
-  }
-
-  function removeListener(event, callback) {
-    stateManagerEvents.removeListener(event, callback)
-  }
-
-
-  // === Utility Methods ===
-
-
-  function reset() {
-    aiState.currentProvider = null
-    aiState.currentProviderKey = ''
-    aiState.currentModel = ''
-    aiState.availableModels = []
-    aiState.providers.clear()
-    aiState.initialized = false
-
-    operationState.isProcessingRequest = false
-    operationState.isTypingResponse = false
-    operationState.isRetryingProvider = false
-    operationState.shouldReturnToPrompt = false
-
-    clearRequestState()
-    clearContext()
-
-    stateManagerEvents.emit('state-reset', {})
-  }
 
 
   // === Create AI completion (main operation) ===
@@ -528,13 +459,9 @@ function createStateManager() {
     // AI state getters
     getAIState,
     getCurrentProvider,
-    getCurrentProviderKey,
     getCurrentModel,
     getAvailableModels,
-    setProvider,
     getProvider,
-    getAllProviders,
-    setServiceInitialized,
 
     // AI state setters (internal)
     updateAIProvider,
@@ -543,15 +470,10 @@ function createStateManager() {
     // Operation state
     setProcessingRequest,
     setTypingResponse,
-    getOperationState,
 
     // Request state
     setStreamProcessor,
     setSpinnerInterval,
-    clearRequestState,
-    setCurrentRequestController,
-    setShouldReturnToPrompt,
-    shouldReturnToPrompt,
     isTypingResponse,
     isProcessingRequest,
     getSpinnerInterval,
@@ -564,14 +486,6 @@ function createStateManager() {
     addToContext,
     clearContext,
     getContextHistory,
-
-
-    // Event listeners
-    addListener,
-    removeListener,
-
-    // Utilities
-    reset,
   }
 }
 
@@ -582,12 +496,5 @@ export function getStateManager() {
     stateManagerInstance = createStateManager()
   }
   return stateManagerInstance
-}
-
-export function resetStateManager() {
-  if (stateManagerInstance) {
-    stateManagerInstance.reset()
-  }
-  stateManagerInstance = null
 }
 
