@@ -31,10 +31,6 @@ export const createStreamProcessor = () => {
     state.isTerminated = false
     state.currentStream = stream
 
-    if (state.isTerminated) {
-      throw new Error('AbortError')
-    }
-
     const response = []
 
     try {
@@ -58,8 +54,6 @@ export const createStreamProcessor = () => {
       } else {
         throw new Error('Unknown stream type - neither async iterable nor ReadableStream')
       }
-    } catch (error) {
-      throw error
     } finally {
       state.currentStream = null
       state.currentReader = null
