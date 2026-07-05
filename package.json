@@ -36,7 +36,8 @@
     "url": "https://github.com/timashoff/openai-cli-2.git"
   },
   "dependencies": {
-    "openai": "^6.45.0"
+    "openai": "^6.45.0",
+    "smol-toml": "^1.7.0"
   },
   "files": [
     "bin/",

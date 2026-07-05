@@ -30,6 +30,13 @@ export const APP_CONSTANTS = {
   },
 }
 
+export const USER_CONFIG = {
+  DIR_NAME: '.openai-cli', // user config directory under the home folder
+  COMMANDS_FILE: 'commands.toml', // user-editable command definitions
+  LEGACY_DB: 'commands.db', // pre-TOML sqlite store, migrated once then renamed
+  BACKUP_SUFFIX: '.bak',
+}
+
 export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
