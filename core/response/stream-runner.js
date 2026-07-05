@@ -17,10 +17,8 @@ export const createStreamCommandRunner = ({ stateManager }) => {
       attachStreamProcessor = false,
       showModelHeader = false,
       useSpinner = true,
-      onFirstChunk,
       onChunk,
       onComplete,
-      onError,
     } = options
 
     if (!controller) {
@@ -51,10 +49,6 @@ export const createStreamCommandRunner = ({ stateManager }) => {
         outputHandler.writeNewline()
         outputHandler.writeModel(providerModel)
       }
-
-      if (onFirstChunk) {
-        onFirstChunk({ content })
-      }
     })
 
     session.on('stream:chunk', ({ content }) => {
@@ -69,13 +63,9 @@ export const createStreamCommandRunner = ({ stateManager }) => {
       }
     })
 
-    session.on('session:error', ({ error }) => {
+    session.on('session:error', () => {
       if (useSpinner && spinner && spinner.isActive()) {
         spinner.stop('error')
-      }
-
-      if (onError) {
-        onError(error)
       }
     })
 

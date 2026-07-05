@@ -43,11 +43,6 @@ export const createResponseSessionFactory = ({ stateManager }) => {
           providerModel || undefined,
         )
 
-        events.emit('session:stream-started', {
-          controller,
-          providerModel,
-        })
-
         let firstChunk = true
 
         await streamProcessor.processStream(
@@ -69,10 +64,6 @@ export const createResponseSessionFactory = ({ stateManager }) => {
         )
 
         const text = chunks.join('')
-        events.emit('session:completed', {
-          text,
-          chunks,
-        })
 
         return {
           text,
@@ -81,7 +72,6 @@ export const createResponseSessionFactory = ({ stateManager }) => {
         }
       } catch (error) {
         if (controller.signal.aborted || error.message === 'AbortError') {
-          events.emit('session:aborted', { error })
           return {
             text: '',
             chunks: [],
