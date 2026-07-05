@@ -304,12 +304,18 @@ function createStateManager() {
     requestState.currentSpinnerInterval = interval
   }
 
+  function notifyAbortSignalCleared() {
+    // Reset the output gate so post-request output (incl. shutdown messages) is not suppressed
+    stateManagerEvents.emit('abort-signal-changed', null)
+  }
+
   function clearRequestState() {
     requestState.currentRequestController = null
     requestState.currentSpinnerInterval = null
     requestState.currentStreamProcessor = null
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
+    notifyAbortSignalCleared()
   }
 
   function setCurrentRequestController(controller) {
@@ -346,9 +352,7 @@ function createStateManager() {
 
   function clearRequestController() {
     requestState.currentRequestController = null
-    stateManagerEvents.emit('controller-cleared', {
-      timestamp: Date.now(),
-    })
+    notifyAbortSignalCleared()
   }
 
   function clearAllOperations() {

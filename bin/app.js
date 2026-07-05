@@ -79,7 +79,7 @@ async function start() {
     // Start main application loop
     await applicationLoop.startMainLoop()
   } catch (error) {
-    errorHandler.handleError(error, {
+    await errorHandler.handleError(error, {
       context: 'application_start',
       fatal: true,
     })

@@ -152,7 +152,7 @@ const formatError = (error, context) => {
 /**
  * Log error with proper sanitization and context
  */
-const logError = async (processedError, context) => {
+const logError = async (processedError, context = {}) => {
   const { logLevel, type, originalError } = processedError
   const contextInfo = context.component ? ` [${context.component}]` : ''
 

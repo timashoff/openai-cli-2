@@ -33,7 +33,7 @@ export function createSingleModelCommand(app) {
 
       return await processSingleModelRequest(data.content, providerModel)
     } catch (error) {
-      errorHandler.handleError(error, { component: 'SingleModelCommand' })
+      await errorHandler.handleError(error, { component: 'SingleModelCommand' })
       return []
     }
   }
@@ -59,11 +59,7 @@ export function createSingleModelCommand(app) {
 
       return text
     } catch (error) {
-      if (controller.signal.aborted) {
-        return
-      }
-
-      const processedError = errorHandler.processError(error, {
+      const processedError = await errorHandler.processError(error, {
         component: 'SingleModelCommand',
       })
 
