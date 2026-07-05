@@ -2,20 +2,10 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { PROVIDERS } from '../config/providers.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-import { logError, processError } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
 export const stateManagerEvents = new EventEmitter()
-
-// Centralized error handling for EventEmitter (CLAUDE.md compliance)
-stateManagerEvents.on('error', async (error) => {
-  const processedError = await processError(error, {
-    context: 'StateManager:EventSystem',
-    component: 'stateManagerEvents'
-  })
-  await logError(processedError)
-})
 
 function createStateManager() {
   // Initialize provider factory

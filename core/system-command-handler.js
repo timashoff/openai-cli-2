@@ -2,7 +2,7 @@ import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './print/index.js'
 import { PROVIDERS } from '../config/providers.js'
-import { logError, processError } from './error-system/index.js'
+import { processError } from './error-system/index.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -136,7 +136,6 @@ export const systemCommandHandler = {
       return null
     } catch (error) {
       const processedError = await processError(error, { context: 'SystemCommandHandler:execute' })
-      await logError(processedError)
       
       outputHandler.writeError(`System command execution failed: ${processedError.userMessage}`)
       return null
@@ -168,8 +167,7 @@ export const systemCommandHandler = {
               aliases: systemCommand.aliases,
             }
       } catch (error) {
-        const processedError = await processError(error, { context: 'SystemCommandHandler:getCommandHelp', component: commandName })
-        await logError(processedError)
+        await processError(error, { context: 'SystemCommandHandler:getCommandHelp', component: commandName })
         
         return {
           description: systemCommand.description,

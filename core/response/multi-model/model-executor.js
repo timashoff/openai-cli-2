@@ -1,6 +1,6 @@
 import { logger } from '../../../utils/logger.js'
 import { outputHandler } from '../../print/index.js'
-import { errorHandler } from '../../error-system/index.js'
+import { errorHandler, isCancellation } from '../../error-system/index.js'
 import { createStreamCommandRunner } from '../stream-runner.js'
 
 export const createModelExecutor = (stateManager) => {
@@ -82,7 +82,7 @@ export const createModelExecutor = (stateManager) => {
       const timing = (Date.now() - startTime) / 1000
 
       let errorMessage = 'Model request failed'
-      if (error.message === 'AbortError' || error.name === 'AbortError') {
+      if (isCancellation(error)) {
         errorMessage = 'Request cancelled'
       } else {
         const processedError = await errorHandler.processError(error, {

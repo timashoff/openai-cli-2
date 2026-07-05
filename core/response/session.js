@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { createStreamProcessor } from '../../utils/stream-processor.js'
+import { isCancellation } from '../error-system/index.js'
 
 export const createResponseSessionFactory = ({ stateManager }) => {
   if (!stateManager) {
@@ -71,7 +72,7 @@ export const createResponseSessionFactory = ({ stateManager }) => {
           aborted: false,
         }
       } catch (error) {
-        if (controller.signal.aborted || error.message === 'AbortError') {
+        if (controller.signal.aborted || isCancellation(error)) {
           return {
             text: '',
             chunks: [],

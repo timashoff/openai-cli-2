@@ -4,7 +4,7 @@ import { getClipboardContent } from './clipboard-content.js'
 import { sanitizeString } from '../../utils/validation.js'
 import { APP_CONSTANTS } from '../../config/constants.js'
 import { ANSI } from '../../config/ansi.js'
-import { logError, processError, createBaseError } from '../../core/error-system/index.js'
+import { processError, createBaseError } from '../../core/error-system/index.js'
 
 /**
  * Input Processing Service - handles ALL user input preprocessing
@@ -25,7 +25,6 @@ function createInputProcessingService() {
       logger.debug('InputProcessingService: Initialized')
     } catch (error) {
       const processedError = await processError(error, { context: 'InputProcessingService:initialize' })
-      await logError(processedError)
       throw processedError.originalError
     }
   }
@@ -39,7 +38,6 @@ function createInputProcessingService() {
       return await processClipboardMarkers(input)
     } catch (error) {
       const processedError = await processError(error, { context: 'InputProcessingService:processInput' })
-      await logError(processedError)
       throw processedError.originalError
     }
   }
