@@ -35,7 +35,7 @@ async function start() {
     logger.debug('🚀 Starting AI Application - Pure Functional Style')
 
     // Ensure the user commands file exists (migrate legacy db once, or copy defaults)
-    commandService.bootstrap()
+    await commandService.bootstrap()
 
     // Initialize core components through composition
     const stateManager = getStateManager()
@@ -91,4 +91,16 @@ async function start() {
   }
 }
 
-start()
+async function main() {
+  // One-shot mode: "ai rr text" or piped stdin. Skips the REPL and readline entirely.
+  const oneShotArgs = process.argv.slice(2)
+  if (oneShotArgs.length > 0 || !process.stdin.isTTY) {
+    const { runOneShot } = await import('../core/oneshot/index.js')
+    const code = await runOneShot(oneShotArgs)
+    process.exit(code)
+  }
+
+  await start()
+}
+
+main()

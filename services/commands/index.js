@@ -80,7 +80,7 @@ const createCommandService = () => {
     path.join(import.meta.dirname, '../../config/commands-default.toml')
 
   // Ensure a commands.toml exists: migrate the legacy db once, else copy shipped defaults.
-  const bootstrap = () => {
+  const bootstrap = async () => {
     const tomlPath = commandsFilePath()
     if (fs.existsSync(tomlPath)) {
       refreshIfChanged()
@@ -89,7 +89,7 @@ const createCommandService = () => {
 
     const dbPath = legacyDbPath()
     if (fs.existsSync(dbPath)) {
-      const report = migrateIfNeeded({
+      const report = await migrateIfNeeded({
         dbPath,
         tomlPath,
         backupPath: dbPath + USER_CONFIG.BACKUP_SUFFIX,

@@ -87,6 +87,36 @@ function createStateManager() {
     return providerData
   }
 
+  // Fast provider setup for one-shot mode: create the client but skip listModels().
+  // The request path then cache-hits this entry instead of doing a network round-trip.
+  async function primeProvider(providerId, model = null) {
+    const providerConfig = PROVIDERS[providerId]
+    if (!providerConfig) {
+      throw new Error(`Unknown provider: ${providerId}`)
+    }
+    if (!process.env[providerConfig.apiKeyEnv]) {
+      throw new Error(`${providerConfig.name} API key not found`)
+    }
+
+    let providerData = aiState.providers.get(providerId)
+    if (!providerData) {
+      const providerInstance = providerFactory.createProvider(providerId, providerConfig)
+      await providerInstance.initializeClient()
+      providerData = { instance: providerInstance, config: providerConfig, models: [] }
+      aiState.providers.set(providerId, providerData)
+    }
+
+    updateAIProvider({
+      instance: providerData.instance,
+      key: providerId,
+      model: model || providerConfig.defaultModel,
+      models: providerData.models,
+      config: providerData.config,
+    })
+
+    return providerData
+  }
+
   async function switchProvider(providerId, targetModel = null) {
     try {
       logger.debug(`StateManager: Switching to provider ${providerId}`)
@@ -453,6 +483,7 @@ function createStateManager() {
   return {
     // Main operations
     switchProvider,
+    primeProvider,
     switchModel,
     createChatCompletion,
 

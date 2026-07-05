@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { serializeCommands } from './toml-writer.js'
 
 // Build a readable lowercase slug from latin letters and digits only (no regex).
@@ -16,7 +15,9 @@ const slugify = (text) => {
 }
 
 // Read legacy sqlite commands into { slug: command }, skipping excluded ids/names.
-export const readLegacyCommands = (dbPath, exclude = []) => {
+// node:sqlite is imported lazily so it only loads during an actual (one-time) migration.
+export const readLegacyCommands = async (dbPath, exclude = []) => {
+  const { DatabaseSync } = await import('node:sqlite')
   const db = new DatabaseSync(dbPath)
   const rows = db.prepare('SELECT * FROM commands ORDER BY id').all()
   db.close()
@@ -51,7 +52,7 @@ export const readLegacyCommands = (dbPath, exclude = []) => {
 
 // One-time migration: legacy db -> commands.toml, then rename the db to *.bak.
 // Never overwrites an existing commands.toml. Returns a report object.
-export const migrateIfNeeded = ({ dbPath, tomlPath, backupPath, exclude = [] }) => {
+export const migrateIfNeeded = async ({ dbPath, tomlPath, backupPath, exclude = [] }) => {
   if (fs.existsSync(tomlPath)) {
     return { migrated: false, reason: 'commands.toml already exists' }
   }
@@ -59,7 +60,7 @@ export const migrateIfNeeded = ({ dbPath, tomlPath, backupPath, exclude = [] }) 
     return { migrated: false, reason: 'no legacy database to migrate' }
   }
 
-  const commands = readLegacyCommands(dbPath, exclude)
+  const commands = await readLegacyCommands(dbPath, exclude)
   const toml = serializeCommands(commands)
 
   fs.mkdirSync(path.dirname(tomlPath), { recursive: true })

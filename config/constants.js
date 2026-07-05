@@ -37,6 +37,12 @@ export const USER_CONFIG = {
   BACKUP_SUFFIX: '.bak',
 }
 
+export const EXIT_CODES = {
+  SUCCESS: 0,
+  ERROR: 1,
+  SIGINT: 130, // 128 + SIGINT(2), conventional shell code for Ctrl+C
+}
+
 export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
