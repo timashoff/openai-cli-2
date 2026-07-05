@@ -38,7 +38,6 @@ export const createMultiModelCommand = () => {
     // Single abort handling - reactive approach
     controller.signal.addEventListener('abort', () => {
       uiManager.cleanup()
-      coordinator.resetState()
     }, { once: true })
 
     // Prepare messages for streaming

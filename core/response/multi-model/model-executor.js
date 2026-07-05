@@ -136,14 +136,6 @@ export const createModelExecutor = (stateManager) => {
 
     const results = await Promise.all(modelPromises)
 
-    await new Promise((resolve) => {
-      if (coordinator.isAllCompleted()) {
-        resolve()
-      } else {
-        coordinator.onAllCompleted(() => resolve())
-      }
-    })
-
     const successfulCount = results.filter((result) => result.success).length
 
     logger.debug(
