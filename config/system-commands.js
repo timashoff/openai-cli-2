@@ -38,4 +38,12 @@ export const SYSTEM_COMMANDS = {
     description: 'Edit command definitions in your $EDITOR; "cmd list" prints them',
     usage: 'cmd [list]',
   },
+
+  config: {
+    aliases: ['cfg'],
+    handler: 'ConfigCommand',
+    filePath: '../commands/system/config.js',
+    description: 'Edit provider config in your $EDITOR; "config status" shows routing',
+    usage: 'config [status]',
+  },
 }

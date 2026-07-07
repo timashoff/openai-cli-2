@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js'
 import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './print/index.js'
-import { PROVIDERS } from '../config/providers.js'
+import { configService } from '../services/config/index.js'
 import { processError } from './error-system/index.js'
 
 /**
@@ -37,13 +37,11 @@ const createCleanContext = (applicationLoop) => {
     providers: {
       getCurrent: () => app.stateManager.getCurrentProvider(),
       getAvailable: () => {
-        return Object.entries(PROVIDERS)
-          .filter(([key, config]) => process.env[config.apiKeyEnv])
-          .map(([key, config]) => ({
-            key,
-            name: config.name,
-            isCurrent: false, // Will be set by command
-          }))
+        return configService.availableProviders().map((key) => ({
+          key,
+          name: configService.getProviderConfig(key).name,
+          isCurrent: false, // Will be set by command
+        }))
       },
       switch: async (key) => app.stateManager.switchProvider(key),
     },

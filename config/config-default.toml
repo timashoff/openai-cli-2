@@ -1,0 +1,20 @@
+# openai-cli user config — overrides the built-in provider defaults.
+# Safe to delete: a fresh copy is recreated on the next start.
+#
+# Route a provider through your own gateway (a small forwarder on your server):
+# the CLI sends requests to the gateway, which holds the real API key and forwards
+# them to the provider. Useful when a provider is blocked on your network, and it
+# keeps API keys off this machine (the client only carries a gateway token).
+# A provider with no "baseURL" connects directly using its own env API key.
+#
+# Uncomment and set your gateway URL + token:
+
+# [providers.openai]
+# baseURL = "https://gw.example.com/openai/v1"
+# token = "your-gateway-token"
+
+# [providers.anthropic]
+# baseURL = "https://gw.example.com/anthropic/v1"
+# token = "your-gateway-token"
+
+# deepseek connects directly — no override needed.

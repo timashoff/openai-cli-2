@@ -12,16 +12,14 @@ import {
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
 import { commandService } from '../services/commands/index.js'
-import { PROVIDERS } from '../config/providers.js'
+import { configService } from '../services/config/index.js'
 
 async function initializeDefaultProvider(stateManager) {
-  // Get available provider keys (with API keys set)
-  const availableProviders = Object.entries(PROVIDERS)
-    .filter(([, provider]) => process.env[provider.apiKeyEnv])
-    .map(([key]) => key)
+  // Providers usable via an env API key OR a configured gateway token.
+  const availableProviders = configService.availableProviders()
 
   if (availableProviders.length === 0) {
-    throw new Error('No AI providers available - check your API keys')
+    throw new Error('No AI providers available - set an API key or a gateway token')
   }
 
   const defaultProvider = availableProviders[0]
@@ -36,6 +34,9 @@ async function start() {
 
     // Ensure the user commands file exists (migrate legacy db once, or copy defaults)
     await commandService.bootstrap()
+
+    // Ensure the user config file exists and load provider overrides (gateway baseURL/token)
+    await configService.bootstrap()
 
     // Initialize core components through composition
     const stateManager = getStateManager()

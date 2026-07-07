@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
-import { PROVIDERS } from '../config/providers.js'
+import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
 import { EventEmitter } from 'node:events'
 
@@ -45,32 +45,32 @@ function createStateManager() {
 
   // === MAIN OPERATIONS - StateManager handles switching ===
 
-  async function ensureProviderInitialized(providerId) {
-    // Check if provider is available
-    const providerConfig = PROVIDERS[providerId]
-    // if (!providerConfig) { //   throw new Error(`Unknown provider: ${providerId}`) // }
-
-    if (!process.env[providerConfig.apiKeyEnv]) {
-      throw new Error(`${providerConfig.name} API key not found`)
+  // Single reusable path from a provider's EFFECTIVE config (built-in defaults +
+  // user overlay, incl. proxy) to a ready client. This is the ONLY place the
+  // overlay reaches a provider, so proxy routing applies uniformly to every
+  // caller (one-shot, REPL, multi-model). listModels is intentionally NOT here —
+  // the caller decides whether it needs the model list.
+  async function createProviderInstance(providerId) {
+    const config = configService.getProviderConfig(providerId)
+    if (!config) {
+      throw new Error(`Unknown provider: ${providerId}`)
     }
+    if (!config.token && !process.env[config.apiKeyEnv]) {
+      throw new Error(`${config.name} not configured (needs a gateway token or ${config.apiKeyEnv})`)
+    }
+    const instance = providerFactory.createProvider(providerId, config)
+    await instance.initializeClient()
+    return { instance, config }
+  }
 
-    // Get or create provider instance
+  async function ensureProviderInitialized(providerId) {
     let providerData = aiState.providers.get(providerId)
 
     if (!providerData) {
-      // Lazy-loading: create new provider
       logger.debug(`StateManager: Lazy-loading provider ${providerId}`)
-
-      const providerInstance = providerFactory.createProvider(providerId, providerConfig)
-      await providerInstance.initializeClient()
-      const models = await providerInstance.listModels()
-
-      // Store in cache for future use
-      providerData = {
-        instance: providerInstance,
-        config: providerConfig,
-        models: models,
-      }
+      const { instance, config } = await createProviderInstance(providerId)
+      const models = await instance.listModels()
+      providerData = { instance, config, models }
       aiState.providers.set(providerId, providerData)
     }
 
@@ -80,26 +80,17 @@ function createStateManager() {
   // Fast provider setup for one-shot mode: create the client but skip listModels().
   // The request path then cache-hits this entry instead of doing a network round-trip.
   async function primeProvider(providerId, model = null) {
-    const providerConfig = PROVIDERS[providerId]
-    if (!providerConfig) {
-      throw new Error(`Unknown provider: ${providerId}`)
-    }
-    if (!process.env[providerConfig.apiKeyEnv]) {
-      throw new Error(`${providerConfig.name} API key not found`)
-    }
-
     let providerData = aiState.providers.get(providerId)
     if (!providerData) {
-      const providerInstance = providerFactory.createProvider(providerId, providerConfig)
-      await providerInstance.initializeClient()
-      providerData = { instance: providerInstance, config: providerConfig, models: [] }
+      const { instance, config } = await createProviderInstance(providerId)
+      providerData = { instance, config, models: [] }
       aiState.providers.set(providerId, providerData)
     }
 
     updateAIProvider({
       instance: providerData.instance,
       key: providerId,
-      model: model || providerConfig.defaultModel,
+      model: model || providerData.config.defaultModel,
       models: providerData.models,
       config: providerData.config,
     })
@@ -118,7 +109,7 @@ function createStateManager() {
       let selectedModel = targetModel
       if (!selectedModel) {
         // Use default model from config first, then fall back to first available
-        const defaultModel = PROVIDERS[providerId].defaultModel
+        const defaultModel = providerData.config.defaultModel
         if (
           defaultModel &&
           providerData.models.some((m) =>
@@ -402,7 +393,7 @@ function createStateManager() {
       : aiState.currentProviderKey
 
     // Check if markdown should be disabled for this provider
-    const providerConfig = PROVIDERS[providerKey]
+    const providerConfig = configService.getProviderConfig(providerKey)
     if (providerConfig && !providerConfig.markdown) {
       // Add system prompt to disable markdown
       messages = [

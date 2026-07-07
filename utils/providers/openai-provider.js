@@ -4,15 +4,17 @@ import { createBaseProvider } from './base-provider.js'
 export const createOpenAIProvider = (config) => {
   const base = createBaseProvider(config)
   let client = null
-  
+
   base.validateConfig()
 
   const initializeClient = async () => {
     try {
       const { OpenAI } = await import('openai')
+      // baseURL points at the provider directly, or at a gateway; getCredential
+      // returns the gateway token or the env API key accordingly.
       client = new OpenAI({
         baseURL: config.baseURL,
-        apiKey: base.getApiKey(),
+        apiKey: base.getCredential(),
         timeout: config.timeout || 180000
       })
     } catch (error) {

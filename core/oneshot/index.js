@@ -1,9 +1,9 @@
 import { getStateManager } from '../StateManager.js'
 import { inputProcessingService } from '../../services/input-processing/index.js'
 import { commandService } from '../../services/commands/index.js'
+import { configService } from '../../services/config/index.js'
 import { createStreamCommandRunner } from '../response/stream-runner.js'
 import { prepareStreamingMessages } from '../../utils/message-utils.js'
-import { PROVIDERS } from '../../config/providers.js'
 import { EXIT_CODES } from '../../config/constants.js'
 import { sanitizeMessage } from '../error-system/index.js'
 
@@ -17,16 +17,15 @@ const readStdin = async () => {
 }
 
 const firstAvailableProvider = () => {
-  for (const [key, config] of Object.entries(PROVIDERS)) {
-    if (process.env[config.apiKeyEnv]) return key
-  }
-  return null
+  const available = configService.availableProviders()
+  return available.length > 0 ? available[0] : null
 }
 
 // Non-interactive run: "ai rr text" or "echo text | ai rr".
 // Streams the raw answer to stdout (no spinner/headers) so it pipes cleanly.
 export const runOneShot = async (argv) => {
   await commandService.bootstrap()
+  await configService.bootstrap()
 
   const positional = argv.join(' ').trim()
   const piped = await readStdin()
