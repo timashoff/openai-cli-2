@@ -94,14 +94,33 @@ export const saveGateway = ({ token, url, email, expiresAt }) => {
   return { host: hostOf(finalUrl) }
 }
 
-// Remove stored credentials (`ai logout`). Env vars, if any, still apply.
+// Log out: remove the session token but KEEP the (non-secret) gateway url + email,
+// so a later `ai login` needs no address. resolveGateway returns null without a
+// token → the machine is genuinely logged out (providers connect directly). Only a
+// file with no url is deleted outright.
 export const clearGateway = () => {
-  try {
-    fs.unlinkSync(credentialsPath())
-    return { removed: true }
-  } catch (e) {
-    return { removed: false }
+  const stored = readStored()
+  const hadSession = Boolean(stored.token)
+
+  if (!stored.url) {
+    try {
+      fs.unlinkSync(credentialsPath())
+    } catch (e) {
+      // nothing stored
+    }
+    return { removed: hadSession, urlKept: false }
   }
+
+  const gateway = { url: stored.url }
+  if (stored.email) gateway.email = stored.email
+  const dir = configDir()
+  fs.mkdirSync(dir, { recursive: true })
+  const header = '# openai-cli gateway — logged out. The session was removed; the (non-secret) gateway url is kept so "ai login" needs no address.\n'
+  const body = header + stringify({ gateway }) + '\n'
+  const file = credentialsPath()
+  fs.writeFileSync(file, body, { mode: 0o600 })
+  fs.chmodSync(file, 0o600)
+  return { removed: hadSession, urlKept: true }
 }
 
 // Human-readable state for the `config` command.

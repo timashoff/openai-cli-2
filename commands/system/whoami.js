@@ -1,4 +1,4 @@
-import { resolveGateway, storedGatewayMeta } from '../../services/config/gateway.js'
+import { resolveGateway, storedGatewayMeta, storedGatewayUrl } from '../../services/config/gateway.js'
 
 const hostOf = (url) => {
   try {
@@ -18,15 +18,22 @@ const asDate = (unix) => {
   }
 }
 
-// `ai whoami` — is a gateway configured, am I logged in, and is the session still
-// valid? Does a live check against the gateway; falls back to stored info offline.
+// `ai whoami` — login status AND the gateway address, as a ready-to-paste
+// `ai login <url>` line to set up another device. The address stays visible even
+// after logout (it is kept), so this is how you "recall" the gateway URL.
 export const WhoamiCommand = {
   async execute() {
     const gw = resolveGateway()
-    if (!gw) return 'Not logged in. Run: ai login <gateway-url>'
+    if (!gw) {
+      const url = storedGatewayUrl()
+      return url
+        ? `Not logged in — but the gateway address is remembered:\n  ai login ${url}`
+        : 'Not logged in. Run: ai login <gateway-url>'
+    }
 
     const host = hostOf(gw.url)
     const meta = storedGatewayMeta()
+    const transfer = `\nOn another device: ai login ${gw.url}`
 
     let live
     try {
@@ -39,11 +46,11 @@ export const WhoamiCommand = {
     } catch (e) {
       const who = meta.email ? ` as ${meta.email}` : ''
       const until = asDate(meta.expiresAt)
-      return `Configured for ${host}${who}${until ? `, session until ${until}` : ''} (offline — could not verify).`
+      return `Configured for ${host}${who}${until ? `, session until ${until}` : ''} (offline — could not verify).${transfer}`
     }
 
     const email = (live && live.email) || meta.email || 'unknown'
     const until = asDate((live && live.expiresAt) || meta.expiresAt)
-    return `Logged in as ${email} — gateway ${host}${until ? `, session valid until ${until}` : ''}.`
+    return `Logged in as ${email} — gateway ${host}${until ? `, session valid until ${until}` : ''}.${transfer}`
   },
 }

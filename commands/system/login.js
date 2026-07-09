@@ -121,9 +121,10 @@ export const LogoutCommand = {
         // best-effort: local removal below is what matters
       }
     }
-    const { removed } = clearGateway()
-    return removed
-      ? 'Logged out — gateway credentials removed; providers connect directly again.'
-      : 'No stored gateway credentials to remove.'
+    const { removed, urlKept } = clearGateway()
+    if (!removed) return 'You were not logged in.'
+    return urlKept
+      ? 'Logged out — session revoked. The gateway address is kept, so next time just run: ai login'
+      : 'Logged out — session revoked; providers connect directly again.'
   },
 }

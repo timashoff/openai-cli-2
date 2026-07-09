@@ -69,7 +69,7 @@ export const SYSTEM_COMMANDS = {
     aliases: ['me'],
     handler: 'WhoamiCommand',
     filePath: '../commands/system/whoami.js',
-    description: 'Show gateway login status (account + session validity)',
+    description: 'Show login status and the gateway address (copy it to set up another device)',
     usage: 'whoami',
     oneShot: true,
   },
