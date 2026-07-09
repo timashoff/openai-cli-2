@@ -20,6 +20,14 @@ export const API_ERRORS = {
     code: 'UNAUTHORIZED',
     message: 'Session expired. Please log in again.',
   },
+  // The gateway's OWN session rejection on a proxied provider request. A distinct
+  // code so the client can tell it apart from an upstream provider 401 (bad key/quota,
+  // which the gateway passes through verbatim) and only suggest re-login for this one.
+  GATEWAY_SESSION: {
+    status: 401,
+    code: 'GATEWAY_SESSION_INVALID',
+    message: 'Gateway session expired or invalid.',
+  },
   RATE_LIMITED: {
     status: 429,
     code: 'RATE_LIMITED',

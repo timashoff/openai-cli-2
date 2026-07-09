@@ -156,8 +156,11 @@ const handle = async (req, res) => {
     return sendApiError(res, API_ERRORS.NOT_FOUND)
   }
 
-  // 3. Everything else requires a live session (or the migration static token).
-  if (!authorized(bearer(req))) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
+  // 3. Everything else requires a live session (or the migration static token). This
+  //    401 carries the distinct GATEWAY_SESSION_INVALID code — the ONLY 401 the client
+  //    maps to "Run: ai login"; an upstream provider 401 is passed through verbatim so
+  //    the client shows the real cause instead of a misleading re-login prompt.
+  if (!authorized(bearer(req))) return sendApiError(res, API_ERRORS.GATEWAY_SESSION)
 
   // 3. Route by the first path segment: /openai/... or /anthropic/...
   return handleProxy(req, res)

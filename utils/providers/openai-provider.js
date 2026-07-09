@@ -30,7 +30,9 @@ export const createOpenAIProvider = (config) => {
 
     if (error) {
       const status = error && error.status ? error.status : 500
-      throw createBaseError(`Failed to list models: ${error.message}`, true, status, error)
+      const wrapped = createBaseError(`Failed to list models: ${error.message}`, true, status, error)
+      if (error && error.code === 'GATEWAY_SESSION_INVALID') wrapped.gatewaySession = true
+      throw wrapped
     }
 
     return result
@@ -53,7 +55,9 @@ export const createOpenAIProvider = (config) => {
         throw new Error('AbortError')
       }
       const status = error && error.status ? error.status : 500
-      throw createBaseError(`Failed to create chat completion: ${error.message}`, true, status, error)
+      const wrapped = createBaseError(`Failed to create chat completion: ${error.message}`, true, status, error)
+      if (error && error.code === 'GATEWAY_SESSION_INVALID') wrapped.gatewaySession = true
+      throw wrapped
     }
 
     return result

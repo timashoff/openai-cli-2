@@ -30,6 +30,7 @@ export const createAnthropicProvider = (config) => {
       const body = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       const error = new Error((body.error && body.error.message) || 'API request failed')
       error.status = response.status
+      if (body.error && body.error.code === 'GATEWAY_SESSION_INVALID') error.gatewaySession = true
       throw error
     }
 
@@ -45,7 +46,9 @@ export const createAnthropicProvider = (config) => {
 
     if (error) {
       const status = error && error.status ? error.status : 500
-      throw createBaseError(`Failed to list Anthropic models: ${error.message}`, true, status, error)
+      const wrapped = createBaseError(`Failed to list Anthropic models: ${error.message}`, true, status, error)
+      if (error && error.gatewaySession) wrapped.gatewaySession = true
+      throw wrapped
     }
 
     return result
@@ -82,7 +85,9 @@ export const createAnthropicProvider = (config) => {
         throw new Error('AbortError')
       }
       const status = error && error.status ? error.status : 500
-      throw createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, status, error)
+      const wrapped = createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, status, error)
+      if (error && error.gatewaySession) wrapped.gatewaySession = true
+      throw wrapped
     }
 
     return result

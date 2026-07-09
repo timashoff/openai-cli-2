@@ -19,8 +19,13 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
 - **Ops:** re-login = `ai login https://gw.timashoff.com:8443`; check = `ai whoami`; revoke a device =
   `node ~/gateway/admin.mjs revoke <email>` on the VPS; forgot password = `admin.mjs passwd <email>`; new device =
   `ai login` (session per device, revocable alone). `auth.db` (users+sessions) in `~/gateway`, chmod 600.
-- **Known limitation:** any 401 on the gateway path prints "Run: ai login" — correct for session expiry; if the
-  gateway's own provider key were invalid it would also say this (rare; owner controls the key).
+- **✅ 401-labeling FIXED 2026-07-10:** the gateway's OWN session rejection on a proxied request now carries a
+  distinct code `GATEWAY_SESSION_INVALID` (`gateway/kit/errors.mjs` API_ERRORS.GATEWAY_SESSION); the client maps
+  ONLY that to "Run: ai login" (`isGatewaySessionError` via `error.gatewaySession`, set in the providers from the
+  OpenAI SDK `error.code` / anthropic body code). An UPSTREAM provider 401 (bad gateway key/quota) is passed through
+  and shown as the real error, not a misleading re-login prompt. Verified: bogus session → "Run: ai login"; valid
+  session + dummy upstream key → "401 Incorrect API key…". Also fixed the DOUBLE error line: user-input errors now
+  log at `debug` (were `warn`), so a displayed error no longer ALSO prints as a `[WARN]` console line.
 - **✅ COMMANDS SYNC DONE 2026-07-09:** custom commands follow the login across devices. Ported hsk's per-record
   **delta-sync** model (owner: "у нас же уже способ доезда данных проработан в hsk") — NOT a bespoke design:
   gateway `sync_rows`/`sync_cursors` tables + `GET/POST /sync` (LWW by `last_edited_at`, monotonic `server_version`

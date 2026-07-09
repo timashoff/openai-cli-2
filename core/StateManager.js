@@ -2,7 +2,7 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-import { createBaseError, isAuthError, AUTH_EXPIRED_MESSAGE } from './error-system/index.js'
+import { createBaseError, isGatewaySessionError, AUTH_EXPIRED_MESSAGE } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
@@ -435,7 +435,7 @@ function createStateManager() {
         if (options.signal.aborted) {
           throw error // User cancelled - don't log as error
         }
-        if (isAuthError(error)) {
+        if (isGatewaySessionError(error)) {
           evictGatewayProviders()
           throw createBaseError(AUTH_EXPIRED_MESSAGE, true, 401, error)
         }
@@ -469,7 +469,7 @@ function createStateManager() {
       if (options.signal.aborted) {
         throw error // User cancelled - don't log as error
       }
-      if (isAuthError(error)) {
+      if (isGatewaySessionError(error)) {
         evictGatewayProviders()
         throw createBaseError(AUTH_EXPIRED_MESSAGE, true, 401, error)
       }
