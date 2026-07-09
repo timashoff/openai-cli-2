@@ -34,9 +34,14 @@ const readStored = () => {
   try {
     const parsed = parse(fs.readFileSync(credentialsPath(), 'utf8'))
     const gw = parsed && parsed.gateway ? parsed.gateway : {}
-    return { url: gw.url || '', token: gw.token || '' }
+    return {
+      url: gw.url || '',
+      token: gw.token || '',
+      email: gw.email || '',
+      expiresAt: gw.expiresAt || 0,
+    }
   } catch (e) {
-    return { url: '', token: '' }
+    return { url: '', token: '', email: '', expiresAt: 0 }
   }
 }
 
@@ -57,9 +62,16 @@ export const storedGatewayUrl = () => {
   return stripTrailingSlash((process.env[ENV_URL] || stored.url || '').trim())
 }
 
+// Stored account metadata (for `ai whoami`): who logged in and until when.
+// Not secret; purely informational (the session token stays in resolveGateway).
+export const storedGatewayMeta = () => {
+  const stored = readStored()
+  return { email: stored.email || '', expiresAt: stored.expiresAt || 0 }
+}
+
 // Persist gateway credentials (from `ai login`). The url is required the first
 // time; afterwards a token-only call reuses the stored url (token rotation).
-export const saveGateway = ({ token, url }) => {
+export const saveGateway = ({ token, url, email, expiresAt }) => {
   const cleanToken = (token || '').trim()
   if (!cleanToken) return { error: 'a gateway token is required' }
 
@@ -72,7 +84,10 @@ export const saveGateway = ({ token, url }) => {
   const dir = configDir()
   fs.mkdirSync(dir, { recursive: true })
   const header = '# openai-cli gateway credentials — written by "ai login". Secret; do not commit.\n'
-  const body = header + stringify({ gateway: { url: finalUrl, token: cleanToken } }) + '\n'
+  const gateway = { url: finalUrl, token: cleanToken }
+  if (email) gateway.email = email
+  if (expiresAt) gateway.expiresAt = expiresAt
+  const body = header + stringify({ gateway }) + '\n'
   const file = credentialsPath()
   fs.writeFileSync(file, body, { mode: 0o600 })
   fs.chmodSync(file, 0o600) // enforce perms even if the file pre-existed

@@ -58,7 +58,7 @@ export const LoginCommand = {
         return 'Login failed: unexpected gateway response.'
       }
 
-      const saved = saveGateway({ token: data.session, url })
+      const saved = saveGateway({ token: data.session, url, email, expiresAt: data.expiresAt })
       if (saved.error) return `Login failed: ${saved.error}`
 
       // In the REPL, drop cached gateway clients so the next call uses the new session.

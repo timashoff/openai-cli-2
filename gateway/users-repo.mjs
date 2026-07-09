@@ -6,6 +6,7 @@ export const createUsersRepo = (db) => {
   const byEmail = db.prepare(
     'SELECT id, email, pass_hash, pass_salt FROM users WHERE email = ?',
   )
+  const byId = db.prepare('SELECT id, email FROM users WHERE id = ?')
   const insert = db.prepare(
     'INSERT INTO users(email, pass_hash, pass_salt, created_at, last_seen_at) VALUES(?,?,?,?,?) ON CONFLICT(email) DO NOTHING',
   )
@@ -19,6 +20,7 @@ export const createUsersRepo = (db) => {
 
   return {
     findByEmail: (email) => byEmail.get(email),
+    findById: (id) => byId.get(id),
     create: ({ email, passHash, passSalt, now }) => {
       const info = insert.run(email, passHash, passSalt, now, now)
       return { created: info.changes === 1 }

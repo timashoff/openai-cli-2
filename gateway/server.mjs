@@ -128,6 +128,9 @@ const handle = async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     return auth.handleLogout(req, res, bearer(req))
   }
+  if (req.method === 'GET' && url.pathname === '/auth/whoami') {
+    return auth.handleWhoami(req, res, bearer(req))
+  }
 
   // 2. Everything else requires a live session (or the migration static token).
   if (!authorized(bearer(req))) return sendApiError(res, API_ERRORS.UNAUTHORIZED)

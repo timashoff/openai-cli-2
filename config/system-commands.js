@@ -64,4 +64,13 @@ export const SYSTEM_COMMANDS = {
     usage: 'logout',
     oneShot: true,
   },
+
+  whoami: {
+    aliases: ['me'],
+    handler: 'WhoamiCommand',
+    filePath: '../commands/system/whoami.js',
+    description: 'Show gateway login status (account + session validity)',
+    usage: 'whoami',
+    oneShot: true,
+  },
 }

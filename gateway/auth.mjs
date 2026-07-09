@@ -74,5 +74,15 @@ export const createAuthRoutes = ({ users, sessions, hasher, loginLimiter, client
     res.end()
   }
 
-  return { handleLogin, handleLogout }
+  // Whoami: confirm the session is live and report the account + expiry.
+  const handleWhoami = async (req, res, presented) => {
+    if (!presented) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
+    const row = sessions.find(sessions.hash(presented))
+    if (!row || row.expires_at <= nowSeconds()) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
+    const user = users.findById(row.user_id)
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ email: user ? user.email : null, expiresAt: row.expires_at }))
+  }
+
+  return { handleLogin, handleLogout, handleWhoami }
 }
