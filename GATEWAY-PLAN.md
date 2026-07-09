@@ -19,7 +19,12 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
 - **Ops:** re-login = `ai login https://gw.timashoff.com:8443`; check = `ai whoami`; revoke a device =
   `node ~/gateway/admin.mjs revoke <email>` on the VPS; forgot password = `admin.mjs passwd <email>`; new device =
   `ai login` (session per device, revocable alone). `auth.db` (users+sessions) in `~/gateway`, chmod 600.
-- **OTP 2FA BUILT 2026-07-10 (awaiting Resend key to DEPLOY):** login is two-step now — email+password →
+- **✅ OTP 2FA DEPLOYED + VERIFIED 2026-07-10** (owner's real login confirmed; Resend `onboarding@resend.dev` →
+  his Gmail; boot `auth: sessions (2FA), email: resend`). Plus **URL-recall UX 2026-07-10**: `ai logout` KEEPS the
+  non-secret url (revokes only the session) so `ai login` needs no address after logout; `ai whoami` prints a
+  copy-paste `On another device: ai login <url>` (and shows the url even when logged out); the OTP email footer
+  carries the url; `OPENAI_CLI_GATEWAY_URL` in PRIVATE dotfiles = zero-touch. Repo is public → url NOT hardcoded
+  (chicken-and-egg: a fresh device needs it once). Build notes: login is two-step now — email+password →
   gateway emails a 6-digit code → verify → session. Motivation (owner): 2FA against the public email + semi-public
   URL, and the OTP email doubles as a gateway-URL reminder (footer). Ported hsk's `email-sender` (Resend over fetch,
   no SMTP/SDK) + `account-action-codes` → node:sqlite (`action_codes` table, sha256-at-rest, 5-attempt cap, 10-min
