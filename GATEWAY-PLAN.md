@@ -1,5 +1,24 @@
 # GATEWAY PLAN (ТЗ) — openai-cli through own US VPS, no VPN
 
+## ▶ AUTH v2 (2026-07-09) — email+password sessions replace the static token — BUILT, DEPLOYED (dual-auth), awaiting owner login
+
+Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/untraceable). Replaced with real
+**email + password → opaque 90-day server-revocable session** auth on the gateway. Full plan: `~/.claude/plans/lucky-exploring-crane.md`.
+- **DONE + committed** (`f92c986`, branch `feature/gateway-auth`): zero-dep stdlib gateway (`gateway/`): `/auth/login`
+  + `/auth/logout`, session guard replacing the static check, `node:sqlite` users/sessions store (sha256-at-rest,
+  no rotation → multi-process-safe), `admin.mjs` CLI (adduser/passwd/revoke/list), hsk kit lifted verbatim
+  (scrypt/rate-limit/errors). Client: `ai login <url>` / `ai logout` (headless + REPL, hidden password prompt),
+  session → existing `[gateway] token` slot, `401 → "Run: ai login"`. Validated: gateway auth 10/10, storage 14/14,
+  client 401 path, boot-test on the VPS's Node 22.23.
+- **DEPLOYED dual-auth 2026-07-09** to `~/gateway/` (old server backed up `server.mjs.bak-static`; `gw.env` +GW_DB
+  +GW_SESSION_TTL_DAYS, GW_TOKENS KEPT for the window; `auth.db` chmod 600). Verified: current client uninterrupted
+  (`ai cc` streams via the static token), `/auth/login` live over real TLS (401 for wrong creds).
+- **OWNER TO DO:** (1) `! bash ~/gwadduser.sh` → pick email+password (creates the account on the VPS). (2) `ai login
+  https://gw.timashoff.com:8443` → email+password → `ai cc` should stream via the session. (3) tell the agent to
+  cut over → remove GW_TOKENS + restart (session-only) → then delete `~/gateway-new` + `server.mjs.bak-static`.
+- **Known limitation:** any 401 on the gateway path prints "Run: ai login" — correct for session expiry; if the
+  gateway's own provider key were invalid it would also say this (rare; owner controls the key).
+
 **Date:** 2026-07-06 · **Author:** working session · **Status: ✅ GOAL MET 2026-07-08 — `ai cc` works from China with Clash fully OFF** (deepseek direct 1.7s + gpt-5.4-nano via gateway 7.5s). Root cause was the owner's own **ufw allowlist** on the VPS (8443 never allowed; NOT GFW, NOT the IP, NOT DNS) — fixed with `ufw allow 8443/tcp`, verified check-host 7/7 nodes OPEN worldwide + owner's end-to-end run. **Remaining:** CLI rework COMMITTED (e57b2b5, dead code swept); anthropic ON HOLD — owner's API credits expired (12-month expiry, bought 2025-07; re-fund or re-point doc/gg); **certs CLOSED 2026-07-09**: gateway serves the Porkbun-maintained auto-renewing wildcard `*.timashoff.com` (valid to Sep 22, Porkbun re-issues it themselves); `~/gateway/fetch-cert.sh` on the VPS re-fetches the bundle weekly (cron Mon 04:07, log `fetch-cert.log`, restarts gw only on change; Porkbun keys in `~/gateway/porkbun.env` chmod 600); acme.sh cron + gw cert RETIRED. No manual cert work ever again. CF & clean-VPS tracks = moot.
 
 ## ⚠ DEVIATION (2026-07-07 evening) — Cloudflare vetoed by owner; DECISION PENDING
