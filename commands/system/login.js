@@ -5,6 +5,7 @@ import {
   storedGatewayUrl,
 } from '../../services/config/gateway.js'
 import { promptLine, promptHidden } from './terminal-input.js'
+import { syncCommands } from '../../services/commands/sync.js'
 
 // Drop trailing slashes without a regex (owner rule: avoid regex).
 const stripTrailingSlash = (value) => {
@@ -65,7 +66,12 @@ export const LoginCommand = {
       if (context && context.providers && context.providers.evictGateway) {
         context.providers.evictGateway()
       }
-      return `Logged in — gateway ${saved.host}. openai and anthropic route through it; deepseek stays direct.`
+      // Sync this account's commands to the device (or seed the account on the first device).
+      const synced = await syncCommands()
+      let syncNote = ''
+      if (synced.ok && synced.pulled) syncNote = '\nSynced your commands from this account.'
+      else if (synced.ok && synced.pushed) syncNote = '\nSeeded this account with your local commands.'
+      return `Logged in — gateway ${saved.host}. openai and anthropic route through it; deepseek stays direct.${syncNote}`
     } finally {
       if (hasUi) context.ui.resumeReadline()
     }

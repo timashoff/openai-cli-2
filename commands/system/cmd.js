@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process'
 import { commandService } from '../../services/commands/index.js'
 import { commandsFilePath } from '../../services/commands/paths.js'
+import { syncCommands, forcePull, forcePush } from '../../services/commands/sync.js'
+import { resolveGateway } from '../../services/config/gateway.js'
 import { ANSI } from '../../config/ansi.js'
 import { outputHandler } from '../../core/print/index.js'
 
@@ -20,8 +22,8 @@ const listCommands = () => {
   return `Commands (${ids.length}):\n` + rows.join('\n')
 }
 
-// Open the commands file in the user's editor, then reload and report.
-const openEditor = (context) => {
+// Open the commands file in the user's editor, then reload, push, and report.
+const openEditor = async (context) => {
   const editor = process.env.VISUAL || process.env.EDITOR || 'vi'
   const filePath = commandsFilePath()
 
@@ -41,7 +43,29 @@ const openEditor = (context) => {
   }
 
   const count = Object.keys(commandService.getCommands()).length
-  return `${ANSI.COLORS.GREEN}Loaded ${count} command(s).${ANSI.COLORS.RESET}`
+  let note = ''
+  if (resolveGateway()) {
+    const synced = await syncCommands()
+    note = synced.ok
+      ? ` ${ANSI.COLORS.GREY}(synced to your account)${ANSI.COLORS.RESET}`
+      : ` ${ANSI.COLORS.YELLOW}(sync failed: ${synced.error})${ANSI.COLORS.RESET}`
+  }
+  return `${ANSI.COLORS.GREEN}Loaded ${count} command(s).${ANSI.COLORS.RESET}${note}`
+}
+
+const doPush = async () => {
+  const result = await forcePush()
+  if (!result.ok) return `Push failed: ${result.error}`
+  return `Pushed ${result.count} command(s) to your account.`
+}
+
+const doPull = async () => {
+  const result = await forcePull()
+  if (!result.ok) return `Pull failed: ${result.error}`
+  if (result.empty) return 'Your account has no synced commands yet. Run "cmd push" to seed it.'
+  return result.pulled
+    ? 'Pulled your commands from this account (local backed up to commands.toml.bak).'
+    : 'Already up to date.'
 }
 
 export const CmdCommand = {
@@ -50,6 +74,8 @@ export const CmdCommand = {
     if (sub === 'list' || sub === 'ls') {
       return listCommands()
     }
-    return openEditor(context)
+    if (sub === 'push') return await doPush()
+    if (sub === 'pull') return await doPull()
+    return await openEditor(context)
   },
 }

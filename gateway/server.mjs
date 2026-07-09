@@ -22,6 +22,8 @@ import { createPasswordHasher } from './kit/passwords.mjs'
 import { createRateLimiter } from './kit/rate-limit.mjs'
 import { API_ERRORS, sendApiError } from './kit/errors.mjs'
 import { createAuthRoutes } from './auth.mjs'
+import { createSyncRepo } from './sync-repo.mjs'
+import { createSyncRoutes } from './sync-routes.mjs'
 
 const PORT = Number(process.env.GW_PORT) || 8443
 const DB_PATH = process.env.GW_DB || `${homedir()}/gateway/auth.db`
@@ -58,6 +60,7 @@ const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 // Directly exposed on :8443 (no reverse proxy) → the socket IP is the real client.
 const clientIp = (req) => req.socket.remoteAddress || 'unknown'
 const auth = createAuthRoutes({ users, sessions, hasher, loginLimiter, clientIp })
+const sync = createSyncRoutes({ repo: createSyncRepo(db) })
 
 // Reap expired sessions on boot and daily.
 sessions.deleteExpired(nowSeconds())
@@ -78,6 +81,18 @@ const authorized = (presented) => {
     return true
   }
   return STATIC_TOKENS.has(presented)
+}
+
+// The account id behind a live session, or null. Used by /sync (a static token has
+// no account, so it cannot sync).
+const sessionUserId = (presented) => {
+  if (!presented) return null
+  const row = sessions.find(sessions.hash(presented))
+  if (row && row.expires_at > nowSeconds()) {
+    sessions.touch(row.token_hash, nowSeconds())
+    return row.user_id
+  }
+  return null
 }
 
 const readBody = async (req) => {
@@ -132,7 +147,16 @@ const handle = async (req, res) => {
     return auth.handleWhoami(req, res, bearer(req))
   }
 
-  // 2. Everything else requires a live session (or the migration static token).
+  // 2. Account data sync (delta): requires a real session (a static token has no account).
+  if (url.pathname === '/sync') {
+    const userId = sessionUserId(bearer(req))
+    if (userId === null) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
+    if (req.method === 'GET') return sync.handlePull(req, res, userId)
+    if (req.method === 'POST') return sync.handlePush(req, res, userId)
+    return sendApiError(res, API_ERRORS.NOT_FOUND)
+  }
+
+  // 3. Everything else requires a live session (or the migration static token).
   if (!authorized(bearer(req))) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
 
   // 3. Route by the first path segment: /openai/... or /anthropic/...

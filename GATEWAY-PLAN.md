@@ -1,6 +1,6 @@
 # GATEWAY PLAN (ТЗ) — openai-cli through own US VPS, no VPN
 
-## ▶ AUTH v2 (2026-07-09) — email+password sessions replace the static token — BUILT, DEPLOYED (dual-auth), awaiting owner login
+## ✅ AUTH v2 (2026-07-09) — email+password sessions replaced the static token — COMPLETE (session-only, both devices migrated)
 
 Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/untraceable). Replaced with real
 **email + password → opaque 90-day server-revocable session** auth on the gateway. Full plan: `~/.claude/plans/lucky-exploring-crane.md`.
@@ -10,14 +10,27 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
   (scrypt/rate-limit/errors). Client: `ai login <url>` / `ai logout` (headless + REPL, hidden password prompt),
   session → existing `[gateway] token` slot, `401 → "Run: ai login"`. Validated: gateway auth 10/10, storage 14/14,
   client 401 path, boot-test on the VPS's Node 22.23.
-- **DEPLOYED dual-auth 2026-07-09** to `~/gateway/` (old server backed up `server.mjs.bak-static`; `gw.env` +GW_DB
-  +GW_SESSION_TTL_DAYS, GW_TOKENS KEPT for the window; `auth.db` chmod 600). Verified: current client uninterrupted
-  (`ai cc` streams via the static token), `/auth/login` live over real TLS (401 for wrong creds).
-- **OWNER TO DO:** (1) `! bash ~/gwadduser.sh` → pick email+password (creates the account on the VPS). (2) `ai login
-  https://gw.timashoff.com:8443` → email+password → `ai cc` should stream via the session. (3) tell the agent to
-  cut over → remove GW_TOKENS + restart (session-only) → then delete `~/gateway-new` + `server.mjs.bak-static`.
+- **MERGED to master `83f81de`** (feature/gateway-auth deleted). Adds `ai whoami`/`me` (live gateway login status:
+  account + session expiry; `GET /auth/whoami` endpoint). Client stores email+expiresAt at login.
+- **CUTOVER COMPLETE 2026-07-09:** account provisioned (timashoff@gmail.com), both devices ran `ai login` and route
+  via session (config.toml static blocks removed on both). **GW_TOKENS REMOVED** from gw.env + restart → gateway is
+  **session-only** (`auth: sessions`); the old static token `b94bbf...` is dead. Cleaned up: `~/gateway-new`,
+  `server.mjs.bak-static`, `gw.env.bak-dualauth`, local backups. Session valid until 2026-10-07 (90d).
+- **Ops:** re-login = `ai login https://gw.timashoff.com:8443`; check = `ai whoami`; revoke a device =
+  `node ~/gateway/admin.mjs revoke <email>` on the VPS; forgot password = `admin.mjs passwd <email>`; new device =
+  `ai login` (session per device, revocable alone). `auth.db` (users+sessions) in `~/gateway`, chmod 600.
 - **Known limitation:** any 401 on the gateway path prints "Run: ai login" — correct for session expiry; if the
   gateway's own provider key were invalid it would also say this (rare; owner controls the key).
+- **✅ COMMANDS SYNC DONE 2026-07-09:** custom commands follow the login across devices. Ported hsk's per-record
+  **delta-sync** model (owner: "у нас же уже способ доезда данных проработан в hsk") — NOT a bespoke design:
+  gateway `sync_rows`/`sync_cursors` tables + `GET/POST /sync` (LWW by `last_edited_at`, monotonic `server_version`
+  cursor), a node:sqlite port of hsk `backend/src/kit/sync-rows-{repo,routes}.js`. openai-cli syncs one row
+  (kind='commands'); the substrate is generic for future kinds. Client `services/commands/sync.js` (cursor+hash
+  sidecar `~/.openai-cli/sync-state.json`): pull-if-fresh / push-if-edited / seed-first-device; hooks = `ai login`,
+  REPL background start, after `cmd` edit, plus `cmd push`/`cmd pull`. Sessions stay per-device (credentials.toml
+  NEVER synced). Verified: sync-repo 8/8, two-device sim (seed→pull→edit→pull, idempotent, backup). Real account
+  SEEDED from the Mac (14 commands). **Second machine gets them on next `ai` (REPL background pull) / re-login /
+  `cmd pull`.**
 
 **Date:** 2026-07-06 · **Author:** working session · **Status: ✅ GOAL MET 2026-07-08 — `ai cc` works from China with Clash fully OFF** (deepseek direct 1.7s + gpt-5.4-nano via gateway 7.5s). Root cause was the owner's own **ufw allowlist** on the VPS (8443 never allowed; NOT GFW, NOT the IP, NOT DNS) — fixed with `ufw allow 8443/tcp`, verified check-host 7/7 nodes OPEN worldwide + owner's end-to-end run. **Remaining:** CLI rework COMMITTED (e57b2b5, dead code swept); anthropic ON HOLD — owner's API credits expired (12-month expiry, bought 2025-07; re-fund or re-point doc/gg); **certs CLOSED 2026-07-09**: gateway serves the Porkbun-maintained auto-renewing wildcard `*.timashoff.com` (valid to Sep 22, Porkbun re-issues it themselves); `~/gateway/fetch-cert.sh` on the VPS re-fetches the bundle weekly (cron Mon 04:07, log `fetch-cert.log`, restarts gw only on change; Porkbun keys in `~/gateway/porkbun.env` chmod 600); acme.sh cron + gw cert RETIRED. No manual cert work ever again. CF & clean-VPS tracks = moot.
 
