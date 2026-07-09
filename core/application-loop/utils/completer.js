@@ -1,11 +1,8 @@
-import { databaseCommandService } from '../../../services/database-command-service.js'
+import { commandService } from '../../../services/commands/index.js'
 import { getAllSystemCommandNames } from '../../../utils/system-commands.js'
 
 export function getAllAvailableCommands() {
   const systemCommands = getAllSystemCommandNames()
-  const userCommands = databaseCommandService.getCommands()
-  const userCommandKeys = Object.values(userCommands)
-    .filter((command) => command.key && Array.isArray(command.key))
-    .flatMap((command) => command.key)
+  const userCommandKeys = commandService.getAllKeys()
   return [...systemCommands, ...userCommandKeys].sort()
 }

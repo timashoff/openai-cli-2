@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { createStreamProcessor } from '../../utils/stream-processor.js'
+import { isCancellation } from '../error-system/index.js'
 
 export const createResponseSessionFactory = ({ stateManager }) => {
   if (!stateManager) {
@@ -43,11 +44,6 @@ export const createResponseSessionFactory = ({ stateManager }) => {
           providerModel || undefined,
         )
 
-        events.emit('session:stream-started', {
-          controller,
-          providerModel,
-        })
-
         let firstChunk = true
 
         await streamProcessor.processStream(
@@ -69,10 +65,6 @@ export const createResponseSessionFactory = ({ stateManager }) => {
         )
 
         const text = chunks.join('')
-        events.emit('session:completed', {
-          text,
-          chunks,
-        })
 
         return {
           text,
@@ -80,8 +72,7 @@ export const createResponseSessionFactory = ({ stateManager }) => {
           aborted: false,
         }
       } catch (error) {
-        if (controller.signal.aborted || error.message === 'AbortError') {
-          events.emit('session:aborted', { error })
+        if (controller.signal.aborted || isCancellation(error)) {
           return {
             text: '',
             chunks: [],

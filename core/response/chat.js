@@ -31,11 +31,7 @@ export function createChatHandler(app) {
         return
       }
     } catch (error) {
-      if (controller.signal.aborted) {
-        return
-      }
-
-      const processedError = errorHandler.processError(error, {
+      const processedError = await errorHandler.processError(error, {
         component: 'ChatHandler',
       })
 

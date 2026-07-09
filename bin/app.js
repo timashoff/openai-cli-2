@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js'
 import { outputHandler } from '../core/print/index.js'
 import { errorHandler } from '../core/error-system/index.js'
-import { createRouter } from '../core/router.js'
+import { createRouter } from '../core/Router.js'
 import { createApplicationLoop } from '../core/application-loop/index.js'
 import {
   createSingleModelCommand,
@@ -11,16 +11,15 @@ import {
 } from '../core/response/index.js'
 import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
-import { PROVIDERS } from '../config/providers.js'
+import { commandService } from '../services/commands/index.js'
+import { configService } from '../services/config/index.js'
 
 async function initializeDefaultProvider(stateManager) {
-  // Get available provider keys (with API keys set)
-  const availableProviders = Object.entries(PROVIDERS)
-    .filter(([, provider]) => process.env[provider.apiKeyEnv])
-    .map(([key]) => key)
+  // Providers usable via an env API key OR a configured gateway token.
+  const availableProviders = configService.availableProviders()
 
   if (availableProviders.length === 0) {
-    throw new Error('No AI providers available - check your API keys')
+    throw new Error('No AI providers available - set an API key or a gateway token')
   }
 
   const defaultProvider = availableProviders[0]
@@ -32,6 +31,12 @@ async function initializeDefaultProvider(stateManager) {
 async function start() {
   try {
     logger.debug('🚀 Starting AI Application - Pure Functional Style')
+
+    // Ensure the user commands file exists (migrate legacy db once, or copy defaults)
+    await commandService.bootstrap()
+
+    // Ensure the user config file exists and load provider overrides (gateway baseURL/token)
+    await configService.bootstrap()
 
     // Initialize core components through composition
     const stateManager = getStateManager()
@@ -79,7 +84,7 @@ async function start() {
     // Start main application loop
     await applicationLoop.startMainLoop()
   } catch (error) {
-    errorHandler.handleError(error, {
+    await errorHandler.handleError(error, {
       context: 'application_start',
       fatal: true,
     })
@@ -87,4 +92,16 @@ async function start() {
   }
 }
 
-start()
+async function main() {
+  // One-shot mode: "ai rr text" or piped stdin. Skips the REPL and readline entirely.
+  const oneShotArgs = process.argv.slice(2)
+  if (oneShotArgs.length > 0 || !process.stdin.isTTY) {
+    const { runOneShot } = await import('../core/oneshot/index.js')
+    const code = await runOneShot(oneShotArgs)
+    process.exit(code)
+  }
+
+  await start()
+}
+
+main()

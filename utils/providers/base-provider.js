@@ -28,6 +28,14 @@ export const createBaseProvider = (config) => {
     return apiKey
   }
 
+  // Credential presented to the endpoint: the gateway token when configured (the
+  // real API key then lives on the gateway, not on this client), otherwise the
+  // provider's own API key from the environment.
+  const getCredential = () => {
+    if (state.config.token) return state.config.token
+    return getApiKey()
+  }
+
   const recordRequest = (responseTime, error = null) => {
     state.stats.requests++
     state.stats.totalResponseTime += responseTime
@@ -83,6 +91,7 @@ export const createBaseProvider = (config) => {
     stats: state.stats,
     validateConfig,
     getApiKey,
+    getCredential,
     recordRequest,
     measureTime,
     getStats,

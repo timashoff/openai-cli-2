@@ -1,0 +1,95 @@
+# openai-cli commands - edit this file, save, and the app reloads on your next prompt.
+#
+# Each [commands.<id>] block is one command:
+#   key         = aliases you type (English and/or Russian), e.g. ["rr"] or ["сс", "cc"]
+#   description = short human note (any language)
+#   models      = optional; omit to use the current provider/model. Multiple models = compare side by side.
+#   instruction = the prompt prepended to your input. Use ''' ... ''' for multi-line.
+#   context     = optional; set true to carry chat history into this command (default false = stateless).
+
+[commands.chinese]
+key = ["сс", "cc"]
+description = "простой перевод на китайский"
+models = [
+  { provider = "deepseek", model = "deepseek-v4-flash" },
+  { provider = "openai", model = "gpt-5.4-nano" },
+]
+instruction = "Переведи следующее на китайский, но! Если это русский язык — никогда не переводи напрямую с русского на китайский! Сначала переведи с русского на английский, и только потом с английского на китайский. При выводе показывай английский перевод, китайский и пиньинь"
+
+[commands.code]
+key = ["code"]
+description = "check the code"
+models = [{ provider = "deepseek", model = "deepseek-v4-flash" }]
+instruction = "check the following code for errors and, in general, give your assessment of its quality"
+
+[commands.doc]
+key = ["doc"]
+description = "translate complex articles to Russian using Claude Sonnet"
+models = [{ provider = "anthropic", model = "claude-sonnet-5" }]
+instruction = "Translate the following complex article or document into Russian using high-quality translation. Focus on preserving the original meaning, tone, and technical accuracy"
+
+[commands.english]
+key = ["аа", "aa"]
+description = "translate into English"
+instruction = "please provide multiple English translations of the following, categorized as: 1. Standard (usual case) 2. Natural-sounding (idiomatic, how a native speaker might say it) 3. Formal 4. Informal (as used in messaging apps)"
+
+[commands.grammar]
+key = ["gg"]
+description = "check the grammar"
+models = [
+  { provider = "openai", model = "gpt-5.4-mini" },
+  { provider = "deepseek", model = "deepseek-v4-flash" },
+  { provider = "anthropic", model = "claude-sonnet-5" },
+]
+instruction = "check the following text for grammar, correct any mistakes or typos, and make it sound slightly more natural"
+
+[commands.hsk]
+key = ["hsk"]
+description = "translate into Ru, Pinyin"
+instruction = "Переведи на русский язык (дай основное значение), обязательно для оригинала дай транскрипцию (пиньинь) и традиционные иероглифы (если есть); из каких ключей/радикалов состоит (так же показывай пиньинь); покажи несколько вариантов использования (оригинал-перевод); покажи так же примеры идиом (если есть); укажи частотность употребления в китайском языке от 1 до 10"
+
+[commands.hskss]
+key = ["hskss"]
+description = "create a simple sentence in chinese, and translate it"
+instruction = "create a sentence in Chinese using the following word or words, and translate it into English, Russian, and Pinyin"
+
+[commands.kyrgyz]
+key = ["kg", "кг"]
+description = "Translate to Kyrgyz language"
+models = [{ provider = "anthropic", model = "claude-sonnet-5" }]
+instruction = "Translate the following text to Kyrgyz language"
+
+[commands.pinyin]
+key = ["пп", "pp"]
+description = "show the Pinyin transcription"
+instruction = "Provide the Pinyin transcription of the following text"
+
+[commands.russian]
+key = ["rr"]
+description = "перевод на Русский"
+models = [{ provider = "deepseek", model = "deepseek-v4-flash" }]
+instruction = "сделай перевод на русский язык"
+
+[commands.sentence]
+key = ["ss"]
+description = "create a simple sentence"
+instruction = "create a simple sentence using the following words"
+
+[commands.transcription]
+key = ["tr"]
+description = "show the English transcription"
+instruction = "show the English transcription of the following text. The response should only contain the transcription"
+
+[commands.wtf]
+key = ["втф", "wtf"]
+description = "explain what this means?"
+models = [
+  { provider = "anthropic", model = "claude-sonnet-5" },
+  { provider = "openai", model = "gpt-5.4-nano" },
+]
+instruction = "Объясни по простому, что это означает"
+
+[commands.idiom]
+key = ["ii"]
+description = "более глубокий идиоматический перевод с транскрипцией"
+instruction = "Переведи на русский язык, для оригинала дай транскрипцию IPA, покажи несколько вариантов использования (оригинал-перевод), покажи так же примеры идиом, если они есть"

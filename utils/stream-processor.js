@@ -31,10 +31,6 @@ export const createStreamProcessor = () => {
     state.isTerminated = false
     state.currentStream = stream
 
-    if (state.isTerminated) {
-      throw new Error('AbortError')
-    }
-
     const response = []
 
     try {
@@ -58,8 +54,6 @@ export const createStreamProcessor = () => {
       } else {
         throw new Error('Unknown stream type - neither async iterable nor ReadableStream')
       }
-    } catch (error) {
-      throw error
     } finally {
       state.currentStream = null
       state.currentReader = null
@@ -167,13 +161,13 @@ export const createStreamProcessor = () => {
         const content = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) ? chunk.choices[0].delta.content : null
         if (content) {
           response.push(content)
-          if (onChunk && !signal.aborted) {
+          if (onChunk) {
             onChunk(content)
           }
         }
       }
     } catch (error) {
-      if (state.isTerminated || signal.aborted) {
+      if (state.isTerminated || (signal && signal.aborted)) {
         throw new Error('AbortError')
       }
       throw error

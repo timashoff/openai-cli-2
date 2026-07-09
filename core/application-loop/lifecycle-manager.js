@@ -44,7 +44,6 @@ export const createLifecycleManager = (state) => {
       // Clean up streaming state
       if (state.stateManager.isTypingResponse()) {
         state.stateManager.setTypingResponse(false)
-        state.stateManager.setShouldReturnToPrompt(true)
       }
 
       // Give brief moment for cancellation to process

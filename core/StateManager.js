@@ -1,21 +1,11 @@
 import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
-import { PROVIDERS } from '../config/providers.js'
+import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-import { logError, processError } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
 export const stateManagerEvents = new EventEmitter()
-
-// Centralized error handling for EventEmitter (CLAUDE.md compliance)
-stateManagerEvents.on('error', async (error) => {
-  const processedError = await processError(error, {
-    context: 'StateManager:EventSystem',
-    component: 'stateManagerEvents'
-  })
-  await logError(processedError)
-})
 
 function createStateManager() {
   // Initialize provider factory
@@ -36,7 +26,6 @@ function createStateManager() {
     isProcessingRequest: false,
     isTypingResponse: false,
     isRetryingProvider: false,
-    shouldReturnToPrompt: false,
   }
 
   // Request management
@@ -56,34 +45,55 @@ function createStateManager() {
 
   // === MAIN OPERATIONS - StateManager handles switching ===
 
-  async function ensureProviderInitialized(providerId) {
-    // Check if provider is available
-    const providerConfig = PROVIDERS[providerId]
-    // if (!providerConfig) { //   throw new Error(`Unknown provider: ${providerId}`) // }
-
-    if (!process.env[providerConfig.apiKeyEnv]) {
-      throw new Error(`${providerConfig.name} API key not found`)
+  // Single reusable path from a provider's EFFECTIVE config (built-in defaults +
+  // user overlay, incl. proxy) to a ready client. This is the ONLY place the
+  // overlay reaches a provider, so proxy routing applies uniformly to every
+  // caller (one-shot, REPL, multi-model). listModels is intentionally NOT here —
+  // the caller decides whether it needs the model list.
+  async function createProviderInstance(providerId) {
+    const config = configService.getProviderConfig(providerId)
+    if (!config) {
+      throw new Error(`Unknown provider: ${providerId}`)
     }
+    if (!config.token && !process.env[config.apiKeyEnv]) {
+      throw new Error(`${config.name} not configured (needs a gateway token or ${config.apiKeyEnv})`)
+    }
+    const instance = providerFactory.createProvider(providerId, config)
+    await instance.initializeClient()
+    return { instance, config }
+  }
 
-    // Get or create provider instance
+  async function ensureProviderInitialized(providerId) {
     let providerData = aiState.providers.get(providerId)
 
     if (!providerData) {
-      // Lazy-loading: create new provider
       logger.debug(`StateManager: Lazy-loading provider ${providerId}`)
-
-      const providerInstance = providerFactory.createProvider(providerId, providerConfig)
-      await providerInstance.initializeClient()
-      const models = await providerInstance.listModels()
-
-      // Store in cache for future use
-      providerData = {
-        instance: providerInstance,
-        config: providerConfig,
-        models: models,
-      }
+      const { instance, config } = await createProviderInstance(providerId)
+      const models = await instance.listModels()
+      providerData = { instance, config, models }
       aiState.providers.set(providerId, providerData)
     }
+
+    return providerData
+  }
+
+  // Fast provider setup for one-shot mode: create the client but skip listModels().
+  // The request path then cache-hits this entry instead of doing a network round-trip.
+  async function primeProvider(providerId, model = null) {
+    let providerData = aiState.providers.get(providerId)
+    if (!providerData) {
+      const { instance, config } = await createProviderInstance(providerId)
+      providerData = { instance, config, models: [] }
+      aiState.providers.set(providerId, providerData)
+    }
+
+    updateAIProvider({
+      instance: providerData.instance,
+      key: providerId,
+      model: model || providerData.config.defaultModel,
+      models: providerData.models,
+      config: providerData.config,
+    })
 
     return providerData
   }
@@ -99,7 +109,7 @@ function createStateManager() {
       let selectedModel = targetModel
       if (!selectedModel) {
         // Use default model from config first, then fall back to first available
-        const defaultModel = PROVIDERS[providerId].defaultModel
+        const defaultModel = providerData.config.defaultModel
         if (
           defaultModel &&
           providerData.models.some((m) =>
@@ -230,10 +240,6 @@ function createStateManager() {
     }
   }
 
-  function getCurrentProviderKey() {
-    return aiState.currentProviderKey
-  }
-
   function getCurrentModel() {
     return aiState.currentModel
   }
@@ -249,20 +255,8 @@ function createStateManager() {
     return [...aiState.availableModels]
   }
 
-  function setProvider(key, providerData) {
-    aiState.providers.set(key, providerData)
-  }
-
   function getProvider(key) {
     return aiState.providers.get(key)
-  }
-
-  function getAllProviders() {
-    return aiState.providers
-  }
-
-  function setServiceInitialized(initialized) {
-    aiState.initialized = initialized
   }
 
   // === Operation State Management ===
@@ -289,11 +283,6 @@ function createStateManager() {
     stateManagerEvents.emit('typing-state-changed', { isTyping })
   }
 
-
-  function getOperationState() {
-    return { ...operationState }
-  }
-
   // === Request State Management ===
 
   function setStreamProcessor(processor) {
@@ -304,24 +293,18 @@ function createStateManager() {
     requestState.currentSpinnerInterval = interval
   }
 
+  function notifyAbortSignalCleared() {
+    // Reset the output gate so post-request output (incl. shutdown messages) is not suppressed
+    stateManagerEvents.emit('abort-signal-changed', null)
+  }
+
   function clearRequestState() {
     requestState.currentRequestController = null
     requestState.currentSpinnerInterval = null
     requestState.currentStreamProcessor = null
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
-  }
-
-  function setCurrentRequestController(controller) {
-    requestState.currentRequestController = controller
-  }
-
-  function setShouldReturnToPrompt(shouldReturn) {
-    operationState.shouldReturnToPrompt = shouldReturn
-  }
-
-  function shouldReturnToPrompt() {
-    return operationState.shouldReturnToPrompt
+    notifyAbortSignalCleared()
   }
 
   function isTypingResponse() {
@@ -346,9 +329,7 @@ function createStateManager() {
 
   function clearRequestController() {
     requestState.currentRequestController = null
-    stateManagerEvents.emit('controller-cleared', {
-      timestamp: Date.now(),
-    })
+    notifyAbortSignalCleared()
   }
 
   function clearAllOperations() {
@@ -359,7 +340,6 @@ function createStateManager() {
     operationState.isProcessingRequest = false
     operationState.isTypingResponse = false
     operationState.isRetryingProvider = false
-    operationState.shouldReturnToPrompt = false
 
     // Notify listeners - DatabaseCommandService should listen to this event
     // and handle its own cache invalidation (Single Source of Truth principle)
@@ -400,40 +380,6 @@ function createStateManager() {
 
 
 
-  // === Event Listener Management ===
-
-  function addListener(event, callback) {
-    stateManagerEvents.on(event, callback)
-  }
-
-  function removeListener(event, callback) {
-    stateManagerEvents.removeListener(event, callback)
-  }
-
-
-  // === Utility Methods ===
-
-
-  function reset() {
-    aiState.currentProvider = null
-    aiState.currentProviderKey = ''
-    aiState.currentModel = ''
-    aiState.availableModels = []
-    aiState.providers.clear()
-    aiState.initialized = false
-
-    operationState.isProcessingRequest = false
-    operationState.isTypingResponse = false
-    operationState.isRetryingProvider = false
-    operationState.shouldReturnToPrompt = false
-
-    clearRequestState()
-    clearContext()
-
-    stateManagerEvents.emit('state-reset', {})
-  }
-
-
   // === Create AI completion (main operation) ===
 
   async function createChatCompletion(
@@ -447,7 +393,7 @@ function createStateManager() {
       : aiState.currentProviderKey
 
     // Check if markdown should be disabled for this provider
-    const providerConfig = PROVIDERS[providerKey]
+    const providerConfig = configService.getProviderConfig(providerKey)
     if (providerConfig && !providerConfig.markdown) {
       // Add system prompt to disable markdown
       messages = [
@@ -518,19 +464,16 @@ function createStateManager() {
   return {
     // Main operations
     switchProvider,
+    primeProvider,
     switchModel,
     createChatCompletion,
 
     // AI state getters
     getAIState,
     getCurrentProvider,
-    getCurrentProviderKey,
     getCurrentModel,
     getAvailableModels,
-    setProvider,
     getProvider,
-    getAllProviders,
-    setServiceInitialized,
 
     // AI state setters (internal)
     updateAIProvider,
@@ -539,15 +482,10 @@ function createStateManager() {
     // Operation state
     setProcessingRequest,
     setTypingResponse,
-    getOperationState,
 
     // Request state
     setStreamProcessor,
     setSpinnerInterval,
-    clearRequestState,
-    setCurrentRequestController,
-    setShouldReturnToPrompt,
-    shouldReturnToPrompt,
     isTypingResponse,
     isProcessingRequest,
     getSpinnerInterval,
@@ -560,14 +498,6 @@ function createStateManager() {
     addToContext,
     clearContext,
     getContextHistory,
-
-
-    // Event listeners
-    addListener,
-    removeListener,
-
-    // Utilities
-    reset,
   }
 }
 
@@ -578,12 +508,5 @@ export function getStateManager() {
     stateManagerInstance = createStateManager()
   }
   return stateManagerInstance
-}
-
-export function resetStateManager() {
-  if (stateManagerInstance) {
-    stateManagerInstance.reset()
-  }
-  stateManagerInstance = null
 }
 

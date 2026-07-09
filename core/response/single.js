@@ -31,24 +31,27 @@ export function createSingleModelCommand(app) {
         ? extractProviderModel(data.models[0])
         : null
 
-      return await processSingleModelRequest(data.content, providerModel)
+      return await processSingleModelRequest(data.content, providerModel, data.context === true)
     } catch (error) {
-      errorHandler.handleError(error, { component: 'SingleModelCommand' })
+      await errorHandler.handleError(error, { component: 'SingleModelCommand' })
       return []
     }
   }
 
-  async function processSingleModelRequest(content, providerModel = null) {
+  async function processSingleModelRequest(content, providerModel = null, includeContext = true) {
     try {
       const { text, aborted } = await respond({
         input: content,
         providerModel,
+        includeContext,
         onComplete: async ({ text }) => {
           if (text.trim()) {
             process.stdout.write('\n')
           }
 
-          updateContext(stateManager, content, text)
+          if (includeContext) {
+            updateContext(stateManager, content, text)
+          }
           outputHandler.writeContextDots(stateManager)
         },
       })
@@ -59,11 +62,7 @@ export function createSingleModelCommand(app) {
 
       return text
     } catch (error) {
-      if (controller.signal.aborted) {
-        return
-      }
-
-      const processedError = errorHandler.processError(error, {
+      const processedError = await errorHandler.processError(error, {
         component: 'SingleModelCommand',
       })
 

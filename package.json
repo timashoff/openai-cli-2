@@ -29,15 +29,15 @@
   "author": "Roman Timashev",
   "license": "MIT",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/timashoff/openai-cli-2.git"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.2",
-    "openai": "^6.0.1"
+    "openai": "^6.45.0",
+    "smol-toml": "^1.7.0"
   },
   "files": [
     "bin/",

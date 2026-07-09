@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger.js'
-import { errorHandler } from '../error-system/index.js'
+import { errorHandler, isCancellation } from '../error-system/index.js'
 import { ANSI } from '../../config/ansi.js'
 
 export const createMainLoop = (state, applicationLoopInstance) => {
@@ -86,12 +86,7 @@ export const createMainLoop = (state, applicationLoopInstance) => {
           // Suppress errors during shutdown to avoid crash messages during Ctrl+C
           if (state.isExiting) {
             // During shutdown, silently ignore AbortErrors and other cancellation errors
-            if (
-              error.message === 'AbortError' ||
-              error.name === 'AbortError' ||
-              error.message.includes('aborted') ||
-              error.message.includes('cancelled')
-            ) {
+            if (isCancellation(error)) {
               continue // Exit silently during shutdown
             }
           }

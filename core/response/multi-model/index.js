@@ -38,11 +38,10 @@ export const createMultiModelCommand = () => {
     // Single abort handling - reactive approach
     controller.signal.addEventListener('abort', () => {
       uiManager.cleanup()
-      coordinator.resetState()
     }, { once: true })
 
     // Prepare messages for streaming
-    const messages = prepareStreamingMessages(stateManager, commandData.content)
+    const messages = prepareStreamingMessages(stateManager, commandData.content, commandData.context === true)
 
     // Start initial spinner
     uiManager.startInitialSpinner(controller)
@@ -67,8 +66,8 @@ export const createMultiModelCommand = () => {
         controller,
       )
 
-      // Update context with successful responses
-      if (successfulResults.length > 0) {
+      // Update context with successful responses (only when the command keeps history)
+      if (commandData.context === true && successfulResults.length > 0) {
         const allResponses = successfulResults.map((r) => r.response)
         updateContext(stateManager, commandData.content, allResponses)
       }

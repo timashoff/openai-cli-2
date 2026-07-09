@@ -3,14 +3,17 @@ import { createBaseProvider } from './base-provider.js'
 
 export const createAnthropicProvider = (config) => {
   const base = createBaseProvider(config)
-  
-  base.validateConfig()
-  const apiKey = base.getApiKey()
 
-  const initializeClient = async () => {
-    if (!apiKey) {
-      throw createBaseError('Anthropic API key is required', true, 401)
-    }
+  base.validateConfig()
+
+  const initializeClient = async () => {}
+
+  // Via a gateway (token set) the request carries "Authorization: Bearer <token>"
+  // and the gateway swaps in the real x-api-key. Direct, it sends x-api-key from
+  // the environment. The key is resolved lazily so the gateway path needs no key.
+  const authHeaders = () => {
+    if (config.token) return { authorization: `Bearer ${config.token}` }
+    return { 'x-api-key': base.getApiKey(), 'anthropic-version': '2023-06-01' }
   }
 
   const makeRequest = async (url, options = {}) => {
@@ -18,15 +21,14 @@ export const createAnthropicProvider = (config) => {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        ...authHeaders(),
         ...options.headers
       }
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      throw new Error(error.error?.message || 'API request failed')
+      throw new Error((error.error && error.error.message) || 'API request failed')
     }
 
     return response
@@ -34,7 +36,7 @@ export const createAnthropicProvider = (config) => {
 
   const listModels = async () => {
     const { result, error } = await base.measureTime(async () => {
-      const response = await makeRequest('https://api.anthropic.com/v1/models')
+      const response = await makeRequest(`${config.baseURL}/models`)
       const data = await response.json()
       return data.data || []
     })
@@ -63,7 +65,7 @@ export const createAnthropicProvider = (config) => {
         ...apiOptions
       }
 
-      const response = await makeRequest('https://api.anthropic.com/v1/messages', {
+      const response = await makeRequest(`${config.baseURL}/messages`, {
         method: 'POST',
         ...(signal && { signal }),
         body: JSON.stringify(requestBody)
