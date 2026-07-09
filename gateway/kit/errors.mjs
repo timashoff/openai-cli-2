@@ -28,6 +28,11 @@ export const API_ERRORS = {
     code: 'GATEWAY_SESSION_INVALID',
     message: 'Gateway session expired or invalid.',
   },
+  INVALID_CODE: {
+    status: 400,
+    code: 'INVALID_CODE',
+    message: 'Invalid or expired code.',
+  },
   RATE_LIMITED: {
     status: 429,
     code: 'RATE_LIMITED',

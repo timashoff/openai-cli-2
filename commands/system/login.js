@@ -34,9 +34,10 @@ export const LoginCommand = {
       const email = await promptLine('Email: ')
       const password = await promptHidden('Password: ')
 
-      let response
+      // Step 1: password → the gateway emails a one-time code (no session yet).
+      let loginRes
       try {
-        response = await fetch(`${url}/auth/login`, {
+        loginRes = await fetch(`${url}/auth/login`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ email, password }),
@@ -44,17 +45,45 @@ export const LoginCommand = {
       } catch (e) {
         return 'Login failed: cannot reach the gateway.'
       }
+      if (loginRes.status === 401) return 'Login failed: incorrect email or password.'
+      if (loginRes.status === 429) return 'Login failed: too many attempts, try again later.'
+      if (!loginRes.ok) return 'Login failed: gateway error.'
 
-      if (response.status === 401) return 'Login failed: incorrect email or password.'
-      if (response.status === 429) return 'Login failed: too many attempts, try again later.'
-      if (!response.ok) return 'Login failed: gateway error.'
-
-      let data
+      // A 2FA gateway replies { otpRequired: true } and emails a code; an older
+      // gateway returns the session directly. Handle both (no version coupling).
+      let step1
       try {
-        data = await response.json()
+        step1 = await loginRes.json()
       } catch (e) {
-        return 'Login failed: unexpected gateway response.'
+        step1 = {}
       }
+
+      let data = step1
+      if (!step1 || typeof step1.session !== 'string') {
+        // Step 2: exchange the emailed code for a session.
+        const code = await promptLine(`We emailed a code to ${email}. Enter it: `)
+        let verifyRes
+        try {
+          verifyRes = await fetch(`${url}/auth/verify`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email, code: code.trim() }),
+          })
+        } catch (e) {
+          return 'Login failed: cannot reach the gateway.'
+        }
+        if (verifyRes.status === 400 || verifyRes.status === 401) {
+          return 'Login failed: incorrect or expired code.'
+        }
+        if (verifyRes.status === 429) return 'Login failed: too many attempts, try again later.'
+        if (!verifyRes.ok) return 'Login failed: gateway error.'
+        try {
+          data = await verifyRes.json()
+        } catch (e) {
+          return 'Login failed: unexpected gateway response.'
+        }
+      }
+
       if (!data || typeof data.session !== 'string') {
         return 'Login failed: unexpected gateway response.'
       }

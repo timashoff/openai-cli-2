@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS sync_cursors (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   value INTEGER NOT NULL DEFAULT 0
 );
+
+-- One-time 6-digit codes (login OTP; extensible via purpose). Only sha256 stored;
+-- one outstanding code per (user, purpose). See action-codes-repo.mjs.
+CREATE TABLE IF NOT EXISTS action_codes (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, purpose)
+);
 `
 
 export const openDb = (path) => {

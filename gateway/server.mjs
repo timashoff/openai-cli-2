@@ -22,6 +22,8 @@ import { createPasswordHasher } from './kit/passwords.mjs'
 import { createRateLimiter } from './kit/rate-limit.mjs'
 import { API_ERRORS, sendApiError } from './kit/errors.mjs'
 import { createAuthRoutes } from './auth.mjs'
+import { createActionCodesRepo } from './action-codes-repo.mjs'
+import { createEmailSender, createNoopEmailSender } from './kit/email-sender.mjs'
 import { createSyncRepo } from './sync-repo.mjs'
 import { createSyncRoutes } from './sync-routes.mjs'
 
@@ -57,14 +59,31 @@ const users = createUsersRepo(db)
 const sessions = createSessionsRepo(db, { ttlSeconds: TTL_DAYS * 86400 })
 const hasher = createPasswordHasher()
 const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
+const verifyLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 // Directly exposed on :8443 (no reverse proxy) → the socket IP is the real client.
 const clientIp = (req) => req.socket.remoteAddress || 'unknown'
-const auth = createAuthRoutes({ users, sessions, hasher, loginLimiter, clientIp })
+const actionCodes = createActionCodesRepo(db, { ttlSeconds: 10 * 60, maxAttempts: 5 })
+// Real Resend sender when a key is set; else a no-op that only logs the code when
+// GW_EMAIL_DEV=true (local testing). A missing key never crashes boot.
+const emailSender = process.env.RESEND_API_KEY
+  ? createEmailSender({
+      apiKey: process.env.RESEND_API_KEY,
+      from: process.env.RESEND_FROM || 'openai-cli <onboarding@resend.dev>',
+    })
+  : createNoopEmailSender({ logCode: process.env.GW_EMAIL_DEV === 'true' })
+const auth = createAuthRoutes({
+  users, sessions, hasher, actionCodes, emailSender, loginLimiter, verifyLimiter, clientIp,
+  gatewayUrl: process.env.GW_PUBLIC_URL || '',
+})
 const sync = createSyncRoutes({ repo: createSyncRepo(db) })
 
-// Reap expired sessions on boot and daily.
+// Reap expired sessions + login codes on boot and daily.
 sessions.deleteExpired(nowSeconds())
-setInterval(() => sessions.deleteExpired(nowSeconds()), 24 * 3600 * 1000).unref()
+actionCodes.deleteExpired(nowSeconds())
+setInterval(() => {
+  sessions.deleteExpired(nowSeconds())
+  actionCodes.deleteExpired(nowSeconds())
+}, 24 * 3600 * 1000).unref()
 
 // The bare token from "Authorization: Bearer <token>", or '' if absent.
 const bearer = (req) => {
@@ -140,6 +159,7 @@ const handle = async (req, res) => {
 
   // 1. Auth routes are exempt from the session guard (login carries no session yet).
   if (req.method === 'POST' && url.pathname === '/auth/login') return auth.handleLogin(req, res)
+  if (req.method === 'POST' && url.pathname === '/auth/verify') return auth.handleVerify(req, res)
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     return auth.handleLogout(req, res, bearer(req))
   }
@@ -175,5 +195,6 @@ createServer(tls, (req, res) => {
   handle(req, res).catch(() => sendApiError(res, API_ERRORS.SERVER_ERROR))
 }).listen(PORT, () => {
   const mode = STATIC_TOKENS.size > 0 ? 'sessions+static' : 'sessions'
-  console.log(`gateway on :${PORT} — auth: ${mode}, providers: ${Object.keys(UPSTREAMS).join(', ')}`)
+  const email = process.env.RESEND_API_KEY ? 'resend' : (process.env.GW_EMAIL_DEV === 'true' ? 'dev-log' : 'off')
+  console.log(`gateway on :${PORT} — auth: ${mode} (2FA), email: ${email}, providers: ${Object.keys(UPSTREAMS).join(', ')}`)
 })

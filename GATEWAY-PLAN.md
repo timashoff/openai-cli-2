@@ -19,6 +19,19 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
 - **Ops:** re-login = `ai login https://gw.timashoff.com:8443`; check = `ai whoami`; revoke a device =
   `node ~/gateway/admin.mjs revoke <email>` on the VPS; forgot password = `admin.mjs passwd <email>`; new device =
   `ai login` (session per device, revocable alone). `auth.db` (users+sessions) in `~/gateway`, chmod 600.
+- **OTP 2FA BUILT 2026-07-10 (awaiting Resend key to DEPLOY):** login is two-step now — email+password →
+  gateway emails a 6-digit code → verify → session. Motivation (owner): 2FA against the public email + semi-public
+  URL, and the OTP email doubles as a gateway-URL reminder (footer). Ported hsk's `email-sender` (Resend over fetch,
+  no SMTP/SDK) + `account-action-codes` → node:sqlite (`action_codes` table, sha256-at-rest, 5-attempt cap, 10-min
+  TTL). New files: `gateway/action-codes-repo.mjs`, `gateway/emails.mjs`, `gateway/kit/email-sender.mjs`; new
+  `POST /auth/verify`; `handleLogin` now issues+emails a code instead of a session. Client `commands/system/login.js`
+  is two-step AND backward-compatible (still works against the one-step gateway → no breakage window). Verified:
+  action-codes 6/6, curl E2E (login→code→verify→session; wrong/expired/reused code; attempt-cap; wrong-password
+  issues no code). **TO DEPLOY:** owner supplies `RESEND_API_KEY` (reuse the hsk Resend account), `RESEND_FROM`
+  (e.g. `openai-cli <gateway@timashoff.com>`), `GW_PUBLIC_URL=https://gw.timashoff.com:8443` → add to `~/gateway/gw.env`
+  → deploy the gateway files + restart. Existing sessions (90d) are unaffected, so there is no rush and no lockout.
+  Password reset by email = DEFERRED (still `admin.mjs passwd` over SSH). Owner must have 2FA on the Gmail itself
+  (email = account-recovery root).
 - **✅ 401-labeling FIXED 2026-07-10:** the gateway's OWN session rejection on a proxied request now carries a
   distinct code `GATEWAY_SESSION_INVALID` (`gateway/kit/errors.mjs` API_ERRORS.GATEWAY_SESSION); the client maps
   ONLY that to "Run: ai login" (`isGatewaySessionError` via `error.gatewaySession`, set in the providers from the
