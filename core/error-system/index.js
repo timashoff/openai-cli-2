@@ -20,6 +20,12 @@ export const createBaseError = (
   return error
 }
 
+// Auth failure (a 401 from the gateway) → a fixed, safe re-login instruction,
+// never a raw provider error. isUserInputError=true so it prints plainly.
+export const AUTH_EXPIRED_MESSAGE = 'Session expired or invalid. Run: ai login'
+export const isAuthError = (error) =>
+  Boolean(error) && (error.statusCode === 401 || error.status === 401)
+
 // The single cancellation predicate - replaces scattered 'AbortError' string checks.
 export const isCancellation = (error) => {
   if (!error) return false

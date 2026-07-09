@@ -19,6 +19,9 @@ export const PROVIDERS = {
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
     apiKeyEnv: 'OPENAI_API_KEY',
+    // Geo-blocked from the owner's region → route through the gateway when one is
+    // configured (see services/config/gateway.js). SSOT for "needs the gateway".
+    gateway: true,
     defaultModel: 'gpt-5.4-mini',
     maxTokens: 4096,
     temperature: 0.7,
@@ -30,6 +33,7 @@ export const PROVIDERS = {
     baseURL: 'https://api.anthropic.com/v1',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     isClaude: true,
+    gateway: true,
     defaultModel: 'claude-sonnet-5',
     maxTokens: 4096,
     temperature: 0.7,

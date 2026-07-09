@@ -27,8 +27,10 @@ export const createAnthropicProvider = (config) => {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      throw new Error((error.error && error.error.message) || 'API request failed')
+      const body = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
+      const error = new Error((body.error && body.error.message) || 'API request failed')
+      error.status = response.status
+      throw error
     }
 
     return response
@@ -42,7 +44,8 @@ export const createAnthropicProvider = (config) => {
     })
 
     if (error) {
-      throw createBaseError(`Failed to list Anthropic models: ${error.message}`, true, 500)
+      const status = error && error.status ? error.status : 500
+      throw createBaseError(`Failed to list Anthropic models: ${error.message}`, true, status, error)
     }
 
     return result
@@ -78,7 +81,8 @@ export const createAnthropicProvider = (config) => {
       if (signal && signal.aborted) {
         throw new Error('AbortError')
       }
-      throw createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, 500)
+      const status = error && error.status ? error.status : 500
+      throw createBaseError(`Failed to create Anthropic chat completion: ${error.message}`, true, status, error)
     }
 
     return result

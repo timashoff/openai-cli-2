@@ -71,6 +71,14 @@ Thumbs.db
 AI_responses/
 cache.json
 
+# Gateway secrets — the session/token lives in ~/.openai-cli; this is defensive
+# in case OPENAI_CLI_CONFIG ever points inside the repo. Never commit it.
+credentials.toml
+gateway/auth.db
+gateway/auth.db-wal
+gateway/auth.db-shm
+gateway/node_modules/
+
 # AI CLI logs (additional protection)
 .ai-cli/
 

@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
+import { createBaseError, isAuthError, AUTH_EXPIRED_MESSAGE } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
 // Event emitter for StateManager events (Single Source of Truth)
@@ -61,6 +62,18 @@ function createStateManager() {
     const instance = providerFactory.createProvider(providerId, config)
     await instance.initializeClient()
     return { instance, config }
+  }
+
+  // Drop cached gateway-routed provider clients so the NEXT request rebuilds them
+  // (createProviderInstance re-reads the freshly-stored session). Used after a
+  // gateway 401 and after `ai login` re-authenticates.
+  function evictGatewayProviders() {
+    for (const [id, data] of aiState.providers) {
+      if (data.config && data.config.gateway) {
+        aiState.providers.delete(id)
+        if (aiState.currentProviderKey === id) aiState.currentProvider = null
+      }
+    }
   }
 
   async function ensureProviderInitialized(providerId) {
@@ -422,6 +435,10 @@ function createStateManager() {
         if (options.signal.aborted) {
           throw error // User cancelled - don't log as error
         }
+        if (isAuthError(error)) {
+          evictGatewayProviders()
+          throw createBaseError(AUTH_EXPIRED_MESSAGE, true, 401, error)
+        }
         logger.debug(
           `StateManager: Chat completion failed for current model ${aiState.currentModel}:`,
           error,
@@ -452,6 +469,10 @@ function createStateManager() {
       if (options.signal.aborted) {
         throw error // User cancelled - don't log as error
       }
+      if (isAuthError(error)) {
+        evictGatewayProviders()
+        throw createBaseError(AUTH_EXPIRED_MESSAGE, true, 401, error)
+      }
       logger.debug(
         `StateManager: Chat completion failed for ${targetProviderKey}:${targetModel}:`,
         error,
@@ -478,6 +499,7 @@ function createStateManager() {
     // AI state setters (internal)
     updateAIProvider,
     updateModel,
+    evictGatewayProviders,
 
     // Operation state
     setProcessingRequest,

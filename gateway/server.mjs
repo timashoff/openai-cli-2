@@ -1,23 +1,35 @@
-// Minimal API gateway — pure Node standard library, ZERO external packages.
-// Runs on the US VPS. A client (openai-cli, a Shortcut, the WoW addon, ...) sends
-// its request here with a gateway TOKEN; the gateway swaps in the REAL provider
-// key and forwards to the provider, streaming the answer straight back. No VPN
-// needed on the client side — it just talks HTTPS to this box.
+// API gateway — pure Node standard library, ZERO external packages. Runs on the
+// US VPS. A client (openai-cli, a Shortcut, ...) authenticates with email+password
+// via /auth/login and receives an opaque session token; it then sends that token
+// as "Authorization: Bearer <session>" on every request. The gateway validates the
+// session, swaps in the REAL provider key, and streams the answer straight back.
+// No VPN needed on the client side.
 //
-// Run (keys/token come from the environment, never hard-coded):
-//   GW_TOKENS="app1token,app2token" \
+// Run (keys come from the environment, never hard-coded):
+//   GW_PORT=8443 GW_DB=~/gateway/auth.db GW_SESSION_TTL_DAYS=90 \
 //   OPENAI_API_KEY="sk-..." ANTHROPIC_API_KEY="sk-ant-..." \
-//   GW_TLS_CERT=/etc/gw/fullchain.pem GW_TLS_KEY=/etc/gw/key.pem \
+//   GW_TLS_CERT=~/gateway/cert.pem GW_TLS_KEY=~/gateway/key.pem \
+//   [GW_TOKENS="legacy,static,tokens"]   # migration-only fallback; remove after cutover
 //   node gateway/server.mjs
 import { createServer } from 'node:https'
 import { readFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
+import { homedir } from 'node:os'
+import { openDb } from './db.mjs'
+import { createUsersRepo } from './users-repo.mjs'
+import { createSessionsRepo } from './sessions-repo.mjs'
+import { createPasswordHasher } from './kit/passwords.mjs'
+import { createRateLimiter } from './kit/rate-limit.mjs'
+import { API_ERRORS, sendApiError } from './kit/errors.mjs'
+import { createAuthRoutes } from './auth.mjs'
 
 const PORT = Number(process.env.GW_PORT) || 8443
+const DB_PATH = process.env.GW_DB || `${homedir()}/gateway/auth.db`
+const TTL_DAYS = Number(process.env.GW_SESSION_TTL_DAYS) || 90
 
-// Allowed client tokens (comma-separated). One per app → each revocable alone.
-// Keep them long and random; membership check is enough for high-entropy tokens.
-const TOKENS = new Set(
+// Migration-window fallback: a static shared token still authenticates while
+// clients move to sessions. Remove GW_TOKENS from the env after cutover.
+const STATIC_TOKENS = new Set(
   (process.env.GW_TOKENS || '').split(',').map((t) => t.trim()).filter(Boolean),
 )
 
@@ -36,15 +48,36 @@ const UPSTREAMS = {
   },
 }
 
-const send = (res, code, text) => {
-  res.writeHead(code, { 'content-type': 'text/plain' })
-  res.end(text)
-}
+const nowSeconds = () => Math.floor(Date.now() / 1000)
+
+const db = openDb(DB_PATH)
+const users = createUsersRepo(db)
+const sessions = createSessionsRepo(db, { ttlSeconds: TTL_DAYS * 86400 })
+const hasher = createPasswordHasher()
+const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
+// Directly exposed on :8443 (no reverse proxy) → the socket IP is the real client.
+const clientIp = (req) => req.socket.remoteAddress || 'unknown'
+const auth = createAuthRoutes({ users, sessions, hasher, loginLimiter, clientIp })
+
+// Reap expired sessions on boot and daily.
+sessions.deleteExpired(nowSeconds())
+setInterval(() => sessions.deleteExpired(nowSeconds()), 24 * 3600 * 1000).unref()
 
 // The bare token from "Authorization: Bearer <token>", or '' if absent.
 const bearer = (req) => {
   const h = req.headers['authorization'] || ''
   return h.startsWith('Bearer ') ? h.slice(7) : ''
+}
+
+// Authorized if the token is a live session OR (migration only) a static token.
+const authorized = (presented) => {
+  if (!presented) return false
+  const row = sessions.find(sessions.hash(presented))
+  if (row && row.expires_at > nowSeconds()) {
+    sessions.touch(row.token_hash, nowSeconds())
+    return true
+  }
+  return STATIC_TOKENS.has(presented)
 }
 
 const readBody = async (req) => {
@@ -53,17 +86,14 @@ const readBody = async (req) => {
   return Buffer.concat(chunks)
 }
 
-const handle = async (req, res) => {
-  // 1. Auth first — without a known token this is an open relay (credit theft).
-  if (!TOKENS.has(bearer(req))) return send(res, 401, 'unauthorized')
-
-  // 2. Route by the first path segment: /openai/... or /anthropic/...
+// Forward to the real provider with the REAL key swapped in (session dropped),
+// and stream the answer straight back (SSE included, no buffering).
+const handleProxy = async (req, res) => {
   const url = new URL(req.url, 'http://x')
   const [, provider, ...rest] = url.pathname.split('/')
   const up = UPSTREAMS[provider]
-  if (!up) return send(res, 404, 'unknown provider')
+  if (!up) return sendApiError(res, API_ERRORS.NOT_FOUND)
 
-  // 3. Forward to the real provider with the REAL key swapped in (token dropped).
   const target = `${up.base}/${rest.join('/')}${url.search}`
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
   const contentType = req.headers['content-type']
@@ -79,10 +109,9 @@ const handle = async (req, res) => {
       body: hasBody ? await readBody(req) : undefined,
     })
   } catch (e) {
-    return send(res, 502, 'upstream unreachable')
+    return sendApiError(res, API_ERRORS.BAD_GATEWAY)
   }
 
-  // 4. Stream the answer straight back (SSE included, no buffering).
   const out = {}
   const ct = upstream.headers.get('content-type')
   if (ct) out['content-type'] = ct
@@ -91,13 +120,30 @@ const handle = async (req, res) => {
   else res.end()
 }
 
+const handle = async (req, res) => {
+  const url = new URL(req.url, 'http://x')
+
+  // 1. Auth routes are exempt from the session guard (login carries no session yet).
+  if (req.method === 'POST' && url.pathname === '/auth/login') return auth.handleLogin(req, res)
+  if (req.method === 'POST' && url.pathname === '/auth/logout') {
+    return auth.handleLogout(req, res, bearer(req))
+  }
+
+  // 2. Everything else requires a live session (or the migration static token).
+  if (!authorized(bearer(req))) return sendApiError(res, API_ERRORS.UNAUTHORIZED)
+
+  // 3. Route by the first path segment: /openai/... or /anthropic/...
+  return handleProxy(req, res)
+}
+
 const tls = {
   cert: readFileSync(process.env.GW_TLS_CERT),
   key: readFileSync(process.env.GW_TLS_KEY),
 }
 
 createServer(tls, (req, res) => {
-  handle(req, res).catch(() => send(res, 500, 'gateway error'))
+  handle(req, res).catch(() => sendApiError(res, API_ERRORS.SERVER_ERROR))
 }).listen(PORT, () => {
-  console.log(`gateway on :${PORT} — providers: ${Object.keys(UPSTREAMS).join(', ')}`)
+  const mode = STATIC_TOKENS.size > 0 ? 'sessions+static' : 'sessions'
+  console.log(`gateway on :${PORT} — auth: ${mode}, providers: ${Object.keys(UPSTREAMS).join(', ')}`)
 })

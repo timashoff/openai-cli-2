@@ -3,6 +3,7 @@ import { getSystemCommand } from '../utils/system-commands.js'
 import { outputHandler } from './print/index.js'
 import { configService } from '../services/config/index.js'
 import { processError } from './error-system/index.js'
+import { EXIT_CODES } from '../config/constants.js'
 
 /**
  * Create clean context interfaces instead of God Object
@@ -44,6 +45,7 @@ const createCleanContext = (applicationLoop) => {
         }))
       },
       switch: async (key) => app.stateManager.switchProvider(key),
+      evictGateway: () => app.stateManager.evictGatewayProviders(),
     },
 
     // Model interfaces - for AI model management
@@ -92,6 +94,25 @@ async function loadCommand(commandConfig) {
     return commandInstance
   } catch (error) {
     throw new Error(`Failed to load command '${handler}' from ${filePath}: ${error.message}`)
+  }
+}
+
+// Headless system-command runner for one-shot mode (`ai login`, `ai logout`):
+// loads the command via the same path as the REPL and runs it with a null context.
+// Only commands flagged `oneShot` in the registry reach here.
+export const runHeadless = async (systemCommand, args) => {
+  try {
+    const instance = await loadCommand(systemCommand)
+    const result = await instance.execute(args, null)
+    if (typeof result === 'string' && result.trim()) {
+      process.stdout.write(result + '\n')
+    }
+    return EXIT_CODES.SUCCESS
+  } catch (error) {
+    const processed = processError(error, { context: 'runHeadless' })
+    const message = processed && processed.userMessage ? processed.userMessage : 'command failed'
+    process.stderr.write(`${message}\n`)
+    return EXIT_CODES.ERROR
   }
 }
 

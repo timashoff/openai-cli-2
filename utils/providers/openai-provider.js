@@ -29,7 +29,8 @@ export const createOpenAIProvider = (config) => {
     })
 
     if (error) {
-      throw createBaseError(`Failed to list models: ${error.message}`, true, 500)
+      const status = error && error.status ? error.status : 500
+      throw createBaseError(`Failed to list models: ${error.message}`, true, status, error)
     }
 
     return result
@@ -51,7 +52,8 @@ export const createOpenAIProvider = (config) => {
       if (signal && signal.aborted) {
         throw new Error('AbortError')
       }
-      throw createBaseError(`Failed to create chat completion: ${error.message}`, true, 500)
+      const status = error && error.status ? error.status : 500
+      throw createBaseError(`Failed to create chat completion: ${error.message}`, true, status, error)
     }
 
     return result

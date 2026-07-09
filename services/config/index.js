@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js'
 import { PROVIDERS } from '../../config/providers.js'
 import { configFilePath, defaultConfigPath } from './paths.js'
 import { loadConfigFile } from './loader.js'
+import { resolveGateway, gatewayStatus } from './gateway.js'
 
 // User config service: overlays ~/.openai-cli/config.toml onto the built-in
 // provider defaults. Loaded once at startup — endpoint routing is fixed for the
@@ -26,14 +27,28 @@ const createConfigService = () => {
     }
   }
 
-  // Effective provider config = built-in defaults merged with the user overlay.
+  // Effective provider config, layered most-general → most-specific:
+  //   1. built-in defaults (PROVIDERS) — provider connects directly.
+  //   2. gateway overlay — auto-applied to gateway-eligible providers whenever a
+  //      gateway is configured (env or `ai login`). This is what makes a fresh
+  //      machine route correctly with no hand-edited file.
+  //   3. explicit config.toml override — wins, for power-user per-provider tweaks.
   // Returns undefined for an unknown provider (same contract as PROVIDERS[id]).
   const getProviderConfig = (providerId) => {
     if (!loadedOnce) load()
     const base = PROVIDERS[providerId]
     if (!base) return undefined
-    const over = overlay[providerId]
-    return over ? { ...base, ...over } : base
+
+    let gatewayOverlay = {}
+    if (base.gateway) {
+      const gw = resolveGateway()
+      if (gw) {
+        gatewayOverlay = { baseURL: `${gw.url}/${providerId}/v1`, token: gw.token }
+      }
+    }
+
+    const userOverlay = overlay[providerId] || {}
+    return { ...base, ...gatewayOverlay, ...userOverlay }
   }
 
   // A provider is usable if it has a gateway token OR its env API key is set.
@@ -49,16 +64,18 @@ const createConfigService = () => {
   const getStatus = () => {
     if (!loadedOnce) load()
     const providers = Object.keys(PROVIDERS).map((id) => {
-      const over = overlay[id] || {}
+      const cfg = getProviderConfig(id)
+      const viaGateway = cfg.baseURL !== PROVIDERS[id].baseURL
       return {
         id,
-        baseURL: over.baseURL || null, // gateway URL if repointed, else null (direct)
-        viaGateway: Boolean(over.baseURL),
+        baseURL: viaGateway ? cfg.baseURL : null, // effective endpoint if repointed, else null (direct)
+        viaGateway,
         configured: isConfigured(id),
       }
     })
     return {
       path: configFilePath(),
+      gateway: gatewayStatus(),
       providers,
       errors: lastErrors,
     }

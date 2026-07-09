@@ -46,4 +46,22 @@ export const SYSTEM_COMMANDS = {
     description: 'Edit provider config in your $EDITOR; "config status" shows routing',
     usage: 'config [status]',
   },
+
+  login: {
+    aliases: [],
+    handler: 'LoginCommand',
+    filePath: '../commands/system/login.js',
+    description: 'Log in to the gateway (email + password) and store the session',
+    usage: 'login [gateway-url]',
+    oneShot: true,
+  },
+
+  logout: {
+    aliases: [],
+    handler: 'LogoutCommand',
+    filePath: '../commands/system/login.js',
+    description: 'Revoke and remove the stored gateway session',
+    usage: 'logout',
+    oneShot: true,
+  },
 }

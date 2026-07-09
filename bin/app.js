@@ -13,6 +13,7 @@ import { systemCommandHandler } from '../core/system-command-handler.js'
 import { getStateManager, stateManagerEvents } from '../core/StateManager.js'
 import { commandService } from '../services/commands/index.js'
 import { configService } from '../services/config/index.js'
+import { getSystemCommand } from '../utils/system-commands.js'
 
 async function initializeDefaultProvider(stateManager) {
   // Providers usable via an env API key OR a configured gateway token.
@@ -93,12 +94,20 @@ async function start() {
 }
 
 async function main() {
+  const argv = process.argv.slice(2)
+
+  // Onboarding/auth commands (login/logout) run headless before anything else —
+  // they need no provider and must work from a plain shell.
+  const sys = argv.length > 0 ? getSystemCommand(argv[0].toLowerCase()) : null
+  if (sys && sys.oneShot) {
+    const { runHeadless } = await import('../core/system-command-handler.js')
+    process.exit(await runHeadless(sys, argv.slice(1)))
+  }
+
   // One-shot mode: "ai rr text" or piped stdin. Skips the REPL and readline entirely.
-  const oneShotArgs = process.argv.slice(2)
-  if (oneShotArgs.length > 0 || !process.stdin.isTTY) {
+  if (argv.length > 0 || !process.stdin.isTTY) {
     const { runOneShot } = await import('../core/oneshot/index.js')
-    const code = await runOneShot(oneShotArgs)
-    process.exit(code)
+    process.exit(await runOneShot(argv))
   }
 
   await start()
