@@ -35,8 +35,21 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
   issues no code). **TO DEPLOY:** owner supplies `RESEND_API_KEY` (reuse the hsk Resend account), `RESEND_FROM`
   (e.g. `openai-cli <gateway@timashoff.com>`), `GW_PUBLIC_URL=https://gw.timashoff.com:8443` → add to `~/gateway/gw.env`
   → deploy the gateway files + restart. Existing sessions (90d) are unaffected, so there is no rush and no lockout.
-  Password reset by email = DEFERRED (still `admin.mjs passwd` over SSH). Owner must have 2FA on the Gmail itself
+  Password reset by email = deferred then, shipped 2026-07-10 (next bullet). Owner must have 2FA on the Gmail itself
   (email = account-recovery root).
+- **✅ PASSWORD RESET BY EMAIL BUILT 2026-07-10 (self-service; replaces SSH-only `admin.mjs passwd`):**
+  `POST /auth/request-reset {email}` → always 202 (enumeration-safe; the email send is NOT awaited so reply latency
+  cannot probe accounts; 60s resend cooldown via `action_codes.created_at` — a repeat request re-sends nothing and the
+  pending code stays valid) + `POST /auth/reset {email, code, newPassword}` → uniform INVALID_CODE on every failure,
+  scrypt rehash, **every session revoked** → each device re-logs via `ai login` (deliberately no auto-login, unlike
+  hsk). Reuses the 2FA OTP machinery (`purpose='reset'`, NO schema change); dedicated `resetLimiter` (10/15min
+  per-IP + global) so reset spam can't starve login. New CLI `ai reset [url]` (oneShot; hidden double password
+  prompt; enumeration-safe wording). hsk's daily email budgets deliberately NOT ported — the hsk-audit confirmed a
+  global daily budget is itself a DoS vector; sliding windows + cooldown cover the threat here. Verified e2e locally
+  (GW_EMAIL_DEV harness + expect/pty CLI drive): known/unknown email indistinguishable, cooldown, wrong code,
+  attempt-cap burn + recovery, staged TTL expiry, old session revoked, old password rejected, new-password login,
+  429 on the 11th call, non-TTY/no-url CLI paths. **TO DEPLOY:** scp `auth.mjs` `emails.mjs` `server.mjs`
+  `action-codes-repo.mjs` → `~/gateway/` + restart `gw.service` (no env changes needed).
 - **✅ 401-labeling FIXED 2026-07-10:** the gateway's OWN session rejection on a proxied request now carries a
   distinct code `GATEWAY_SESSION_INVALID` (`gateway/kit/errors.mjs` API_ERRORS.GATEWAY_SESSION); the client maps
   ONLY that to "Run: ai login" (`isGatewaySessionError` via `error.gatewaySession`, set in the providers from the
