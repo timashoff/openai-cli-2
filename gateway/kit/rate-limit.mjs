@@ -1,14 +1,18 @@
 // In-memory sliding-window rate limiter per key (IP). Each endpoint
 // group gets its own instance and budget. Injectable clock keeps the
 // window math testable; the GC interval bounds the map under abuse.
-// Lifted verbatim from hsk-vocabulary backend/src/kit/rate-limit.js.
+// The config is validated at construction because a malformed budget
+// fails OPEN (`count >= undefined` is false → the wall silently never
+// trips): a boot-time throw is the only honest failure mode for a limiter.
+// Lifted verbatim from hsk-vocabulary backend/src/kit/rate-limit.js (hsk@bcce849).
 
 const DEFAULT_GC_INTERVAL_MS = 5 * 60 * 1000
 
-export const createRateLimiter = (
-  { windowMs, max, gcIntervalMs = DEFAULT_GC_INTERVAL_MS },
-  now = () => Date.now(),
-) => {
+export const createRateLimiter = (config, now = () => Date.now()) => {
+  const { windowMs, max, gcIntervalMs = DEFAULT_GC_INTERVAL_MS } = config || {}
+  if (!Number.isFinite(windowMs) || windowMs <= 0 || !Number.isFinite(max) || max <= 0) {
+    throw new Error('createRateLimiter: windowMs and max must be positive numbers')
+  }
   const state = new Map()
 
   const isLimited = (key) => {
