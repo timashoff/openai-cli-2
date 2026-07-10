@@ -50,6 +50,14 @@ Static `GW_TOKENS` was rejected (public repo must not leak; a token is losable/u
   attempt-cap burn + recovery, staged TTL expiry, old session revoked, old password rejected, new-password login,
   429 on the 11th call, non-TTY/no-url CLI paths. **TO DEPLOY:** scp `auth.mjs` `emails.mjs` `server.mjs`
   `action-codes-repo.mjs` → `~/gateway/` + restart `gw.service` (no env changes needed).
+  DEPLOYED + owner live-verified same day (real `ai reset` → Gmail code → new password). **Hotfix v6.1.1 same day
+  (post-review: 8 confirmed findings, 4 fixed):** cooldown no longer counts a burned/expired code as pending —
+  `issuedWithin` now checks attempts/expiry (was: 202 "sent" with no usable code for ≤60s after 5 wrong submits,
+  also third-party triggerable); request vs submit limiter budgets split (a request-reset flood exhausts the email
+  budget by design but can no longer block submitting an already-emailed code); CLI pre-validates email/code and
+  maps step-1 400 honestly. Accepted, not fixed: headless exit-0 on failure (shared runHeadless contract of ALL
+  one-shot commands — separate decision) and the microsecond `issue()` timing oracle (same class as the known
+  login scrypt oracle, backlog). Redeployed: `auth.mjs`, `action-codes-repo.mjs`, `server.mjs`.
 - **✅ 401-labeling FIXED 2026-07-10:** the gateway's OWN session rejection on a proxied request now carries a
   distinct code `GATEWAY_SESSION_INVALID` (`gateway/kit/errors.mjs` API_ERRORS.GATEWAY_SESSION); the client maps
   ONLY that to "Run: ai login" (`isGatewaySessionError` via `error.gatewaySession`, set in the providers from the
