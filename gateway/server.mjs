@@ -60,8 +60,11 @@ const sessions = createSessionsRepo(db, { ttlSeconds: TTL_DAYS * 86400 })
 const hasher = createPasswordHasher()
 const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 const verifyLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
-// One budget for both reset endpoints, separate from login so reset spam
-// cannot starve login attempts (and vice versa).
+// Reset budgets are separate from login so reset spam cannot starve login
+// attempts — and separate from EACH OTHER so a request-reset flood (which
+// exhausts the email budget by design) cannot block submitting a code that
+// was already emailed.
+const requestResetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 const resetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 // Directly exposed on :8443 (no reverse proxy) → the socket IP is the real client.
 const clientIp = (req) => req.socket.remoteAddress || 'unknown'
@@ -75,8 +78,8 @@ const emailSender = process.env.RESEND_API_KEY
     })
   : createNoopEmailSender({ logCode: process.env.GW_EMAIL_DEV === 'true' })
 const auth = createAuthRoutes({
-  users, sessions, hasher, actionCodes, emailSender, loginLimiter, verifyLimiter, resetLimiter,
-  clientIp, gatewayUrl: process.env.GW_PUBLIC_URL || '',
+  users, sessions, hasher, actionCodes, emailSender, loginLimiter, verifyLimiter,
+  requestResetLimiter, resetLimiter, clientIp, gatewayUrl: process.env.GW_PUBLIC_URL || '',
 })
 const sync = createSyncRoutes({ repo: createSyncRepo(db) })
 

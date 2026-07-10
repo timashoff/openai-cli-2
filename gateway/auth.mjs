@@ -67,6 +67,7 @@ export const createAuthRoutes = ({
   emailSender,
   loginLimiter,
   verifyLimiter,
+  requestResetLimiter,
   resetLimiter,
   clientIp,
   gatewayUrl = '',
@@ -141,7 +142,7 @@ export const createAuthRoutes = ({
   // endpoint is anonymous — the cooldown stops email spam at a victim's address).
   const handleRequestReset = async (req, res) => {
     const ip = clientIp(req)
-    if (resetLimiter.isLimited(ip) || resetLimiter.isLimited('global')) {
+    if (requestResetLimiter.isLimited(ip) || requestResetLimiter.isLimited('global')) {
       return sendApiError(res, API_ERRORS.RATE_LIMITED)
     }
     const body = await readJsonBody(req, MAX_BODY)

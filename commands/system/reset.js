@@ -1,10 +1,13 @@
 import { storedGatewayUrl, stripTrailingSlash } from '../../services/config/gateway.js'
 import { promptLine, promptHidden } from './terminal-input.js'
 
-// Password bounds mirror the gateway's (client-side pre-check only — the
+// Input bounds mirror the gateway's (client-side pre-check only — the
 // gateway revalidates; kept local so the CLI never imports server code).
 const PASSWORD_MIN = 8
 const PASSWORD_MAX = 128
+const EMAIL_MIN = 5
+const EMAIL_MAX = 254
+const CODE_LENGTH = 6
 
 // `ai reset [gateway-url]` — self-service "forgot password": the gateway emails
 // a one-time code; the code plus a new password reset the account. The gateway
@@ -24,6 +27,9 @@ export const ResetCommand = {
     if (hasUi) context.ui.pauseReadline()
     try {
       const email = await promptLine('Email: ')
+      if (email.length < EMAIL_MIN || email.length > EMAIL_MAX || !email.includes('@')) {
+        return 'Reset failed: enter a valid email address.'
+      }
 
       // Step 1: ask the gateway to email a reset code (always 202 — the reply
       // never reveals whether the account exists).
@@ -38,11 +44,15 @@ export const ResetCommand = {
         return 'Reset failed: cannot reach the gateway.'
       }
       if (requestRes.status === 429) return 'Reset failed: too many attempts, try again later.'
+      if (requestRes.status === 400) return 'Reset failed: the gateway rejected that email address.'
       if (requestRes.status !== 202) return 'Reset failed: gateway error.'
 
-      const code = await promptLine(
-        `If an account exists for ${email}, a reset code was emailed. Enter it: `,
-      )
+      const code = (
+        await promptLine(`If an account exists for ${email}, a reset code was emailed. Enter it: `)
+      ).trim()
+      if (code.length !== CODE_LENGTH) {
+        return `Reset failed: the code is ${CODE_LENGTH} digits — check the email and run "ai reset" again.`
+      }
       const newPassword = await promptHidden(`New password (${PASSWORD_MIN}-${PASSWORD_MAX} chars): `)
       if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX) {
         return `Reset failed: the password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters.`
@@ -56,7 +66,7 @@ export const ResetCommand = {
         resetRes = await fetch(`${url}/auth/reset`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, code: code.trim(), newPassword }),
+          body: JSON.stringify({ email, code, newPassword }),
         })
       } catch (e) {
         return 'Reset failed: cannot reach the gateway.'

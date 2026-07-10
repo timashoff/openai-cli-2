@@ -1,7 +1,7 @@
-// No-dependency terminal input for `ai login`: a plain line read (email) and a
-// masked read (password). The password is never echoed and never placed in argv.
-// Backspace edits; Ctrl-C exits 130; Enter / Ctrl-D submit. Colocated with the
-// only command that uses it (login).
+// No-dependency terminal input for the auth commands (`ai login`, `ai reset`):
+// a plain line read (email/code) and a masked read (password). The password is
+// never echoed and never placed in argv. Backspace edits; Ctrl-C exits 130;
+// Enter / Ctrl-D submit. Colocated with the auth commands that use it.
 
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline'

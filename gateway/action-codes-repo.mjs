@@ -34,7 +34,7 @@ export const createActionCodesRepo = (db, { ttlSeconds, maxAttempts }) => {
     'SELECT code_hash, attempts, expires_at FROM action_codes WHERE user_id = ? AND purpose = ?',
   )
   const findCreated = db.prepare(
-    'SELECT created_at FROM action_codes WHERE user_id = ? AND purpose = ?',
+    'SELECT created_at, attempts, expires_at FROM action_codes WHERE user_id = ? AND purpose = ?',
   )
   const del = db.prepare('DELETE FROM action_codes WHERE user_id = ? AND purpose = ?')
   const bump = db.prepare(
@@ -82,12 +82,16 @@ export const createActionCodesRepo = (db, { ttlSeconds, maxAttempts }) => {
     }
   }
 
-  // True when the outstanding code for (user, purpose) was issued less than
-  // `seconds` ago — the resend cooldown for anonymous endpoints (anti email
-  // spam at a victim's address). The pending code itself stays valid.
+  // True when a USABLE outstanding code for (user, purpose) was issued less
+  // than `seconds` ago — the resend cooldown for anonymous endpoints (anti
+  // email spam at a victim's address). A burned (attempt-capped) or expired
+  // row never cools: callers must be able to replace it immediately, or a
+  // request would report "code sent" while no usable code exists.
   const issuedWithin = ({ userId, purpose, now, seconds }) => {
     const row = findCreated.get(userId, purpose)
-    return Boolean(row) && now - row.created_at < seconds
+    if (!row) return false
+    if (row.attempts >= maxAttempts || row.expires_at <= now) return false
+    return now - row.created_at < seconds
   }
 
   const deleteExpired = (now) => delExpired.run(now)
