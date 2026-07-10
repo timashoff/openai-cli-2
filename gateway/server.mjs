@@ -60,6 +60,9 @@ const sessions = createSessionsRepo(db, { ttlSeconds: TTL_DAYS * 86400 })
 const hasher = createPasswordHasher()
 const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 const verifyLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
+// One budget for both reset endpoints, separate from login so reset spam
+// cannot starve login attempts (and vice versa).
+const resetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 })
 // Directly exposed on :8443 (no reverse proxy) → the socket IP is the real client.
 const clientIp = (req) => req.socket.remoteAddress || 'unknown'
 const actionCodes = createActionCodesRepo(db, { ttlSeconds: 10 * 60, maxAttempts: 5 })
@@ -72,8 +75,8 @@ const emailSender = process.env.RESEND_API_KEY
     })
   : createNoopEmailSender({ logCode: process.env.GW_EMAIL_DEV === 'true' })
 const auth = createAuthRoutes({
-  users, sessions, hasher, actionCodes, emailSender, loginLimiter, verifyLimiter, clientIp,
-  gatewayUrl: process.env.GW_PUBLIC_URL || '',
+  users, sessions, hasher, actionCodes, emailSender, loginLimiter, verifyLimiter, resetLimiter,
+  clientIp, gatewayUrl: process.env.GW_PUBLIC_URL || '',
 })
 const sync = createSyncRoutes({ repo: createSyncRepo(db) })
 
@@ -157,9 +160,14 @@ const handleProxy = async (req, res) => {
 const handle = async (req, res) => {
   const url = new URL(req.url, 'http://x')
 
-  // 1. Auth routes are exempt from the session guard (login carries no session yet).
+  // 1. Auth routes are exempt from the session guard (login carries no session yet;
+  //    password reset is pre-auth by nature).
   if (req.method === 'POST' && url.pathname === '/auth/login') return auth.handleLogin(req, res)
   if (req.method === 'POST' && url.pathname === '/auth/verify') return auth.handleVerify(req, res)
+  if (req.method === 'POST' && url.pathname === '/auth/request-reset') {
+    return auth.handleRequestReset(req, res)
+  }
+  if (req.method === 'POST' && url.pathname === '/auth/reset') return auth.handleReset(req, res)
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     return auth.handleLogout(req, res, bearer(req))
   }

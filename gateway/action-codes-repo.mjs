@@ -33,6 +33,9 @@ export const createActionCodesRepo = (db, { ttlSeconds, maxAttempts }) => {
   const find = db.prepare(
     'SELECT code_hash, attempts, expires_at FROM action_codes WHERE user_id = ? AND purpose = ?',
   )
+  const findCreated = db.prepare(
+    'SELECT created_at FROM action_codes WHERE user_id = ? AND purpose = ?',
+  )
   const del = db.prepare('DELETE FROM action_codes WHERE user_id = ? AND purpose = ?')
   const bump = db.prepare(
     'UPDATE action_codes SET attempts = attempts + 1 WHERE user_id = ? AND purpose = ?',
@@ -79,7 +82,15 @@ export const createActionCodesRepo = (db, { ttlSeconds, maxAttempts }) => {
     }
   }
 
+  // True when the outstanding code for (user, purpose) was issued less than
+  // `seconds` ago — the resend cooldown for anonymous endpoints (anti email
+  // spam at a victim's address). The pending code itself stays valid.
+  const issuedWithin = ({ userId, purpose, now, seconds }) => {
+    const row = findCreated.get(userId, purpose)
+    return Boolean(row) && now - row.created_at < seconds
+  }
+
   const deleteExpired = (now) => delExpired.run(now)
 
-  return { generate, issue, consume, deleteExpired }
+  return { generate, issue, consume, issuedWithin, deleteExpired }
 }

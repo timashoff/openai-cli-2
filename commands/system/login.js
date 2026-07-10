@@ -3,16 +3,10 @@ import {
   clearGateway,
   resolveGateway,
   storedGatewayUrl,
+  stripTrailingSlash,
 } from '../../services/config/gateway.js'
 import { promptLine, promptHidden } from './terminal-input.js'
 import { syncCommands } from '../../services/commands/sync.js'
-
-// Drop trailing slashes without a regex (owner rule: avoid regex).
-const stripTrailingSlash = (value) => {
-  let end = value.length
-  while (end > 0 && value[end - 1] === '/') end--
-  return value.slice(0, end)
-}
 
 // `ai login [gateway-url]` — authenticate to the gateway with email + password
 // and store the returned session. The url is needed only the first time; after

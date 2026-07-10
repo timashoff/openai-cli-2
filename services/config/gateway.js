@@ -13,8 +13,9 @@ const ENV_TOKEN = 'OPENAI_CLI_GATEWAY_TOKEN'
 
 const credentialsPath = () => path.join(configDir(), 'credentials.toml')
 
-// Drop trailing slashes without a regex (owner rule: avoid regex).
-const stripTrailingSlash = (value) => {
+// Drop trailing slashes without a regex (owner rule: avoid regex). Exported:
+// the login/reset commands normalize user-typed gateway urls with it too.
+export const stripTrailingSlash = (value) => {
   let end = value.length
   while (end > 0 && value[end - 1] === '/') end--
   return value.slice(0, end)

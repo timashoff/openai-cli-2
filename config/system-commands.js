@@ -65,6 +65,15 @@ export const SYSTEM_COMMANDS = {
     oneShot: true,
   },
 
+  reset: {
+    aliases: [],
+    handler: 'ResetCommand',
+    filePath: '../commands/system/reset.js',
+    description: 'Reset the gateway password via an emailed code (revokes every session)',
+    usage: 'reset [gateway-url]',
+    oneShot: true,
+  },
+
   whoami: {
     aliases: ['me'],
     handler: 'WhoamiCommand',
