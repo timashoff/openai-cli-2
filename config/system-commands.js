@@ -23,6 +23,14 @@ export const SYSTEM_COMMANDS = {
     usage: 'model',
   },
 
+  save: {
+    aliases: ['sv'],
+    handler: 'SaveCommand',
+    filePath: '../commands/system/save.js',
+    description: 'Save the current conversation (local + account sync)',
+    usage: 'save [title]',
+  },
+
   exit: {
     aliases: ['q', 'quit'],
     handler: 'ExitCommand',

@@ -67,6 +67,12 @@ const createCleanContext = (applicationLoop) => {
       updateProvider: (data) => app.stateManager.updateAIProvider(data),
       updateModel: (model) => app.stateManager.updateModel(model),
     },
+
+    // Conversation interfaces - for session save/resume commands
+    conversation: {
+      getHistory: () => app.stateManager.getContextHistory(),
+      getLastResponseId: () => app.stateManager.getLastResponseId(),
+    },
   }
 }
 

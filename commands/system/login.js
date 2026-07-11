@@ -7,6 +7,7 @@ import {
 } from '../../services/config/gateway.js'
 import { promptLine, promptHidden } from './terminal-input.js'
 import { syncCommands } from '../../services/commands/sync.js'
+import { syncSessions } from '../../services/sessions/sync.js'
 
 // `ai login [gateway-url]` — authenticate to the gateway with email + password
 // and store the returned session. The url is needed only the first time; after
@@ -90,6 +91,8 @@ export const LoginCommand = {
         context.providers.evictGateway()
       }
       // Sync this account's commands to the device (or seed the account on the first device).
+      // Saved sessions follow the login too (background, no user note needed).
+      syncSessions().catch(() => {})
       const synced = await syncCommands()
       let syncNote = ''
       if (synced.ok && synced.pulled) syncNote = '\nSynced your commands from this account.'

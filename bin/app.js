@@ -15,6 +15,7 @@ import { commandService } from '../services/commands/index.js'
 import { configService } from '../services/config/index.js'
 import { getSystemCommand } from '../utils/system-commands.js'
 import { syncCommands } from '../services/commands/sync.js'
+import { syncSessions } from '../services/sessions/sync.js'
 
 async function initializeDefaultProvider(stateManager) {
   // Providers usable via an env API key OR a configured gateway token.
@@ -77,9 +78,10 @@ async function start() {
       await router.initialize()
     })
 
-    // Background: pull the account's latest synced commands (non-blocking; writes
-    // commands.toml + reloads if the account has a newer version). No-op if not logged in.
+    // Background: pull the account's latest synced commands and sessions
+    // (non-blocking; applies newer account versions). No-op if not logged in.
     syncCommands().catch(() => {})
+    syncSessions().catch(() => {})
 
     // Show current model info after spinner cleanup
     const currentModel = stateManager.getCurrentModel()

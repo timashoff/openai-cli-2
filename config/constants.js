@@ -36,6 +36,12 @@ export const USER_CONFIG = {
   CONFIG_FILE: 'config.toml', // user-editable provider overrides (gateway baseURL/token)
   LEGACY_DB: 'commands.db', // pre-TOML sqlite store, migrated once then renamed
   BACKUP_SUFFIX: '.bak',
+  SESSIONS_DIR: 'sessions', // saved conversation records (JSON, machine-managed)
+}
+
+export const SESSIONS = {
+  TITLE_MAX_LENGTH: 48, // auto-proposed title cut-off
+  MAX_ROW_BYTES: 400000, // per-session sync payload guard (gateway caps POST at 512KB)
 }
 
 export const EXIT_CODES = {
