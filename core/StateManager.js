@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
+import { PROVIDER_API } from '../config/providers.js'
 import { createBaseError, isGatewaySessionError, AUTH_EXPIRED_MESSAGE } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
@@ -36,10 +37,14 @@ function createStateManager() {
     currentStreamProcessor: null,
   }
 
-  // Context and conversation history
+  // Context and conversation history.
+  // lastResponseId = server-side chain pointer (Responses API previous_response_id).
+  // Valid ONLY while contextHistory is untouched by non-chained writers: ANY
+  // addToContext call nulls it, and the chained chat path re-sets it afterwards.
   const contextState = {
     contextHistory: [],
     maxContextHistory: APP_CONSTANTS.MAX_CONTEXT_HISTORY,
+    lastResponseId: null,
   }
 
 
@@ -366,6 +371,9 @@ function createStateManager() {
   // === Context Management ===
 
   function addToContext(role, content) {
+    // Any history write invalidates the chain pointer by default — the chained
+    // chat path re-sets it via setLastResponseId after recording its turn.
+    contextState.lastResponseId = null
     contextState.contextHistory.push({ role, content })
 
     // Trim history if too long
@@ -384,11 +392,38 @@ function createStateManager() {
 
   function clearContext() {
     contextState.contextHistory = []
+    contextState.lastResponseId = null
     stateManagerEvents.emit('context-cleared', {})
   }
 
   function getContextHistory() {
     return [...contextState.contextHistory]
+  }
+
+  function getLastResponseId() {
+    return contextState.lastResponseId
+  }
+
+  function setLastResponseId(responseId) {
+    contextState.lastResponseId = responseId || null
+  }
+
+  // Chaining applies only when the CURRENT global provider speaks the Responses API
+  function supportsResponseChaining() {
+    const config = configService.getProviderConfig(aiState.currentProviderKey)
+    return Boolean(config) && config.api === PROVIDER_API.RESPONSES
+  }
+
+  // Fire-and-forget cleanup of a stored-but-unwanted response (aborted stream,
+  // rejected redo). Never throws, never blocks the prompt.
+  function deleteStoredResponse(responseId) {
+    if (!responseId || !aiState.currentProvider) {
+      return
+    }
+    if (typeof aiState.currentProvider.deleteResponse !== 'function') {
+      return
+    }
+    aiState.currentProvider.deleteResponse(responseId).catch(() => {})
   }
 
 
@@ -520,6 +555,10 @@ function createStateManager() {
     addToContext,
     clearContext,
     getContextHistory,
+    getLastResponseId,
+    setLastResponseId,
+    supportsResponseChaining,
+    deleteStoredResponse,
   }
 }
 

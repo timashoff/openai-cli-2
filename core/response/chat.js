@@ -17,12 +17,16 @@ export function createChatHandler(app) {
     try {
       const { aborted } = await respond({
         input,
-        onComplete: async ({ text }) => {
+        chain: true,
+        onComplete: async ({ text, responseId }) => {
           if (text.trim()) {
             process.stdout.write('\n~') //DEAD CODE?
           }
 
+          // Order matters: addToContext (inside updateContext) nulls the chain
+          // pointer, then the confirmed response id re-arms it.
           updateContext(stateManager, input, text)
+          stateManager.setLastResponseId(responseId)
           outputHandler.writeContextDots(stateManager)
         },
       })

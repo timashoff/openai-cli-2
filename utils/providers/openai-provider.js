@@ -89,6 +89,18 @@ export const createOpenAIProvider = (config) => {
     return result
   }
 
+  // Remove a stored response from the provider's server-side store (aborted
+  // streams, rejected redos). Callers gate on chaining support.
+  const deleteResponse = async (responseId) => {
+    const { result, error } = await base.measureTime(async () => {
+      return await client.responses.delete(responseId)
+    })
+
+    if (error) wrapApiError(error)
+
+    return result
+  }
+
   const validateModel = async (modelId) => {
     try {
       const models = await listModels()
@@ -103,6 +115,7 @@ export const createOpenAIProvider = (config) => {
     initializeClient,
     listModels,
     createChatCompletion,
+    deleteResponse,
     validateModel
   }
 }

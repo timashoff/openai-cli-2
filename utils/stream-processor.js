@@ -27,7 +27,7 @@ export const createStreamProcessor = () => {
     }
   }
 
-  const processStream = async (stream, signal = null, onChunk = null) => {
+  const processStream = async (stream, signal = null, onChunk = null, onResponseId = null) => {
     state.isTerminated = false
     state.currentStream = stream
 
@@ -50,7 +50,7 @@ export const createStreamProcessor = () => {
         await processClaudeStream(stream, response, signal, onChunk)
       } else if (stream[Symbol.asyncIterator]) {
         // OpenAI-compatible stream (async iterable)
-        await processOpenAIStream(stream, response, signal, onChunk)
+        await processOpenAIStream(stream, response, signal, onChunk, onResponseId)
       } else {
         throw new Error('Unknown stream type - neither async iterable nor ReadableStream')
       }
@@ -147,7 +147,7 @@ export const createStreamProcessor = () => {
     }
   }
 
-  const processOpenAIStream = async (stream, response, signal = null, onChunk = null) => {
+  const processOpenAIStream = async (stream, response, signal = null, onChunk = null, onResponseId = null) => {
     try {
       for await (const chunk of stream) {
         if (state.isTerminated) {
@@ -168,6 +168,12 @@ export const createStreamProcessor = () => {
           throw new Error(`OpenAI Responses API error: ${failure || 'response failed'}`)
         } else if (chunk.type === 'response.output_text.delta' || chunk.type === 'response.refusal.delta') {
           content = chunk.delta
+        } else if (chunk.type === 'response.created' || chunk.type === 'response.completed') {
+          // response.created surfaces the id early (abort cleanup needs it);
+          // response.completed confirms it once the chain tip is final.
+          if (onResponseId && chunk.response && chunk.response.id) {
+            onResponseId(chunk.response.id)
+          }
         } else if (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) {
           content = chunk.choices[0].delta.content
         }

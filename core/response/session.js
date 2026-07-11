@@ -12,6 +12,7 @@ export const createResponseSessionFactory = ({ stateManager }) => {
     controller,
     providerModel = null,
     attachStreamProcessor = false,
+    completionOptions = null,
   }) {
     if (!controller) {
       throw new Error('AbortController is required to start response session')
@@ -34,12 +35,15 @@ export const createResponseSessionFactory = ({ stateManager }) => {
         providerModel,
       })
 
+      let responseId = null
+
       try {
         const stream = await stateManager.createChatCompletion(
           messages,
           {
             stream: true,
             signal: controller.signal,
+            ...(completionOptions || {}),
           },
           providerModel || undefined,
         )
@@ -62,6 +66,9 @@ export const createResponseSessionFactory = ({ stateManager }) => {
             chunks.push(content)
             events.emit('stream:chunk', { content })
           },
+          (id) => {
+            responseId = id
+          },
         )
 
         const text = chunks.join('')
@@ -70,13 +77,20 @@ export const createResponseSessionFactory = ({ stateManager }) => {
           text,
           chunks,
           aborted: false,
+          responseId,
         }
       } catch (error) {
         if (controller.signal.aborted || isCancellation(error)) {
+          // An aborted stream still completes and stays stored server-side
+          // (verified live) — clean it up so the chain never sees it.
+          if (completionOptions && completionOptions.store && responseId) {
+            stateManager.deleteStoredResponse(responseId)
+          }
           return {
             text: '',
             chunks: [],
             aborted: true,
+            responseId: null,
           }
         }
 

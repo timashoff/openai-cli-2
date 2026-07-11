@@ -19,6 +19,7 @@ export const createStreamCommandRunner = ({ stateManager }) => {
       useSpinner = true,
       onChunk,
       onComplete,
+      completionOptions = null,
     } = options
 
     if (!controller) {
@@ -30,6 +31,7 @@ export const createStreamCommandRunner = ({ stateManager }) => {
       controller,
       providerModel,
       attachStreamProcessor,
+      completionOptions,
     })
 
     const spinner = useSpinner ? createSpinner() : null
