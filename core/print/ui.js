@@ -44,6 +44,13 @@ export const ui = {
   },
 
   /**
+   * Format server-side context marker: Responses API chain is armed,
+   * only the new turn is sent to the model (history lives server-side)
+   */
+  contextChain: () =>
+    `${ANSI.COLORS.YELLOW}${UI_SYMBOLS.CONTEXT_CHAIN}${ANSI.COLORS.RESET}`,
+
+  /**
    * Format current model display
    */
   currentModel: (model) => `current model is ${ANSI.COLORS.CYAN}${model}${ANSI.COLORS.RESET}`,

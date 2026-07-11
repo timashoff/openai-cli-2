@@ -74,6 +74,7 @@ export const UI_SYMBOLS = {
   CHECK: '✓',
   CROSS: '☓',
   BRAILLE_DOTS: ['⡀', '⣀', '⣠', '⣤', '⣴', '⣶', '⣾', '⣿'],
+  CONTEXT_CHAIN: '∞',
   ARROW: '▶',
 }
 

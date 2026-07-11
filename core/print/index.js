@@ -31,17 +31,26 @@ export const outputHandler = {
   formatModel: (model) => ui.model(model),
 
   /**
-   * Display context history dots after LLM responses
-   * Shows number of dialogs (user+assistant pairs), not individual messages
+   * Display the context indicator after LLM responses — shows what the NEXT
+   * request will carry: ∞ when the Responses chain is armed (history lives
+   * server-side, only the new turn is sent), braille dots with the dialog
+   * count (user+assistant pairs, window-trimmed) when full history is resent.
    */
   writeContextDots(stateManager) {
     const contextHistory = stateManager.getContextHistory()
-    if (contextHistory.length > 0) {
-      // Count dialogs: each pair of messages (user+assistant) = 1 dialog
-      const dialogCount = Math.floor(contextHistory.length / 2)
-      if (dialogCount > 0) {
-        stdout.write(ui.contextDots(dialogCount))
-      }
+    if (contextHistory.length === 0) {
+      return
+    }
+
+    if (stateManager.getLastResponseId()) {
+      stdout.write(ui.contextChain())
+      return
+    }
+
+    // Count dialogs: each pair of messages (user+assistant) = 1 dialog
+    const dialogCount = Math.floor(contextHistory.length / 2)
+    if (dialogCount > 0) {
+      stdout.write(ui.contextDots(dialogCount))
     }
   },
 }
