@@ -158,7 +158,19 @@ export const createStreamProcessor = () => {
           throw new Error('Stream processing aborted')
         }
 
-        const content = (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) ? chunk.choices[0].delta.content : null
+        // Chunks are self-describing: Responses API events carry a `type`
+        // string, chat/completions chunks carry `choices`.
+        let content = null
+        if (chunk.type === 'error') {
+          throw new Error(`OpenAI Responses API error (${chunk.code || 'unknown'}): ${chunk.message}`)
+        } else if (chunk.type === 'response.failed') {
+          const failure = chunk.response && chunk.response.error && chunk.response.error.message
+          throw new Error(`OpenAI Responses API error: ${failure || 'response failed'}`)
+        } else if (chunk.type === 'response.output_text.delta' || chunk.type === 'response.refusal.delta') {
+          content = chunk.delta
+        } else if (chunk.choices && chunk.choices[0] && chunk.choices[0].delta) {
+          content = chunk.choices[0].delta.content
+        }
         if (content) {
           response.push(content)
           if (onChunk) {

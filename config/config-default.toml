@@ -16,5 +16,6 @@
 # [providers.openai]
 # baseURL = "https://gw.example.com/openai/v1"
 # token = "a-static-gateway-token"
+# api = "chat"  # force chat/completions instead of the default Responses API
 
 # deepseek connects directly — no override needed.

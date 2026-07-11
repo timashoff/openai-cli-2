@@ -4,6 +4,13 @@ export const PROVIDER_DEFAULTS = {
   REQUIRED_FIELDS: ['name', 'baseURL', 'apiKeyEnv']
 }
 
+// Which completion endpoint an OpenAI-SDK-shaped provider speaks.
+// Absent `api` field on a provider ⇒ CHAT (chat/completions).
+export const PROVIDER_API = {
+  CHAT: 'chat',
+  RESPONSES: 'responses',
+}
+
 export const PROVIDERS = {
   deepseek: {
     name: 'DeepSeek',
@@ -22,6 +29,10 @@ export const PROVIDERS = {
     // Geo-blocked from the owner's region → route through the gateway when one is
     // configured (see services/config/gateway.js). SSOT for "needs the gateway".
     gateway: true,
+    // Responses-only models (gpt-5.5-pro & kin) 404 on chat/completions;
+    // the Responses API serves classic chat models too, so ALL openai
+    // calls go through it. User escape hatch: config.toml api = 'chat'.
+    api: PROVIDER_API.RESPONSES,
     defaultModel: 'gpt-5.4-mini',
     maxTokens: 4096,
     temperature: 0.7,

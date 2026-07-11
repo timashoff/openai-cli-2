@@ -1,5 +1,6 @@
 import { createBaseError } from '../../core/error-system/index.js'
 import { createBaseProvider } from './base-provider.js'
+import { PROVIDER_API } from '../../config/providers.js'
 
 export const createOpenAIProvider = (config) => {
   const base = createBaseProvider(config)
@@ -38,7 +39,40 @@ export const createOpenAIProvider = (config) => {
     return result
   }
 
+  const wrapApiError = (error, signal) => {
+    if (signal && signal.aborted) {
+      throw new Error('AbortError')
+    }
+    const status = error && error.status ? error.status : 500
+    const wrapped = createBaseError(`Failed to create chat completion: ${error.message}`, true, status, error)
+    if (error && error.code === 'GATEWAY_SESSION_INVALID') wrapped.gatewaySession = true
+    throw wrapped
+  }
+
+  const createResponsesCompletion = async (model, messages, options = {}) => {
+    const { signal, ...apiOptions } = options
+
+    const { result, error } = await base.measureTime(async () => {
+      return await client.responses.create({
+        model,
+        input: messages,
+        stream: apiOptions.stream || true,
+        // M1 is stateless; M2 flips store/previous_response_id via options
+        store: false,
+        ...apiOptions
+      }, signal ? { signal } : {})
+    })
+
+    if (error) wrapApiError(error, signal)
+
+    return result
+  }
+
   const createChatCompletion = async (model, messages, options = {}) => {
+    if (config.api === PROVIDER_API.RESPONSES) {
+      return createResponsesCompletion(model, messages, options)
+    }
+
     const { signal, ...apiOptions } = options
 
     const { result, error } = await base.measureTime(async () => {
@@ -50,15 +84,7 @@ export const createOpenAIProvider = (config) => {
       }, signal ? { signal } : {})
     })
 
-    if (error) {
-      if (signal && signal.aborted) {
-        throw new Error('AbortError')
-      }
-      const status = error && error.status ? error.status : 500
-      const wrapped = createBaseError(`Failed to create chat completion: ${error.message}`, true, status, error)
-      if (error && error.code === 'GATEWAY_SESSION_INVALID') wrapped.gatewaySession = true
-      throw wrapped
-    }
+    if (error) wrapApiError(error, signal)
 
     return result
   }

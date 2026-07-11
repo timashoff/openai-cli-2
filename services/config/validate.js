@@ -1,4 +1,4 @@
-import { PROVIDERS } from '../../config/providers.js'
+import { PROVIDERS, PROVIDER_API } from '../../config/providers.js'
 
 const isNonEmptyString = (value) =>
   typeof value === 'string' && value.trim() !== ''
@@ -17,6 +17,8 @@ const isHttpUrl = (value) => {
 // { value } (accepted) or { error } (rejected, collected as a warning).
 // baseURL repoints a provider at a gateway; token is the credential the gateway
 // checks (the real API key then lives on the gateway, not the client).
+// api picks the completion endpoint (escape hatch: api = 'chat' reverts a
+// Responses-routed provider to chat/completions).
 const fieldValidators = {
   baseURL: (value) =>
     isNonEmptyString(value) && isHttpUrl(value)
@@ -26,12 +28,16 @@ const fieldValidators = {
     isNonEmptyString(value)
       ? { value }
       : { error: '"token" must be a non-empty string' },
+  api: (value) =>
+    Object.values(PROVIDER_API).includes(value)
+      ? { value }
+      : { error: `"api" must be one of: ${Object.values(PROVIDER_API).join(', ')}` },
 }
 
 const knownFields = new Set(Object.keys(fieldValidators))
 
 // Validate a parsed config table. Returns { overlay, errors }.
-// overlay: { providerId: { baseURL?, token? } } — only recognized, valid fields survive.
+// overlay: { providerId: { baseURL?, token?, api? } } — only recognized, valid fields survive.
 // errors: array of human-readable messages (all problems collected, not just the first).
 export const validateUserConfig = (parsed) => {
   const errors = []
