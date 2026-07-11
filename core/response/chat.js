@@ -20,7 +20,7 @@ export function createChatHandler(app) {
         chain: true,
         onComplete: async ({ text, responseId }) => {
           if (text.trim()) {
-            process.stdout.write('\n~') //DEAD CODE?
+            process.stdout.write('\n')
           }
 
           // Order matters: addToContext (inside updateContext) nulls the chain
