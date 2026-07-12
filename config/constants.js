@@ -51,7 +51,10 @@ export const DIALOGUE = {
   LANGUAGES: ['Russian', 'English', 'Chinese'], // selectable set; the pair menu derives every combination
   LANGUAGE_CODES: { ru: 'Russian', en: 'English', zh: 'Chinese' }, // quick form `dd ru en`; unknown args pass through
   PIVOT_LANGUAGE: 'English',
-  PIVOT_ENABLED: true, // default for new dialogues
+  // Off by default: measured 2026-07-12 on gpt-5.4-mini, the pivot cost 1.4-3.3x
+  // the wall-clock and drifted meaning (the English leg rephrases, the second leg
+  // faithfully translates the rephrasing). Kept as a toggle for further testing.
+  PIVOT_ENABLED: false, // default for new dialogues
   PIVOT_LABEL: 'en', // per-turn leg1 marker (source -> pivot)
   TARGET_LABEL: '->', // final translation marker (direction is model-detected)
   PROMPT: '[dialogue] ', // in-mode prompt (dd is only the launch keyword)
