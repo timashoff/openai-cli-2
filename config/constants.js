@@ -44,6 +44,17 @@ export const SESSIONS = {
   MAX_ROW_BYTES: 400000, // per-session sync payload guard (gateway caps POST at 512KB)
 }
 
+// Stateful dialogue-translation mode (dd). Templates use {a}/{b}/{pivot}
+// placeholders — filled at runtime, languages never hardcoded in logic.
+export const DIALOGUE = {
+  DEFAULT_PAIR: ['Russian', 'Chinese'],
+  PIVOT_LANGUAGE: 'English',
+  LEG1_INSTRUCTIONS:
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it into {pivot}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {pivot} translation.',
+  LEG2_INSTRUCTIONS:
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into the OTHER language of the pair (into {b} if the original is in {a}, into {a} if it is in {b}). Rely on the {pivot} version, checking the original for nuance. Output nothing but the final translation.',
+}
+
 export const EXIT_CODES = {
   SUCCESS: 0,
   ERROR: 1,

@@ -27,6 +27,7 @@ export const createApplicationLoop = (app) => {
     isExiting: false,
     currentEscapeResolve: null,
     globalKeyPressHandler: null,
+    activeMode: null, // a mode object ({prompt?, handleLine}) captures REPL lines instead of the Router
   }
 
   const showInitializationSpinner = async (callback) => {
@@ -95,6 +96,12 @@ export const createApplicationLoop = (app) => {
 
     // Keypress management
     enableKeypressEvents: state.keypressHandler.enableKeypressEvents,
+
+    // Mode management (dd dialogue mode etc.)
+    setActiveMode: (mode) => {
+      state.activeMode = mode
+    },
+    getActiveMode: () => state.activeMode,
 
     // Spinner functionality (using utils/spinner.js)
     showInitializationSpinner,

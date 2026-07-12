@@ -31,6 +31,14 @@ export const SYSTEM_COMMANDS = {
     usage: 'save [title]',
   },
 
+  dd: {
+    aliases: ['dialogue'],
+    handler: 'DialogueCommand',
+    filePath: '../commands/system/dialogue.js',
+    description: 'Dialogue-translation mode (EN pivot, stateful, resumable)',
+    usage: 'dd [langA langB] | dd rm',
+  },
+
   exit: {
     aliases: ['q', 'quit'],
     handler: 'ExitCommand',

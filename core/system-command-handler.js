@@ -73,6 +73,12 @@ const createCleanContext = (applicationLoop) => {
       getHistory: () => app.stateManager.getContextHistory(),
       getLastResponseId: () => app.stateManager.getLastResponseId(),
     },
+
+    // Mode interfaces - a mode captures subsequent REPL lines until it leaves
+    modes: {
+      enter: (mode) => applicationLoop.setActiveMode(mode),
+      leave: () => applicationLoop.setActiveMode(null),
+    },
   }
 }
 

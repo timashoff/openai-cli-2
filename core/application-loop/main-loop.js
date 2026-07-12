@@ -32,7 +32,9 @@ export const createMainLoop = (state, applicationLoopInstance) => {
         break
       }
 
-      const prompt = state.inputProcessor.getUserPrompt(state.screenWasCleared)
+      const prompt = state.activeMode && state.activeMode.prompt
+        ? state.activeMode.prompt
+        : state.inputProcessor.getUserPrompt(state.screenWasCleared)
 
       // Get user input using standard readline
       let userInput = await state.readlineManager.getReadlineInterface().question(prompt)
@@ -44,7 +46,10 @@ export const createMainLoop = (state, applicationLoopInstance) => {
       state.screenWasCleared = false
 
       if (!userInput) {
-        await state.inputProcessor.handleEmptyInput(state)
+        // Inside a mode an empty line is a no-op — global context stays intact
+        if (!state.activeMode) {
+          await state.inputProcessor.handleEmptyInput(state)
+        }
         continue
       }
 
@@ -67,9 +72,13 @@ export const createMainLoop = (state, applicationLoopInstance) => {
         // Store escape resolve for ESC handler
         state.currentEscapeResolve = escapeResolve
 
-        // Promise.race: request execution VS instant ESC
+        // Promise.race: request execution VS instant ESC. An active mode
+        // captures the line instead of the Router (ESC still aborts the
+        // in-flight stream but never leaves the mode).
         const result = await Promise.race([
-          getRouter().routeAndProcess(processedInput, applicationLoopInstance), // May take 0.8-1.0s
+          state.activeMode
+            ? state.activeMode.handleLine(processedInput)
+            : getRouter().routeAndProcess(processedInput, applicationLoopInstance),
           escapePromise, // Completes instantly on ESC
         ])
 
