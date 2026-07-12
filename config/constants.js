@@ -48,14 +48,20 @@ export const SESSIONS = {
 // placeholders — filled at runtime, languages never hardcoded in logic.
 export const DIALOGUE = {
   DEFAULT_PAIR: ['Russian', 'Chinese'],
+  LANGUAGES: ['Russian', 'English', 'Chinese'], // selectable set; the pair menu derives every combination
+  LANGUAGE_CODES: { ru: 'Russian', en: 'English', zh: 'Chinese' }, // quick form `dd ru en`; unknown args pass through
   PIVOT_LANGUAGE: 'English',
+  PIVOT_ENABLED: true, // default for new dialogues
   PIVOT_LABEL: 'en', // per-turn leg1 marker (source -> pivot)
-  TARGET_LABEL: '->', // per-turn leg2 marker (pivot -> other side; direction is model-detected)
+  TARGET_LABEL: '->', // final translation marker (direction is model-detected)
   PROMPT: '[dialogue] ', // in-mode prompt (dd is only the launch keyword)
+  SETTINGS_FILE: 'dialogue.json', // persisted defaults under the user config dir
   LEG1_INSTRUCTIONS:
     'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it into {pivot}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {pivot} translation.',
   LEG2_INSTRUCTIONS:
     'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into the OTHER language of the pair (into {b} if the original is in {a}, into {a} if it is in {b}). Rely on the {pivot} version, checking the original for nuance. Output nothing but the final translation.',
+  DIRECT_INSTRUCTIONS:
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it directly into the OTHER language of the pair (into {b} if the message is in {a}, into {a} if it is in {b}), preserving tone, register and the terminology already used in this dialogue. Output nothing but the translation.',
 }
 
 export const EXIT_CODES = {

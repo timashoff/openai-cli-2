@@ -35,8 +35,8 @@ export const SYSTEM_COMMANDS = {
     aliases: ['dialogue'],
     handler: 'DialogueCommand',
     filePath: '../commands/system/dialogue.js',
-    description: 'Dialogue-translation mode (EN pivot, stateful, resumable)',
-    usage: 'dd [langA langB] | dd rm',
+    description: 'Dialogue-translation mode (stateful, resumable; in-mode: settings)',
+    usage: 'dd [ru zh] | dd rm',
   },
 
   exit: {

@@ -24,6 +24,7 @@ export const createSessionRecord = ({
   lastResponseId,
   messages,
   pair = null,
+  pivot = null,
 }) => {
   const now = Date.now()
   return {
@@ -35,6 +36,7 @@ export const createSessionRecord = ({
     model,
     kind,
     pair,
+    pivot,
     lastResponseId: lastResponseId || null,
     messages,
   }

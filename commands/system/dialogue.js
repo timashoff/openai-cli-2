@@ -10,7 +10,8 @@ import {
   removeSession,
 } from '../../services/sessions/store.js'
 import { markSessionDeleted, syncSessions } from '../../services/sessions/sync.js'
-import { DIALOGUE, SESSIONS } from '../../config/constants.js'
+import { readSettings, writeSettings } from '../../services/dialogue/settings.js'
+import { APP_CONSTANTS, DIALOGUE, SESSIONS } from '../../config/constants.js'
 import { ANSI } from '../../config/ansi.js'
 
 // Stateful dialogue-translation mode: relays a live two-person conversation
@@ -35,9 +36,43 @@ const proposeTitle = (transcript) => {
 const isChainMiss = (error) =>
   error && (error.statusCode === 404 || error.statusCode === 400)
 
+// A pivot through a language that IS one side of the pair would translate into
+// the target and then back again — degenerate. Such pairs must go direct.
+const pairIncludesPivot = (pair) =>
+  pair.some(
+    (lang) => String(lang).toLowerCase() === DIALOGUE.PIVOT_LANGUAGE.toLowerCase(),
+  )
+
+// Every unordered combination of the selectable languages.
+const languagePairs = () => {
+  const pairs = []
+  const langs = DIALOGUE.LANGUAGES
+  for (let i = 0; i < langs.length; i++) {
+    for (let j = i + 1; j < langs.length; j++) {
+      pairs.push([langs[i], langs[j]])
+    }
+  }
+  return pairs
+}
+
+const samePair = (a, b) => a[0] === b[0] && a[1] === b[1]
+
+// `dd ru en` → full names for the prompt templates; unknown args pass through.
+export const resolveLanguage = (arg) => {
+  const code = String(arg).toLowerCase()
+  return DIALOGUE.LANGUAGE_CODES[code] || arg
+}
+
 export const createDialogueMode = ({ stateManager, context, session = null, pair = null }) => {
+  const saved = readSettings()
+  const startPair = session && session.pair ? session.pair : pair || saved.pair
+  const startPivot =
+    session && typeof session.pivot === 'boolean' ? session.pivot : saved.pivot
+
   const mode = {
-    pair: session && session.pair ? session.pair : pair || [...DIALOGUE.DEFAULT_PAIR],
+    pair: startPair,
+    // A pair containing the pivot language can only go direct (see pairIncludesPivot)
+    pivot: pairIncludesPivot(startPair) ? false : startPivot,
     transcript: session ? [...session.messages] : [],
     tip: session ? session.lastResponseId : null,
     sessionId: session ? session.id : null,
@@ -74,6 +109,21 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
   const translateTurn = async (text, parentTip) => {
     let anchored = parentTip
     let history = null
+
+    // Pivot off: one direct call, stored, becomes the new chain tip.
+    const runDirect = async () => {
+      const leg = await runLeg({
+        instructions: fillTemplate(DIALOGUE.DIRECT_INSTRUCTIONS, mode.pair),
+        input: text,
+        parentTip: anchored,
+        store: true,
+        label: DIALOGUE.TARGET_LABEL,
+        history,
+      })
+      if (leg.aborted) return null
+      return { en: '', target: leg.text, storedId: leg.responseId }
+    }
+
     const runBothLegs = async () => {
       const leg1 = await runLeg({
         instructions: fillTemplate(DIALOGUE.LEG1_INSTRUCTIONS, mode.pair),
@@ -93,16 +143,18 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
         history,
       })
       if (leg2.aborted) return null
-      return { en: leg1.text, target: leg2.text, leg2Id: leg2.responseId }
+      return { en: leg1.text, target: leg2.text, storedId: leg2.responseId }
     }
 
+    const runTurn = async () => (mode.pivot ? await runBothLegs() : await runDirect())
+
     try {
-      return await runBothLegs()
+      return await runTurn()
     } catch (error) {
       if (!anchored || !isChainMiss(error)) throw error
       anchored = null
       history = mode.transcript
-      return await runBothLegs()
+      return await runTurn()
     }
   }
 
@@ -110,23 +162,25 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     const parentTip = mode.tip
     const turn = await translateTurn(text, parentTip)
     if (!turn) return
+    const record = turn.en
+      ? `[${DIALOGUE.PIVOT_LANGUAGE.toLowerCase()}] ${turn.en}\n${turn.target}`
+      : turn.target
     mode.transcript.push({ role: 'user', content: text })
-    mode.transcript.push({
-      role: 'assistant',
-      content: `[${DIALOGUE.PIVOT_LANGUAGE.toLowerCase()}] ${turn.en}\n${turn.target}`,
-    })
-    mode.tip = turn.leg2Id
-    mode.lastTurn = { parentTip, text, leg2Id: turn.leg2Id }
+    mode.transcript.push({ role: 'assistant', content: record })
+    mode.tip = turn.storedId
+    mode.lastTurn = { parentTip, text, storedId: turn.storedId }
     mode.dirty = true
   }
 
+  // Redo forks off the SAME parent as the rejected turn and deletes the reject,
+  // so a retry after flipping the pivot is a fair A/B on identical input.
   const redoTurn = async () => {
     if (!mode.lastTurn) {
       console.log(outputHandler.formatWarning('Nothing to redo yet'))
       return
     }
-    const { parentTip, text, leg2Id } = mode.lastTurn
-    stateManager.deleteStoredResponse(leg2Id)
+    const { parentTip, text, storedId } = mode.lastTurn
+    stateManager.deleteStoredResponse(storedId)
     mode.transcript.pop()
     mode.transcript.pop()
     mode.tip = parentTip
@@ -153,6 +207,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       record.messages = mode.transcript
       record.lastResponseId = mode.tip
       record.pair = mode.pair
+      record.pivot = mode.pivot
     } else {
       record = createSessionRecord({
         title,
@@ -160,6 +215,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
         model: context.models.getCurrent(),
         kind: 'dialogue',
         pair: mode.pair,
+        pivot: mode.pivot,
         lastResponseId: mode.tip,
         messages: mode.transcript,
       })
@@ -179,11 +235,93 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     console.log(outputHandler.formatInfo(`Left dialogue mode${hint}`))
   }
 
+  const persistDefaults = () =>
+    writeSettings({ pair: mode.pair, pivot: mode.pivot })
+
+  // Switching the pair invalidates the accumulated chain and transcript — they
+  // are in the old languages — so the dialogue restarts. Returns true if it did.
+  const choosePair = async () => {
+    const pairs = languagePairs()
+    const current = pairs.findIndex((p) => samePair(p, mode.pair))
+    const index = await createNavigationMenu(
+      'Language pair',
+      pairs.map((p) => `${p[0]} ⇄ ${p[1]}`),
+      current === -1 ? 0 : current,
+      context,
+    )
+    if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX) return false
+    const chosen = pairs[index]
+    if (samePair(chosen, mode.pair)) return false
+
+    if (mode.dirty) {
+      const confirm = await createNavigationMenu(
+        'Switching the pair restarts the dialogue. Unsaved turns will be lost.',
+        ['Cancel', 'Switch and restart'],
+        0,
+        context,
+      )
+      if (confirm !== 1) return false
+    }
+
+    mode.pair = chosen
+    if (pairIncludesPivot(chosen)) mode.pivot = false
+    mode.transcript = []
+    mode.tip = null
+    mode.sessionId = null
+    mode.title = null
+    mode.lastTurn = null
+    mode.dirty = false
+    persistDefaults()
+    return true
+  }
+
+  const togglePivot = () => {
+    if (pairIncludesPivot(mode.pair)) return
+    mode.pivot = !mode.pivot
+    persistDefaults()
+  }
+
+  const stateLine = (suffix = '') =>
+    `Dialogue: ${mode.pair[0]} ⇄ ${mode.pair[1]}, pivot ${
+      pairIncludesPivot(mode.pair)
+        ? `unavailable (${DIALOGUE.PIVOT_LANGUAGE} is one side of the pair) — translating directly`
+        : mode.pivot
+          ? `on (via ${DIALOGUE.PIVOT_LANGUAGE})`
+          : 'off (direct)'
+    }${suffix}`
+
+  // The menu clears the screen on every redraw, so nothing is printed inside the
+  // loop — the resulting state is reported once, after the screen closes.
+  const openSettings = async () => {
+    let restarted = false
+    while (true) {
+      const pivotRow = pairIncludesPivot(mode.pair)
+        ? `Pivot through ${DIALOGUE.PIVOT_LANGUAGE}: unavailable (pair includes ${DIALOGUE.PIVOT_LANGUAGE})`
+        : `Pivot through ${DIALOGUE.PIVOT_LANGUAGE}: ${mode.pivot ? 'on' : 'off'}`
+      const index = await createNavigationMenu(
+        'Dialogue settings',
+        [pivotRow, `Language pair: ${mode.pair[0]} ⇄ ${mode.pair[1]}`, 'Back'],
+        0,
+        context,
+      )
+      if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX || index === 2) break
+      if (index === 0) {
+        togglePivot()
+        continue
+      }
+      if (await choosePair()) restarted = true
+    }
+    console.log(
+      outputHandler.formatInfo(stateLine(restarted ? ' — dialogue restarted' : '')),
+    )
+  }
+
   const commands = {
     exit: leave,
     q: leave,
     save: saveDialogue,
     redo: redoTurn,
+    settings: openSettings,
   }
 
   const handleLine = async (input) => {
@@ -196,9 +334,11 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     await handleTurn(input.trim())
   }
 
+  // Only live accessors leave the closure: exposing pair/pivot as values would
+  // hand out a snapshot that goes stale the moment settings change them.
   return {
     prompt: `\n${ANSI.COLORS.GREEN}${DIALOGUE.PROMPT}`,
-    pair: mode.pair,
+    stateLine,
     handleLine,
   }
 }
@@ -222,28 +362,31 @@ export const DialogueCommand = {
     let session = null
     let pair = null
     if (args.length >= 2) {
-      pair = [args[0], args[1]]
+      pair = [resolveLanguage(args[0]), resolveLanguage(args[1])]
     } else {
       const saved = listSessions().filter((meta) => meta.kind === 'dialogue')
       if (saved.length > 0) {
         const options = ['New dialogue', ...saved.map((meta) => meta.title)]
         const index = await createNavigationMenu('Dialogue:', options, 0, context)
-        if (index === -1) return outputHandler.formatInfo('Cancelled')
+        if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX) {
+          return outputHandler.formatInfo('Cancelled')
+        }
         if (index > 0) session = readSession(saved[index - 1].id)
       }
     }
 
     const mode = createDialogueMode({ stateManager, context, session, pair })
     context.modes.enter(mode)
-    const resumed = session ? ` — resumed "${session.title}" (${Math.floor(session.messages.length / 2)} turns)` : ''
+    const resumed = session
+      ? ` — resumed "${session.title}" (${Math.floor(session.messages.length / 2)} turns)`
+      : ''
     const hints = [
-      '  save   keep this dialogue (it then appears in the dd menu)',
-      '  redo   translate the last message again',
-      '  exit   leave the mode (or q)',
+      '  settings   language pair and the pivot toggle',
+      '  save       keep this dialogue (it then appears in the dd menu)',
+      '  redo       translate the last message again',
+      '  exit       leave the mode (or q)',
     ].join('\n')
-    return outputHandler.formatInfo(
-      `Dialogue mode: ${mode.pair[0]} ⇄ ${mode.pair[1]} via ${DIALOGUE.PIVOT_LANGUAGE}${resumed}\n${hints}`,
-    )
+    return outputHandler.formatInfo(`${mode.stateLine(resumed)}\n${hints}`)
   },
 }
 
