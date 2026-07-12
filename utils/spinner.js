@@ -73,6 +73,26 @@ export function createSpinner(message = '') {
       process.stdout.write(ANSI.CURSOR.SHOW)
     },
 
+    // Freeze the spinner inline: show the final "✓ Xs " WITHOUT a trailing
+    // newline so a caller can continue writing (a label + streamed text) on
+    // the SAME line. Clears to end of line first so a longer prior tick leaves
+    // no residue. Keeps the elapsed time visible (latency comparison).
+    freeze() {
+      if (!isRunning) return
+
+      isRunning = false
+      if (interval) {
+        clearInterval(interval)
+        interval = null
+      }
+
+      const elapsed = (Date.now() - startTime) / 1000
+      process.stdout.write(
+        `${ANSI.MOVE.CARRIAGE_RETURN}${ANSI.CLEAR.LINE_TO_END}${ANSI.COLORS.GREEN}${UI_SYMBOLS.CHECK}${ANSI.COLORS.RESET} ${elapsed.toFixed(1)}s `,
+      )
+      process.stdout.write(ANSI.CURSOR.SHOW)
+    },
+
     isActive() {
       return isRunning
     },

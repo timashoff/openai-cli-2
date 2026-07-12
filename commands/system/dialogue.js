@@ -49,7 +49,10 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
 
   const runStreamCommand = createStreamCommandRunner({ stateManager })
 
-  const runLeg = async ({ instructions, input, parentTip, store, history = null }) => {
+  // Column label rendered inline right after the spinner freezes ("✓ Xs ").
+  const legLabel = (code) => ` ${ANSI.COLORS.GREY}${code}${ANSI.COLORS.RESET}  `
+
+  const runLeg = async ({ instructions, input, parentTip, store, label, history = null }) => {
     const controller = stateManager.getCurrentRequestController()
     const completionOptions = { store, instructions }
     if (parentTip) completionOptions.previous_response_id = parentTip
@@ -61,6 +64,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       messages,
       attachStreamProcessor: true,
       completionOptions,
+      streamLabel: legLabel(label),
     })
   }
 
@@ -71,21 +75,21 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     let anchored = parentTip
     let history = null
     const runBothLegs = async () => {
-      outputHandler.writeStream(`${ANSI.COLORS.CYAN}[${DIALOGUE.PIVOT_LANGUAGE.toLowerCase()}]${ANSI.COLORS.RESET}`)
       const leg1 = await runLeg({
         instructions: fillTemplate(DIALOGUE.LEG1_INSTRUCTIONS, mode.pair),
         input: text,
         parentTip: anchored,
         store: false,
+        label: DIALOGUE.PIVOT_LABEL,
         history,
       })
       if (leg1.aborted) return null
-      outputHandler.writeStream(`\n${ANSI.COLORS.CYAN}[${mode.pair[0]} ⇄ ${mode.pair[1]}]${ANSI.COLORS.RESET}`)
       const leg2 = await runLeg({
         instructions: fillTemplate(DIALOGUE.LEG2_INSTRUCTIONS, mode.pair),
         input: `Original message:\n${text}\n\n${DIALOGUE.PIVOT_LANGUAGE} translation:\n${leg1.text}`,
         parentTip: anchored,
         store: true,
+        label: DIALOGUE.TARGET_LABEL,
         history,
       })
       if (leg2.aborted) return null
@@ -193,7 +197,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
   }
 
   return {
-    prompt: `\n${ANSI.COLORS.GREEN}dd> `,
+    prompt: `\n${ANSI.COLORS.GREEN}${DIALOGUE.PROMPT}`,
     pair: mode.pair,
     handleLine,
   }

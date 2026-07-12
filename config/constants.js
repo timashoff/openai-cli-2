@@ -49,6 +49,9 @@ export const SESSIONS = {
 export const DIALOGUE = {
   DEFAULT_PAIR: ['Russian', 'Chinese'],
   PIVOT_LANGUAGE: 'English',
+  PIVOT_LABEL: 'en', // per-turn leg1 marker (source -> pivot)
+  TARGET_LABEL: '->', // per-turn leg2 marker (pivot -> other side; direction is model-detected)
+  PROMPT: '[dialogue] ', // in-mode prompt (dd is only the launch keyword)
   LEG1_INSTRUCTIONS:
     'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it into {pivot}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {pivot} translation.',
   LEG2_INSTRUCTIONS:

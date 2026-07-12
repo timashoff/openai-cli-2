@@ -20,6 +20,7 @@ export const createStreamCommandRunner = ({ stateManager }) => {
       onChunk,
       onComplete,
       completionOptions = null,
+      streamLabel = null,
     } = options
 
     if (!controller) {
@@ -44,12 +45,22 @@ export const createStreamCommandRunner = ({ stateManager }) => {
 
     session.on('stream:first-chunk', ({ content }) => {
       if (useSpinner && spinner && spinner.isActive()) {
-        spinner.stop('success')
+        // With a label, freeze inline ("✓ Xs ") so the label + streamed text
+        // continue on the same line; otherwise stop normally (newline).
+        if (streamLabel) {
+          spinner.freeze()
+        } else {
+          spinner.stop('success')
+        }
       }
 
       if (showModelHeader && providerModel) {
         outputHandler.writeNewline()
         outputHandler.writeModel(providerModel)
+      }
+
+      if (streamLabel) {
+        outputHandler.writeStream(streamLabel)
       }
     })
 
@@ -73,6 +84,11 @@ export const createStreamCommandRunner = ({ stateManager }) => {
 
     try {
       const result = await session.start()
+
+      // Close the labelled line so the next leg/prompt starts clean.
+      if (streamLabel && !result.aborted) {
+        outputHandler.writeNewline()
+      }
 
       if (!result.aborted && onComplete) {
         await onComplete(result)
