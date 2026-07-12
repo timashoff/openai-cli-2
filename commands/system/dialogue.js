@@ -236,8 +236,13 @@ export const DialogueCommand = {
     const mode = createDialogueMode({ stateManager, context, session, pair })
     context.modes.enter(mode)
     const resumed = session ? ` — resumed "${session.title}" (${Math.floor(session.messages.length / 2)} turns)` : ''
+    const hints = [
+      '  save   keep this dialogue (it then appears in the dd menu)',
+      '  redo   translate the last message again',
+      '  exit   leave the mode (or q)',
+    ].join('\n')
     return outputHandler.formatInfo(
-      `Dialogue mode: ${mode.pair[0]} ⇄ ${mode.pair[1]} via ${DIALOGUE.PIVOT_LANGUAGE}${resumed}\nType a message to relay; commands: redo, save, exit`,
+      `Dialogue mode: ${mode.pair[0]} ⇄ ${mode.pair[1]} via ${DIALOGUE.PIVOT_LANGUAGE}${resumed}\n${hints}`,
     )
   },
 }
