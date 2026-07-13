@@ -48,20 +48,20 @@ better-sounding argument.
 | **One-shot mode** | `ai rr "text"` and piped stdin — the bridge to Apple Shortcuts before the GUI exists |
 | **Gateway** | zero-dependency Node forwarder on the VPS; email+password login with an emailed OTP; 90-day server-revocable sessions; password reset by email; per-record command sync across devices |
 | **Phase 5** (v6.2–6.5) | Responses API (fixes the Responses-only models); `previous_response_id` chaining for chat; `save`/resume sessions synced through the gateway; `dd` dialogue-translation mode with its own settings screen and model pin |
+| **Conversation strategy** (v6.5.1) | the "how is a multi-turn conversation carried" policy, previously threaded through ~7 layers, extracted into `core/conversation/` — chat path, session runner, ∞ indicator and `dd` consume one per-provider strategy object; behaviour-preserving (harnesses byte-identical) |
 
 ## Next
 
 1. **Dialogue mode: speaker attribution.** Relaying a group chat (several Chinese speakers and one
    Russian) currently produces anonymous translations. Naming who said what is the missing piece for
    the WoW-addon use case — the most valuable small feature on this list.
-2. **Architecture: extract a per-provider conversation strategy.** Phase 5 threaded "how a multi-turn
-   conversation is carried" through ~7 layers. Consolidate it into one module before a second
-   Responses provider arrives. Behaviour-preserving; the existing harnesses are the safety net.
-3. **Doubao provider.** A Responses-API clone reachable from mainland China without a VPN. Lands
-   cleanly after (2) — dialogue mode already resolves its provider by capability, but with two
-   Responses providers it will need to ask which one.
-4. **Phase 4 — the Tauri GUI.** Palette-first (Spotlight-style), chat window secondary.
-5. **The Rust rewrite** — last, once everything above has settled.
+2. **Doubao provider.** A Responses-API clone reachable from mainland China without a VPN. The
+   conversation-strategy module makes it one `PROVIDERS` entry — but first: clear the chain pointer on
+   provider switch (or teach the chat path a chain-miss re-anchor), since with TWO Responses providers
+   a stale pointer would send a foreign `previous_response_id`; and with two of them dialogue mode
+   will need to ask which one. Verify clone parity (store:false, DELETE, retention) before trusting it.
+3. **Phase 4 — the Tauri GUI.** Palette-first (Spotlight-style), chat window secondary.
+4. **The Rust rewrite** — last, once everything above has settled.
 
 ## Open / parked
 
