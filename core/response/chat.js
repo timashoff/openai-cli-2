@@ -15,18 +15,19 @@ export function createChatHandler(app) {
     logger.debug('ChatHandler: Processing direct chat request')
 
     try {
+      const strategy = stateManager.getConversationStrategy()
       const { aborted } = await respond({
         input,
         chain: true,
-        onComplete: async ({ text, responseId }) => {
-          if (text.trim()) {
+        onComplete: async (result) => {
+          if (result.text.trim()) {
             process.stdout.write('\n')
           }
 
           // Order matters: addToContext (inside updateContext) nulls the chain
-          // pointer, then the confirmed response id re-arms it.
-          updateContext(stateManager, input, text)
-          stateManager.setLastResponseId(responseId)
+          // pointer, then the confirmed continuation token re-arms it.
+          updateContext(stateManager, input, result.text)
+          stateManager.setLastResponseId(strategy.captureContinuation(result))
           outputHandler.writeContextDots(stateManager)
         },
       })

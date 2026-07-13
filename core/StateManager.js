@@ -2,7 +2,7 @@ import { logger } from '../utils/logger.js'
 import { createProviderFactory } from '../utils/providers/factory.js'
 import { configService } from '../services/config/index.js'
 import { APP_CONSTANTS } from '../config/constants.js'
-import { PROVIDER_API } from '../config/providers.js'
+import { createConversationStrategy } from './conversation/index.js'
 import { createBaseError, isGatewaySessionError, AUTH_EXPIRED_MESSAGE } from './error-system/index.js'
 import { EventEmitter } from 'node:events'
 
@@ -408,11 +408,22 @@ function createStateManager() {
     contextState.lastResponseId = responseId || null
   }
 
-  // Does a provider speak the Responses API? Defaults to the current one, but
-  // callers that pin their own provider (dialogue mode) pass its key.
-  function supportsResponseChaining(providerKey = aiState.currentProviderKey) {
+  // Conversation strategy for a provider: HOW multi-turn context is carried
+  // (Responses chaining vs full-history resend). The policy lives in the
+  // strategy — StateManager only stores the continuation pointer. Defaults to
+  // the current provider; callers that pin their own (dialogue mode) pass its
+  // key. Built fresh per call from the effective config — `api` is runtime-
+  // mutable (config command edits + reload), so caching here would freeze the
+  // user's escape hatch; construction is two object literals, not worth a cache.
+  function getConversationStrategy(providerKey = aiState.currentProviderKey) {
     const config = configService.getProviderConfig(providerKey)
-    return Boolean(config) && config.api === PROVIDER_API.RESPONSES
+    return createConversationStrategy({
+      api: config ? config.api : null,
+      resolveInstance: () => {
+        const providerData = aiState.providers.get(providerKey)
+        return providerData ? providerData.instance : null
+      },
+    })
   }
 
   // Ready a provider without switching to it: initializes it if needed and
@@ -421,21 +432,6 @@ function createStateManager() {
   async function ensureProviderReady(providerKey) {
     const providerData = await ensureProviderInitialized(providerKey)
     return { config: providerData.config, models: providerData.models }
-  }
-
-  // Fire-and-forget cleanup of a stored-but-unwanted response (aborted stream,
-  // rejected redo). Targets the given provider, defaulting to the current one —
-  // a pinned caller must pass its own key or the delete would hit the wrong API.
-  function deleteStoredResponse(responseId, providerKey = null) {
-    if (!responseId) {
-      return
-    }
-    const providerData = providerKey ? aiState.providers.get(providerKey) : null
-    const instance = providerData ? providerData.instance : aiState.currentProvider
-    if (!instance || typeof instance.deleteResponse !== 'function') {
-      return
-    }
-    instance.deleteResponse(responseId).catch(() => {})
   }
 
 
@@ -569,9 +565,8 @@ function createStateManager() {
     getContextHistory,
     getLastResponseId,
     setLastResponseId,
-    supportsResponseChaining,
+    getConversationStrategy,
     ensureProviderReady,
-    deleteStoredResponse,
   }
 }
 

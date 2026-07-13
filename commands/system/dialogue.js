@@ -14,7 +14,6 @@ import { readSettings, writeSettings } from '../../services/dialogue/settings.js
 import { configService } from '../../services/config/index.js'
 import { createSpinner } from '../../utils/spinner.js'
 import { APP_CONSTANTS, DIALOGUE, SESSIONS } from '../../config/constants.js'
-import { PROVIDER_API } from '../../config/providers.js'
 import { ANSI } from '../../config/ansi.js'
 
 // Stateful dialogue-translation mode: relays a live two-person conversation.
@@ -39,13 +38,15 @@ const fillTemplate = (template, pair, target = '') =>
     .split('{pivot}').join(DIALOGUE.PIVOT_LANGUAGE)
     .split('{target}').join(target)
 
-// The first configured provider that speaks the Responses API. Found by
-// capability, never by name — a second such provider (Doubao) is planned.
-const findResponsesProvider = () =>
-  configService.availableProviders().find((id) => {
-    const config = configService.getProviderConfig(id)
-    return Boolean(config) && config.api === PROVIDER_API.RESPONSES
-  }) || null
+// The first configured provider whose conversation strategy carries context
+// server-side (Responses API). Found by capability, never by name — a second
+// such provider (Doubao) is planned.
+const findResponsesProvider = (stateManager) =>
+  configService
+    .availableProviders()
+    .find(
+      (id) => stateManager.getConversationStrategy(id).carriesServerContext,
+    ) || null
 
 const modelIds = (models) =>
   models.map((m) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
@@ -143,25 +144,38 @@ export const createDialogueMode = ({
 
   const runStreamCommand = createStreamCommandRunner({ stateManager })
 
+  // The pinned provider's conversation strategy shapes each leg's wire form
+  // (chain off a parent vs re-anchor with history) and discards stored legs
+  // that end up unwanted; the fork topology itself stays dd's business.
+  const strategy = stateManager.getConversationStrategy(provider)
+
   // Column label rendered inline right after the spinner freezes ("✓ Xs ").
   const legLabel = (code) => ` ${ANSI.COLORS.GREY}${code}${ANSI.COLORS.RESET}  `
 
   const runLeg = async ({ instructions, input, parentTip, store, label, history = null }) => {
     const controller = stateManager.getCurrentRequestController()
-    const completionOptions = { store, instructions }
-    if (parentTip) completionOptions.previous_response_id = parentTip
-    const messages = history
-      ? [...history, { role: 'user', content: input }]
-      : [{ role: 'user', content: input }]
-    return await runStreamCommand({
+    const turn = strategy.buildTurn({
+      history: history || [],
+      input,
+      continuationToken: parentTip,
+      store,
+      instructions,
+    })
+    const result = await runStreamCommand({
       controller,
-      messages,
+      messages: turn.messages,
       // Pinned: routes to dd's own provider+model without touching global state
       providerModel: { provider: mode.provider, model: mode.model },
       attachStreamProcessor: true,
-      completionOptions,
+      completionOptions: turn.options,
       streamLabel: legLabel(label),
     })
+    // An aborted stored leg still completes server-side — discard it so the
+    // chain never sees it (unstored legs leave nothing behind).
+    if (result.aborted && store) {
+      strategy.discard(strategy.captureContinuation(result))
+    }
+    return result
   }
 
   // Name the target language outright when the source is unambiguous; fall back
@@ -195,7 +209,7 @@ export const createDialogueMode = ({
         history,
       })
       if (leg.aborted) return null
-      return { en: '', target: leg.text, storedId: leg.responseId }
+      return { en: '', target: leg.text, storedId: strategy.captureContinuation(leg) }
     }
 
     const runBothLegs = async () => {
@@ -221,7 +235,7 @@ export const createDialogueMode = ({
         history,
       })
       if (leg2.aborted) return null
-      return { en: leg1.text, target: leg2.text, storedId: leg2.responseId }
+      return { en: leg1.text, target: leg2.text, storedId: strategy.captureContinuation(leg2) }
     }
 
     const runTurn = async () => (mode.pivot ? await runBothLegs() : await runDirect())
@@ -258,7 +272,7 @@ export const createDialogueMode = ({
       return
     }
     const { parentTip, text, storedId } = mode.lastTurn
-    stateManager.deleteStoredResponse(storedId, mode.provider)
+    strategy.discard(storedId)
     mode.transcript.pop()
     mode.transcript.pop()
     mode.tip = parentTip
@@ -463,7 +477,7 @@ export const DialogueCommand = {
     // relies on does not exist on chat/completions) and a model strong enough to
     // carry that chain. Nothing here changes the provider/model the user has
     // selected — the pin travels with each request instead.
-    const provider = findResponsesProvider()
+    const provider = findResponsesProvider(stateManager)
     if (!provider) {
       return outputHandler.formatWarning(
         'Dialogue mode needs a Responses API provider — run: ai login',

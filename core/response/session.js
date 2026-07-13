@@ -81,20 +81,13 @@ export const createResponseSessionFactory = ({ stateManager }) => {
         }
       } catch (error) {
         if (controller.signal.aborted || isCancellation(error)) {
-          // An aborted stream still completes and stays stored server-side
-          // (verified live) — clean it up so the chain never sees it. Target the
-          // pinned provider when there is one, or the delete hits the wrong API.
-          if (completionOptions && completionOptions.store && responseId) {
-            stateManager.deleteStoredResponse(
-              responseId,
-              providerModel ? providerModel.provider : null,
-            )
-          }
+          // Hand raw stream metadata back: the caller's conversation strategy
+          // decides whether the aborted turn left a stored artifact to discard.
           return {
             text: '',
             chunks: [],
             aborted: true,
-            responseId: null,
+            responseId,
           }
         }
 

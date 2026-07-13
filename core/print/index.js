@@ -42,7 +42,8 @@ export const outputHandler = {
       return
     }
 
-    if (stateManager.getLastResponseId()) {
+    const strategy = stateManager.getConversationStrategy()
+    if (strategy.carriesServerContext && stateManager.getLastResponseId()) {
       stdout.write(ui.contextChain())
       return
     }
