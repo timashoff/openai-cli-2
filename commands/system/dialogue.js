@@ -11,21 +11,66 @@ import {
 } from '../../services/sessions/store.js'
 import { markSessionDeleted, syncSessions } from '../../services/sessions/sync.js'
 import { readSettings, writeSettings } from '../../services/dialogue/settings.js'
+import { configService } from '../../services/config/index.js'
+import { createSpinner } from '../../utils/spinner.js'
 import { APP_CONSTANTS, DIALOGUE, SESSIONS } from '../../config/constants.js'
+import { PROVIDER_API } from '../../config/providers.js'
 import { ANSI } from '../../config/ansi.js'
 
-// Stateful dialogue-translation mode: relays a live two-person conversation
-// through an EN pivot with the pivot VISIBLE (two calls per turn — the pivot
-// pairs translate more accurately than the direct pair). Chain topology:
-// leg1 (source→pivot) is a store:false fork off the chain tip, leg2
-// (pivot→other side) is a store:true fork off the SAME parent and becomes
-// the new tip. The local transcript stays the source of truth.
+// Stateful dialogue-translation mode: relays a live two-person conversation.
+//
+// By default each turn is ONE direct call (source -> other side of the pair),
+// stored and chained off the previous turn via previous_response_id. The chain
+// is load-bearing, not an optimization: measured 2026-07-13, without it the
+// model renders a female speaker with masculine Russian verbs and invents a new
+// term for the same product every turn. An optional English pivot (two calls,
+// the intermediate shown) survives as a toggle, but it lost on both speed and
+// fidelity, so it is off by default.
+//
+// dd pins its OWN provider and model instead of riding the global current ones:
+// the chain is what weak models trip on (they echo the source back instead of
+// translating), so the model must be strong enough to carry it. Pinning also
+// means entering dd never disturbs the provider/model the user had selected.
 
-const fillTemplate = (template, pair) =>
+const fillTemplate = (template, pair, target = '') =>
   template
     .split('{a}').join(pair[0])
     .split('{b}').join(pair[1])
     .split('{pivot}').join(DIALOGUE.PIVOT_LANGUAGE)
+    .split('{target}').join(target)
+
+// The first configured provider that speaks the Responses API. Found by
+// capability, never by name — a second such provider (Doubao) is planned.
+const findResponsesProvider = () =>
+  configService.availableProviders().find((id) => {
+    const config = configService.getProviderConfig(id)
+    return Boolean(config) && config.api === PROVIDER_API.RESPONSES
+  }) || null
+
+const modelIds = (models) =>
+  models.map((m) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
+
+// Which side of the pair is this message written in? Code-point ranges, no regex.
+// Returns null when the answer is not clean (a language outside the table, an
+// emoji/digit-only message, a tie) — the caller then falls back to asking the
+// model to infer the direction, exactly as before.
+const detectLanguage = (text, pair) => {
+  const ranges = pair.map((lang) => DIALOGUE.LANGUAGE_SCRIPTS[lang])
+  if (ranges.some((r) => !r)) return null
+
+  const counts = [0, 0]
+  for (const ch of text) {
+    const code = ch.codePointAt(0)
+    for (let i = 0; i < pair.length; i++) {
+      if (ranges[i].some((range) => code >= range[0] && code <= range[1])) {
+        counts[i]++
+        break
+      }
+    }
+  }
+  if (counts[0] === counts[1]) return null
+  return counts[0] > counts[1] ? pair[0] : pair[1]
+}
 
 const proposeTitle = (transcript) => {
   const firstUser = transcript.find((entry) => entry.role === 'user')
@@ -63,13 +108,27 @@ export const resolveLanguage = (arg) => {
   return DIALOGUE.LANGUAGE_CODES[code] || arg
 }
 
-export const createDialogueMode = ({ stateManager, context, session = null, pair = null }) => {
+export const createDialogueMode = ({
+  stateManager,
+  context,
+  session = null,
+  pair = null,
+  provider,
+  model,
+  models = [],
+}) => {
   const saved = readSettings()
   const startPair = session && session.pair ? session.pair : pair || saved.pair
   const startPivot =
     session && typeof session.pivot === 'boolean' ? session.pivot : saved.pivot
 
   const mode = {
+    // Pinned provider+model. A resumed dialogue deliberately does NOT restore the
+    // model it was saved with — the server-side chain is model-agnostic, so a
+    // resume must never resurrect a model that mis-routes.
+    provider,
+    model,
+    models,
     pair: startPair,
     // A pair containing the pivot language can only go direct (see pairIncludesPivot)
     pivot: pairIncludesPivot(startPair) ? false : startPivot,
@@ -97,15 +156,26 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     return await runStreamCommand({
       controller,
       messages,
+      // Pinned: routes to dd's own provider+model without touching global state
+      providerModel: { provider: mode.provider, model: mode.model },
       attachStreamProcessor: true,
       completionOptions,
       streamLabel: legLabel(label),
     })
   }
 
-  // One dialogue turn = two sequential streams off the SAME parent.
-  // On a stale tip (expired/deleted server chain) re-anchor once with the
-  // full local transcript — the single sanctioned fallback.
+  // Name the target language outright when the source is unambiguous; fall back
+  // to making the model infer the direction when it is not.
+  const instructionsFor = (template, targetedTemplate, text) => {
+    const source = detectLanguage(text, mode.pair)
+    if (!source) return fillTemplate(template, mode.pair)
+    const target = source === mode.pair[0] ? mode.pair[1] : mode.pair[0]
+    return fillTemplate(targetedTemplate, mode.pair, target)
+  }
+
+  // A turn is one direct stream by default, or two (pivot on) forked off the
+  // SAME parent. On a stale tip (expired/deleted server chain) re-anchor once
+  // with the full local transcript — the single sanctioned fallback.
   const translateTurn = async (text, parentTip) => {
     let anchored = parentTip
     let history = null
@@ -113,7 +183,11 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
     // Pivot off: one direct call, stored, becomes the new chain tip.
     const runDirect = async () => {
       const leg = await runLeg({
-        instructions: fillTemplate(DIALOGUE.DIRECT_INSTRUCTIONS, mode.pair),
+        instructions: instructionsFor(
+          DIALOGUE.DIRECT_INSTRUCTIONS,
+          DIALOGUE.DIRECT_TARGETED_INSTRUCTIONS,
+          text,
+        ),
         input: text,
         parentTip: anchored,
         store: true,
@@ -135,7 +209,11 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       })
       if (leg1.aborted) return null
       const leg2 = await runLeg({
-        instructions: fillTemplate(DIALOGUE.LEG2_INSTRUCTIONS, mode.pair),
+        instructions: instructionsFor(
+          DIALOGUE.LEG2_INSTRUCTIONS,
+          DIALOGUE.LEG2_TARGETED_INSTRUCTIONS,
+          text,
+        ),
         input: `Original message:\n${text}\n\n${DIALOGUE.PIVOT_LANGUAGE} translation:\n${leg1.text}`,
         parentTip: anchored,
         store: true,
@@ -180,7 +258,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       return
     }
     const { parentTip, text, storedId } = mode.lastTurn
-    stateManager.deleteStoredResponse(storedId)
+    stateManager.deleteStoredResponse(storedId, mode.provider)
     mode.transcript.pop()
     mode.transcript.pop()
     mode.tip = parentTip
@@ -199,7 +277,6 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       console.log(outputHandler.formatWarning('Save cancelled — no title given'))
       return
     }
-    const currentProvider = context.providers.getCurrent()
     let record = mode.sessionId ? readSession(mode.sessionId) : null
     if (record) {
       record.title = title
@@ -208,11 +285,14 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
       record.lastResponseId = mode.tip
       record.pair = mode.pair
       record.pivot = mode.pivot
+      record.provider = mode.provider
+      record.model = mode.model
     } else {
       record = createSessionRecord({
         title,
-        provider: currentProvider && currentProvider.key ? currentProvider.key : '',
-        model: context.models.getCurrent(),
+        // the pinned provider+model dd actually ran on, not the global current ones
+        provider: mode.provider,
+        model: mode.model,
         kind: 'dialogue',
         pair: mode.pair,
         pivot: mode.pivot,
@@ -236,7 +316,23 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
   }
 
   const persistDefaults = () =>
-    writeSettings({ pair: mode.pair, pivot: mode.pivot })
+    writeSettings({ pair: mode.pair, pivot: mode.pivot, model: mode.model })
+
+  const chooseModel = async () => {
+    const ids = modelIds(mode.models)
+    if (ids.length === 0) return
+    const current = ids.indexOf(mode.model)
+    const index = await createNavigationMenu(
+      'Model for dialogue mode',
+      ids,
+      current === -1 ? 0 : current,
+      context,
+    )
+    if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX) return
+    if (ids[index] === mode.model) return
+    mode.model = ids[index]
+    persistDefaults()
+  }
 
   // Switching the pair invalidates the accumulated chain and transcript — they
   // are in the old languages — so the dialogue restarts. Returns true if it did.
@@ -282,7 +378,7 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
   }
 
   const stateLine = (suffix = '') =>
-    `Dialogue: ${mode.pair[0]} ⇄ ${mode.pair[1]}, pivot ${
+    `Dialogue: ${mode.pair[0]} ⇄ ${mode.pair[1]} on ${mode.model}, pivot ${
       pairIncludesPivot(mode.pair)
         ? `unavailable (${DIALOGUE.PIVOT_LANGUAGE} is one side of the pair) — translating directly`
         : mode.pivot
@@ -300,12 +396,21 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
         : `Pivot through ${DIALOGUE.PIVOT_LANGUAGE}: ${mode.pivot ? 'on' : 'off'}`
       const index = await createNavigationMenu(
         'Dialogue settings',
-        [pivotRow, `Language pair: ${mode.pair[0]} ⇄ ${mode.pair[1]}`, 'Back'],
+        [
+          `Model: ${mode.model}`,
+          pivotRow,
+          `Language pair: ${mode.pair[0]} ⇄ ${mode.pair[1]}`,
+          'Back',
+        ],
         0,
         context,
       )
-      if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX || index === 2) break
+      if (index === APP_CONSTANTS.MENU_CANCELLED_INDEX || index === 3) break
       if (index === 0) {
+        await chooseModel()
+        continue
+      }
+      if (index === 1) {
         togglePivot()
         continue
       }
@@ -349,14 +454,42 @@ export const createDialogueMode = ({ stateManager, context, session = null, pair
 export const DialogueCommand = {
   async execute(args = [], context = {}) {
     const stateManager = getStateManager()
-    if (!stateManager.supportsResponseChaining()) {
-      return outputHandler.formatWarning(
-        'Dialogue mode needs a Responses API provider — run: provider openai',
-      )
-    }
 
     if (args[0] === 'rm') {
       return await removeDialogueFlow(context)
+    }
+
+    // dd pins its own provider+model: it needs the Responses API (the chain it
+    // relies on does not exist on chat/completions) and a model strong enough to
+    // carry that chain. Nothing here changes the provider/model the user has
+    // selected — the pin travels with each request instead.
+    const provider = findResponsesProvider()
+    if (!provider) {
+      return outputHandler.formatWarning(
+        'Dialogue mode needs a Responses API provider — run: ai login',
+      )
+    }
+
+    const spinner = createSpinner('Preparing dialogue mode...')
+    spinner.start()
+    let ready = null
+    try {
+      ready = await stateManager.ensureProviderReady(provider)
+      spinner.stop('success')
+    } catch (error) {
+      spinner.stop('error')
+      return outputHandler.formatError(
+        `Could not reach the ${provider} provider for dialogue mode`,
+      )
+    }
+
+    const ids = modelIds(ready.models)
+    const wanted = readSettings().model
+    let model = wanted
+    let modelNote = ''
+    if (ids.length > 0 && !ids.includes(wanted)) {
+      model = ready.config.defaultModel
+      modelNote = `\nNote: ${wanted} is not available on this account — using ${model} instead`
     }
 
     let session = null
@@ -375,18 +508,26 @@ export const DialogueCommand = {
       }
     }
 
-    const mode = createDialogueMode({ stateManager, context, session, pair })
+    const mode = createDialogueMode({
+      stateManager,
+      context,
+      session,
+      pair,
+      provider,
+      model,
+      models: ready.models,
+    })
     context.modes.enter(mode)
     const resumed = session
       ? ` — resumed "${session.title}" (${Math.floor(session.messages.length / 2)} turns)`
       : ''
     const hints = [
-      '  settings   language pair and the pivot toggle',
+      '  settings   model, language pair and the pivot toggle',
       '  save       keep this dialogue (it then appears in the dd menu)',
       '  redo       translate the last message again',
       '  exit       leave the mode (or q)',
     ].join('\n')
-    return outputHandler.formatInfo(`${mode.stateLine(resumed)}\n${hints}`)
+    return outputHandler.formatInfo(`${mode.stateLine(resumed)}${modelNote}\n${hints}`)
   },
 }
 

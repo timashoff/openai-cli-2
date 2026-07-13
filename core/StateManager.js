@@ -408,22 +408,34 @@ function createStateManager() {
     contextState.lastResponseId = responseId || null
   }
 
-  // Chaining applies only when the CURRENT global provider speaks the Responses API
-  function supportsResponseChaining() {
-    const config = configService.getProviderConfig(aiState.currentProviderKey)
+  // Does a provider speak the Responses API? Defaults to the current one, but
+  // callers that pin their own provider (dialogue mode) pass its key.
+  function supportsResponseChaining(providerKey = aiState.currentProviderKey) {
+    const config = configService.getProviderConfig(providerKey)
     return Boolean(config) && config.api === PROVIDER_API.RESPONSES
   }
 
+  // Ready a provider without switching to it: initializes it if needed and
+  // returns its effective config plus its live model list. Used by callers that
+  // pin a provider of their own (dialogue mode) instead of riding the current one.
+  async function ensureProviderReady(providerKey) {
+    const providerData = await ensureProviderInitialized(providerKey)
+    return { config: providerData.config, models: providerData.models }
+  }
+
   // Fire-and-forget cleanup of a stored-but-unwanted response (aborted stream,
-  // rejected redo). Never throws, never blocks the prompt.
-  function deleteStoredResponse(responseId) {
-    if (!responseId || !aiState.currentProvider) {
+  // rejected redo). Targets the given provider, defaulting to the current one —
+  // a pinned caller must pass its own key or the delete would hit the wrong API.
+  function deleteStoredResponse(responseId, providerKey = null) {
+    if (!responseId) {
       return
     }
-    if (typeof aiState.currentProvider.deleteResponse !== 'function') {
+    const providerData = providerKey ? aiState.providers.get(providerKey) : null
+    const instance = providerData ? providerData.instance : aiState.currentProvider
+    if (!instance || typeof instance.deleteResponse !== 'function') {
       return
     }
-    aiState.currentProvider.deleteResponse(responseId).catch(() => {})
+    instance.deleteResponse(responseId).catch(() => {})
   }
 
 
@@ -558,6 +570,7 @@ function createStateManager() {
     getLastResponseId,
     setLastResponseId,
     supportsResponseChaining,
+    ensureProviderReady,
     deleteStoredResponse,
   }
 }

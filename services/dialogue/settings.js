@@ -13,17 +13,19 @@ const settingsPath = () =>
 const defaults = () => ({
   pair: [...DIALOGUE.DEFAULT_PAIR],
   pivot: DIALOGUE.PIVOT_ENABLED,
+  model: DIALOGUE.MODEL,
 })
 
 export const readSettings = () => {
   try {
     const parsed = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'))
+    const fallback = defaults()
     const pair =
-      Array.isArray(parsed.pair) && parsed.pair.length === 2
-        ? parsed.pair
-        : defaults().pair
-    const pivot = typeof parsed.pivot === 'boolean' ? parsed.pivot : defaults().pivot
-    return { pair, pivot }
+      Array.isArray(parsed.pair) && parsed.pair.length === 2 ? parsed.pair : fallback.pair
+    const pivot = typeof parsed.pivot === 'boolean' ? parsed.pivot : fallback.pivot
+    const model =
+      typeof parsed.model === 'string' && parsed.model ? parsed.model : fallback.model
+    return { pair, pivot, model }
   } catch (e) {
     return defaults()
   }

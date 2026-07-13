@@ -50,6 +50,25 @@ export const DIALOGUE = {
   DEFAULT_PAIR: ['Russian', 'Chinese'],
   LANGUAGES: ['Russian', 'English', 'Chinese'], // selectable set; the pair menu derives every combination
   LANGUAGE_CODES: { ru: 'Russian', en: 'English', zh: 'Chinese' }, // quick form `dd ru en`; unknown args pass through
+
+  // dd pins its own model rather than riding the global current one. Measured
+  // 2026-07-13 over 90 turns of two very different conversations: gpt-5.6-luna
+  // returned the wrong target language 0 times, while the global default
+  // gpt-5.4-mini mis-routed 2-17% (it echoed the source back, once in Armenian).
+  // The previous_response_id chain is what weak models trip on — and the chain
+  // is exactly what gives dd correct gender agreement and stable terminology,
+  // so it stays and the model must be strong enough to carry it.
+  MODEL: 'gpt-5.6-luna',
+
+  // Code-point ranges per language, used to name the target language outright
+  // instead of making the model infer the direction. Ranges, not regex.
+  // A language absent from this table is simply not detectable -> prompt falls
+  // back to the infer-the-direction wording.
+  LANGUAGE_SCRIPTS: {
+    Russian: [[0x0400, 0x04ff]],
+    English: [[0x41, 0x5a], [0x61, 0x7a]],
+    Chinese: [[0x4e00, 0x9fff]],
+  },
   PIVOT_LANGUAGE: 'English',
   // Off by default: measured 2026-07-12 on gpt-5.4-mini, the pivot cost 1.4-3.3x
   // the wall-clock and drifted meaning (the English leg rephrases, the second leg
@@ -65,6 +84,13 @@ export const DIALOGUE = {
     'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into the OTHER language of the pair (into {b} if the original is in {a}, into {a} if it is in {b}). Rely on the {pivot} version, checking the original for nuance. Output nothing but the final translation.',
   DIRECT_INSTRUCTIONS:
     'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it directly into the OTHER language of the pair (into {b} if the message is in {a}, into {a} if it is in {b}), preserving tone, register and the terminology already used in this dialogue. Output nothing but the translation.',
+  // Used when the source language is detected locally: naming the target outright
+  // cut wrong-language answers from 23% to 4% on the weak model (measured
+  // 2026-07-13). It mitigates; the model pin is what actually fixes the class.
+  DIRECT_TARGETED_INSTRUCTIONS:
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. Translate the user message into {target}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {target} translation.',
+  LEG2_TARGETED_INSTRUCTIONS:
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into {target}. Rely on the {pivot} version, checking the original for nuance. Output nothing but the {target} translation.',
 }
 
 export const EXIT_CODES = {

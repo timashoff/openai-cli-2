@@ -17,9 +17,6 @@ export const PROVIDERS = {
     baseURL: 'https://api.deepseek.com/v1',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     defaultModel: 'deepseek-v4-flash',
-    maxTokens: 4096,
-    temperature: 0.7,
-    streaming: true,
     markdown: false,
   },
   openai: {
@@ -34,9 +31,6 @@ export const PROVIDERS = {
     // calls go through it. User escape hatch: config.toml api = 'chat'.
     api: PROVIDER_API.RESPONSES,
     defaultModel: 'gpt-5.4-mini',
-    maxTokens: 4096,
-    temperature: 0.7,
-    streaming: true,
     markdown: true,
   },
   anthropic: {
@@ -46,9 +40,6 @@ export const PROVIDERS = {
     isClaude: true,
     gateway: true,
     defaultModel: 'claude-sonnet-5',
-    maxTokens: 4096,
-    temperature: 0.7,
-    streaming: true,
     markdown: true,
   },
 }

@@ -82,9 +82,13 @@ export const createResponseSessionFactory = ({ stateManager }) => {
       } catch (error) {
         if (controller.signal.aborted || isCancellation(error)) {
           // An aborted stream still completes and stays stored server-side
-          // (verified live) — clean it up so the chain never sees it.
+          // (verified live) — clean it up so the chain never sees it. Target the
+          // pinned provider when there is one, or the delete hits the wrong API.
           if (completionOptions && completionOptions.store && responseId) {
-            stateManager.deleteStoredResponse(responseId)
+            stateManager.deleteStoredResponse(
+              responseId,
+              providerModel ? providerModel.provider : null,
+            )
           }
           return {
             text: '',
