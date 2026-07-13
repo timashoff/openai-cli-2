@@ -30,7 +30,9 @@ export const PROVIDERS = {
     // the Responses API serves classic chat models too, so ALL openai
     // calls go through it. User escape hatch: config.toml api = 'chat'.
     api: PROVIDER_API.RESPONSES,
-    defaultModel: 'gpt-5.4-mini',
+    // Owner's pick: chain-robust. gpt-5.4-mini mis-routes chained translation
+    // dialogues 2-23% of turns (measured 2026-07-13); luna was 0/90.
+    defaultModel: 'gpt-5.6-luna',
     markdown: true,
   },
   anthropic: {
