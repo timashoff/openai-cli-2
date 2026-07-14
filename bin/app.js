@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import pkg from '../package.json' with { type: 'json' }
 import { logger } from '../utils/logger.js'
 import { outputHandler } from '../core/print/index.js'
 import { errorHandler } from '../core/error-system/index.js'
@@ -83,7 +84,9 @@ async function start() {
     syncCommands().catch(() => {})
     syncSessions().catch(() => {})
 
-    // Show current model info after spinner cleanup
+    // Show version + release date and current model after spinner cleanup —
+    // makes a stale install on another machine obvious at a glance.
+    console.log(outputHandler.formatInfo(`${pkg.name} v${pkg.version} · released ${pkg.releaseDate}`))
     const currentModel = stateManager.getCurrentModel()
     console.log(outputHandler.formatInfo(`current model is ${currentModel}`))
 

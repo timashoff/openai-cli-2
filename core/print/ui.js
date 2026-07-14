@@ -49,9 +49,4 @@ export const ui = {
    */
   contextChain: () =>
     `${ANSI.COLORS.YELLOW}${UI_SYMBOLS.CONTEXT_CHAIN}${ANSI.COLORS.RESET}`,
-
-  /**
-   * Format current model display
-   */
-  currentModel: (model) => `current model is ${ANSI.COLORS.CYAN}${model}${ANSI.COLORS.RESET}`,
 }

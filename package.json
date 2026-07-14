@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node bin/app.js",
-    "dev": "node --watch bin/app.js"
+    "dev": "node --watch bin/app.js",
+    "version": "node scripts/stamp-release-date.mjs"
   },
   "keywords": [
     "ai",
@@ -48,5 +49,6 @@
     "commands/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "releaseDate": "2026-07-14"
 }
