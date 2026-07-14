@@ -1,5 +1,6 @@
 import { logger } from '../../utils/logger.js'
 import { errorHandler, isCancellation } from '../error-system/index.js'
+import { inputProcessingService } from '../../services/input-processing/index.js'
 import { ANSI } from '../../config/ansi.js'
 
 export const createMainLoop = (state, applicationLoopInstance) => {
@@ -59,6 +60,16 @@ export const createMainLoop = (state, applicationLoopInstance) => {
           continue
         }
 
+        // Expand clipboard markers ($$) once for BOTH branches of the race
+        // below: an active mode bypasses the Router, where the expansion used
+        // to live, so mode input never saw it
+        const expandedInput = await inputProcessingService.processInput(processedInput)
+        if (!expandedInput.trim()) {
+          // An empty clipboard can reduce the line to nothing (bare '$$') —
+          // drop it like an empty line: '' must reach neither a mode nor the Router
+          continue
+        }
+
         // CRITICAL FIX: Create AbortController and set processing state BEFORE execution
         const controller = new AbortController()
         state.stateManager.setProcessingRequest(true, controller)
@@ -77,8 +88,8 @@ export const createMainLoop = (state, applicationLoopInstance) => {
         // in-flight stream but never leaves the mode).
         const result = await Promise.race([
           state.activeMode
-            ? state.activeMode.handleLine(processedInput)
-            : getRouter().routeAndProcess(processedInput, applicationLoopInstance),
+            ? state.activeMode.handleLine(expandedInput)
+            : getRouter().routeAndProcess(expandedInput, applicationLoopInstance),
           escapePromise, // Completes instantly on ESC
         ])
 

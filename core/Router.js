@@ -98,10 +98,8 @@ export const createRouter = (dependencies = {}) => {
   }
 
   const analyzeInput = async (input) => {
-    const trimmedInput = input.trim()
-
-    // Process clipboard markers FIRST (before any analysis)
-    const cleanInput = await state.commandProcessingService.processInput(trimmedInput)
+    // Clipboard markers are already expanded by the main loop (single expansion point)
+    const cleanInput = input.trim()
 
     // 1. System commands first (PRIORITY)
     const commandName = cleanInput.split(' ')[0].toLowerCase()

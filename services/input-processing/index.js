@@ -61,8 +61,10 @@ function createInputProcessingService() {
         )
       }
 
-      // Replace clipboard markers
-      const processedInput = input.replaceAll(APP_CONSTANTS.CLIPBOARD_MARKER, sanitizedContent)
+      // Replace clipboard markers. The replacer is a function on purpose: a
+      // plain string replacement interprets $-sequences ('$$' inside the
+      // clipboard would silently collapse to '$'); a function inserts verbatim.
+      const processedInput = input.replaceAll(APP_CONSTANTS.CLIPBOARD_MARKER, () => sanitizedContent)
 
       // Update stats
       stats.clipboardInsertions++
