@@ -1,6 +1,6 @@
 {
   "name": "openai-cli",
-  "version": "6.7.0",
+  "version": "6.7.1",
   "description": "Professional command-line AI assistant with functional event-driven architecture, SQLite command management, interactive cmd/кмд system, and Zero Trust error handling",
   "type": "module",
   "main": "bin/app.js",
@@ -50,5 +50,5 @@
     "README.md",
     "LICENSE"
   ],
-  "releaseDate": "2026-07-14"
+  "releaseDate": "2026-07-15"
 }
