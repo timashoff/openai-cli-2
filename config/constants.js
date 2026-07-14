@@ -78,19 +78,26 @@ export const DIALOGUE = {
   TARGET_LABEL: '->', // final translation marker (direction is model-detected)
   PROMPT: '[dialogue] ', // in-mode prompt (dd is only the launch keyword)
   SETTINGS_FILE: 'dialogue.json', // persisted defaults under the user config dir
+  // All templates share two measured clauses (2026-07-14, luna, live cases):
+  // 1. term mirroring — "preserving the terminology" was too weak: the reply to
+  //    an interlocutor who said 位面 rendered «слой» as the literal 层 in 4/10
+  //    runs; naming "reuse the other speaker's established term" made it 10/10.
+  // 2. no source script in the output — a live turn leaked «за加工费» into
+  //    Russian text; Latin names/codes (ZUL, RT-450) are exempt on purpose.
+  // Gender/term context canaries stayed 18/18 across both arms.
   LEG1_INSTRUCTIONS:
-    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it into {pivot}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {pivot} translation.',
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it into {pivot}, keeping its tone and register and reusing the terminology already established in this dialogue. Write the entire translation in {pivot}: never leave source-language words or characters untranslated. Latin-script names, codes and identifiers stay as they are. Output nothing but the {pivot} translation.',
   LEG2_INSTRUCTIONS:
-    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into the OTHER language of the pair (into {b} if the original is in {a}, into {a} if it is in {b}). Rely on the {pivot} version, checking the original for nuance. Output nothing but the final translation.',
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into the OTHER language of the pair (into {b} if the original is in {a}, into {a} if it is in {b}). Rely on the {pivot} version, checking the original for nuance. When this dialogue has already established a term for a concept — especially the other speaker\'s own wording — reuse that established term instead of a more literal alternative. Write the entire translation in the output language: never leave source-language words or characters untranslated. Latin-script names, codes and identifiers stay as they are. Output nothing but the final translation.',
   DIRECT_INSTRUCTIONS:
-    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it directly into the OTHER language of the pair (into {b} if the message is in {a}, into {a} if it is in {b}), preserving tone, register and the terminology already used in this dialogue. Output nothing but the translation.',
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. The user message is from one of them. Translate it directly into the OTHER language of the pair (into {b} if the message is in {a}, into {a} if it is in {b}), keeping its tone and register. When this dialogue has already established a term for a concept — especially the other speaker\'s own wording — reuse that established term instead of a more literal alternative. Write the entire translation in the output language: never leave source-language words or characters untranslated. Latin-script names, codes and identifiers stay as they are. Output nothing but the translation.',
   // Used when the source language is detected locally: naming the target outright
   // cut wrong-language answers from 23% to 4% on the weak model (measured
   // 2026-07-13). It mitigates; the model pin is what actually fixes the class.
   DIRECT_TARGETED_INSTRUCTIONS:
-    'You relay a live dialogue between a {a} speaker and a {b} speaker. Translate the user message into {target}, preserving tone, register and the terminology already used in this dialogue. Output nothing but the {target} translation.',
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. Translate the user message into {target}, keeping its tone and register. When this dialogue has already established a term for a concept — especially the other speaker\'s own wording — reuse that established {target} term instead of a more literal alternative. Write the entire translation in {target}: never leave source-language words or characters untranslated. Latin-script names, codes and identifiers stay as they are. Output nothing but the {target} translation.',
   LEG2_TARGETED_INSTRUCTIONS:
-    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into {target}. Rely on the {pivot} version, checking the original for nuance. Output nothing but the {target} translation.',
+    'You relay a live dialogue between a {a} speaker and a {b} speaker. You are given an original message and its {pivot} translation. Produce the final translation into {target}. Rely on the {pivot} version, checking the original for nuance. When this dialogue has already established a term for a concept — especially the other speaker\'s own wording — reuse that established {target} term instead of a more literal alternative. Write the entire translation in {target}: never leave source-language words or characters untranslated. Latin-script names, codes and identifiers stay as they are. Output nothing but the {target} translation.',
 }
 
 export const EXIT_CODES = {
