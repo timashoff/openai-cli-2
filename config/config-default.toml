@@ -6,7 +6,8 @@
 #
 #   ai login https://your-gateway:8443
 #
-# That authenticates (email + password) and stores a session in credentials.toml;
+# It asks for your email, the gateway emails a one-time code, and the session it
+# returns is stored in credentials.toml (no password anywhere);
 # routing is then derived automatically (deepseek stays direct). This file is only
 # for advanced per-provider overrides — e.g. pinning a provider to a custom
 # endpoint. A provider with no "baseURL" connects directly using its env API key.

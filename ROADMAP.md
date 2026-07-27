@@ -46,7 +46,7 @@ better-sounding argument.
 | **Phase 1b** | error system rewritten into one Zero-Trust module (real `Error` objects, regex-free sanitizing) |
 | **Phase 2** | commands moved from SQLite to `~/.openai-cli/commands.toml`; the whole `cmd/` editing tree deleted; per-command `context` flag (translations are stateless → token savings) |
 | **One-shot mode** | `ai rr "text"` and piped stdin — the bridge to Apple Shortcuts before the GUI exists |
-| **Gateway** | zero-dependency Node forwarder on the VPS; email+password login with an emailed OTP; 90-day server-revocable sessions; password reset by email; per-record command sync across devices |
+| **Gateway** | zero-dependency Node forwarder on the VPS (own repo since 2026-07-27); passwordless login — email + an emailed one-time code; 90-day server-revocable sessions; per-record command sync across devices |
 | **Phase 5** (v6.2–6.5) | Responses API (fixes the Responses-only models); `previous_response_id` chaining for chat; `save`/resume sessions synced through the gateway; `dd` dialogue-translation mode with its own settings screen and model pin |
 | **Conversation strategy** (v6.5.1) | the "how is a multi-turn conversation carried" policy, previously threaded through ~7 layers, extracted into `core/conversation/` — chat path, session runner, ∞ indicator and `dd` consume one per-provider strategy object; behaviour-preserving (harnesses byte-identical) |
 
