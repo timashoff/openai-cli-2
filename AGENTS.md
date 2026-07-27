@@ -5,7 +5,7 @@
 - `core/` hosts routing, print, error, and `application-loop/`; `core/response/` centralizes chat, single/multi-model handlers, and the shared stream runner, `commands/system/` covers system verbs.
 - `services/` holds `commands/` (TOML store + per-record sync), `config/` (provider overlay + gateway), `sessions/` (saved conversations) and `dialogue/` (dialogue-mode settings); `config/` stores provider and app constants; `utils/` holds shared helpers.
 - Instruction commands live in `~/.openai-cli/commands.toml` (shipped defaults in `config/commands-default.toml`), edited via `cmd` and synced through the gateway. The old SQLite store and its `cmd/` editing tree were deleted in Phase 2 — do not reintroduce them.
-- `gateway/` is a zero-dependency Node forwarder deployed on the owner's VPS: it holds the real provider keys, authenticates with email+password+OTP, and carries the per-record sync substrate.
+- The gateway (zero-dependency Node forwarder on the owner's VPS — real provider keys, passwordless email-OTP login, per-record sync substrate) now lives in its OWN repo: `~/Code/apps/gateway` (github: timashoff/gateway), extracted 2026-07-27 with history. This repo is a CLIENT of it; the copy that used to sit in `gateway/` here is gone, so never edit or resurrect one — the box deploys from the gateway repo only. Wire contract for `ai login`: that repo's `docs/AUTH-CONTRACT.md`.
 
 ## Business Logic & Architecture
 - Functional factories keep dependencies explicit and modules pure.
