@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node bin/app.js",
     "dev": "node --watch bin/app.js",
-    "version": "node scripts/stamp-release-date.mjs"
+    "version": "node scripts/stamp-release-date.js"
   },
   "keywords": [
     "ai",
