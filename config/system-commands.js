@@ -67,7 +67,7 @@ export const SYSTEM_COMMANDS = {
     aliases: [],
     handler: 'LoginCommand',
     filePath: '../commands/system/login.js',
-    description: 'Log in to the gateway (email + password) and store the session',
+    description: 'Log in to the gateway (email + emailed code) and store the session',
     usage: 'login [gateway-url]',
     oneShot: true,
   },
@@ -78,15 +78,6 @@ export const SYSTEM_COMMANDS = {
     filePath: '../commands/system/login.js',
     description: 'Revoke and remove the stored gateway session',
     usage: 'logout',
-    oneShot: true,
-  },
-
-  reset: {
-    aliases: [],
-    handler: 'ResetCommand',
-    filePath: '../commands/system/reset.js',
-    description: 'Reset the gateway password via an emailed code (revokes every session)',
-    usage: 'reset [gateway-url]',
     oneShot: true,
   },
 

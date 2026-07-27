@@ -5,14 +5,15 @@ import {
   storedGatewayUrl,
   stripTrailingSlash,
 } from '../../services/config/gateway.js'
-import { promptLine, promptHidden } from './terminal-input.js'
+import { promptLine } from './terminal-input.js'
 import { syncCommands } from '../../services/commands/sync.js'
 import { syncSessions } from '../../services/sessions/sync.js'
 
-// `ai login [gateway-url]` — authenticate to the gateway with email + password
-// and store the returned session. The url is needed only the first time; after
-// that `ai login` reuses the stored url (re-auth / rotate). Context is optional
-// so this runs both headless (`ai login`) and in the REPL.
+// `ai login [gateway-url]` — passwordless: enter the email, the gateway emails
+// a one-time code (only if the address is allowlisted — the reply is a uniform
+// 202 either way), the code becomes the stored session. The url is needed only
+// the first time; after that `ai login` reuses the stored url (re-auth /
+// rotate). Context is optional so this runs both headless and in the REPL.
 export const LoginCommand = {
   async execute(args = [], context = null) {
     const url = stripTrailingSlash((args[0] || '').trim() || storedGatewayUrl())
@@ -20,65 +21,54 @@ export const LoginCommand = {
       return 'Usage: ai login <gateway-url>   (the url is needed only the first time)'
     }
     if (!process.stdin.isTTY) {
-      return 'Run "ai login" in an interactive terminal (email + password prompt).'
+      return 'Run "ai login" in an interactive terminal (email + code prompt).'
     }
 
     const hasUi = Boolean(context && context.ui)
     if (hasUi) context.ui.pauseReadline()
     try {
       const email = await promptLine('Email: ')
-      const password = await promptHidden('Password: ')
 
-      // Step 1: password → the gateway emails a one-time code (no session yet).
-      let loginRes
+      // Step 1: ask the gateway to email a one-time code. Uniform 202 — the
+      // reply never reveals whether the address has access.
+      let requestRes
       try {
-        loginRes = await fetch(`${url}/auth/login`, {
+        requestRes = await fetch(`${url}/auth/request-code`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email }),
         })
       } catch (e) {
         return 'Login failed: cannot reach the gateway.'
       }
-      if (loginRes.status === 401) return 'Login failed: incorrect email or password.'
-      if (loginRes.status === 429) return 'Login failed: too many attempts, try again later.'
-      if (!loginRes.ok) return 'Login failed: gateway error.'
+      if (requestRes.status === 429) return 'Login failed: too many attempts, try again later.'
+      if (requestRes.status === 400) return 'Login failed: enter a valid email address.'
+      if (!requestRes.ok) return 'Login failed: gateway error.'
 
-      // A 2FA gateway replies { otpRequired: true } and emails a code; an older
-      // gateway returns the session directly. Handle both (no version coupling).
-      let step1
+      // Step 2: exchange the emailed code for a session.
+      const code = await promptLine(`If ${email} has access, a code was emailed. Enter it: `)
+      let verifyRes
       try {
-        step1 = await loginRes.json()
+        verifyRes = await fetch(`${url}/auth/verify`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email, code: code.trim() }),
+        })
       } catch (e) {
-        step1 = {}
+        return 'Login failed: cannot reach the gateway.'
       }
-
-      let data = step1
-      if (!step1 || typeof step1.session !== 'string') {
-        // Step 2: exchange the emailed code for a session.
-        const code = await promptLine(`We emailed a code to ${email}. Enter it: `)
-        let verifyRes
-        try {
-          verifyRes = await fetch(`${url}/auth/verify`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, code: code.trim() }),
-          })
-        } catch (e) {
-          return 'Login failed: cannot reach the gateway.'
-        }
-        if (verifyRes.status === 400 || verifyRes.status === 401) {
-          return 'Login failed: incorrect or expired code.'
-        }
-        if (verifyRes.status === 429) return 'Login failed: too many attempts, try again later.'
-        if (!verifyRes.ok) return 'Login failed: gateway error.'
-        try {
-          data = await verifyRes.json()
-        } catch (e) {
-          return 'Login failed: unexpected gateway response.'
-        }
+      if (verifyRes.status === 400 || verifyRes.status === 401) {
+        return 'Login failed: incorrect or expired code.'
       }
+      if (verifyRes.status === 429) return 'Login failed: too many attempts, try again later.'
+      if (!verifyRes.ok) return 'Login failed: gateway error.'
 
+      let data
+      try {
+        data = await verifyRes.json()
+      } catch (e) {
+        return 'Login failed: unexpected gateway response.'
+      }
       if (!data || typeof data.session !== 'string') {
         return 'Login failed: unexpected gateway response.'
       }
